@@ -41,7 +41,11 @@ public class OfficerTempRegistration {
 
     @Builder.Default
     @Column(name = "identity_verified")
-    private boolean identityVerified = false;
+    private Boolean identityVerified = false;
+
+    public boolean isIdentityVerified() {
+        return Boolean.TRUE.equals(this.identityVerified);
+    }
 
     @Column(name = "digilocker_id", length = 100)
     private String digilockerId;

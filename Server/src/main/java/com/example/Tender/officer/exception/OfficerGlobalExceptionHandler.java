@@ -47,8 +47,8 @@ public class OfficerGlobalExceptionHandler {
                 .body(OfficerApiResponse.error(ex.getMessage()));
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<OfficerApiResponse<String>> handleIllegalArgumentException(IllegalArgumentException ex) {
+    @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
+    public ResponseEntity<OfficerApiResponse<String>> handleIllegalArgumentException(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(OfficerApiResponse.error(ex.getMessage()));
     }

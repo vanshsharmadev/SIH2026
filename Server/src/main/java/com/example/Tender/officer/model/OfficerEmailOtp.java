@@ -34,7 +34,11 @@ public class OfficerEmailOtp {
 
     @Builder.Default
     @Column(nullable = false)
-    private boolean verified = false;
+    private Boolean verified = false;
+
+    public boolean isVerified() {
+        return Boolean.TRUE.equals(this.verified);
+    }
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

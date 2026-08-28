@@ -6,7 +6,7 @@ import com.example.Tender.officer.model.OfficerEmailOtp;
 import com.example.Tender.officer.model.OfficerRole;
 import com.example.Tender.officer.model.OfficerTempRegistration;
 import com.example.Tender.officer.model.OfficerVerificationStatus;
-import com.example.Tender.officer.provider.IdentityVerificationProvider;
+import com.example.Tender.officer.provider.DigiLockerProvider;
 import com.example.Tender.officer.repository.OfficerEmailOtpRepository;
 import com.example.Tender.officer.repository.OfficerRepository;
 import com.example.Tender.officer.repository.OfficerTempRegistrationRepository;
@@ -41,7 +41,7 @@ public class OfficerAuthService {
     private final AuthenticationManager authenticationManager;
     private final OfficerJwtUtils officerJwtUtils;
     private final BrevoEmailService brevoEmailService;
-    private final IdentityVerificationProvider identityProvider;
+    private final DigiLockerProvider digiLockerProvider;
 
     @Value("${app.otp.expiration-minutes:10}")
     private int otpExpirationMinutes;
@@ -87,8 +87,8 @@ public class OfficerAuthService {
 
         tempRegistrationRepository.save(tempRegistration);
 
-        // 6. Build DigiLocker verification URL from the identity provider
-        String authUrl = identityProvider.generateVerificationUrl(tempToken);
+        // 6. Build DigiLocker verification URL from the DigiLocker provider
+        String authUrl = digiLockerProvider.generateVerificationUrl(tempToken);
 
         return DigiLockerInitiateResponse.builder()
                 .tempToken(tempToken)
@@ -98,7 +98,7 @@ public class OfficerAuthService {
     }
 
     /**
-     * STEP 2: INITIATE DIGILOCKER VERIFICATION
+     * STEP 3 (Initiate): INITIATE DIGILOCKER VERIFICATION
      */
     public DigiLockerInitiateResponse initiateIdentityVerification(OfficerIdentityInitiateRequest request) {
         OfficerTempRegistration temp = tempRegistrationRepository.findByTempToken(request.getTempToken())
@@ -108,7 +108,11 @@ public class OfficerAuthService {
             throw new IllegalArgumentException("Error: Temporary registration session has expired. Please signup again.");
         }
 
-        String authUrl = identityProvider.generateVerificationUrl(request.getTempToken());
+        if (temp.isIdentityVerified()) {
+            throw new IllegalStateException("Error: Identity for this temporary registration has already been verified.");
+        }
+
+        String authUrl = digiLockerProvider.generateVerificationUrl(request.getTempToken());
 
         return DigiLockerInitiateResponse.builder()
                 .tempToken(request.getTempToken())
@@ -118,9 +122,10 @@ public class OfficerAuthService {
     }
 
     /**
-     * STEP 3 & STEP 4: MOCK DIGILOCKER IDENTITY RESPONSE & MATCHING
+     * STEP 4: MOCK DIGILOCKER IDENTITY RESPONSE & MATCHING
      * Compares the name in OfficerTempRegistration with the DigiLocker identity.
-     * On match: marks identity as VERIFIED and triggers Email OTP via Brevo.
+     * On match: marks identityVerified = true in OfficerTempRegistration.
+     * Does NOT send Email OTP yet.
      */
     @Transactional
     public OfficerIdentityResponse verifyMockIdentity(OfficerMockVerifyRequest request) {
@@ -132,16 +137,7 @@ public class OfficerAuthService {
         }
 
         if (temp.isIdentityVerified()) {
-            return OfficerIdentityResponse.builder()
-                    .tempToken(temp.getTempToken())
-                    .digilockerId(temp.getDigilockerId())
-                    .identityProvider(temp.getIdentityProvider())
-                    .verifiedName(temp.getName())
-                    .status("ALREADY_VERIFIED")
-                    .message("DigiLocker identity is already verified. Please check your email for OTP.")
-                    .otpSent(true)
-                    .verifiedAt(temp.getIdentityVerifiedAt())
-                    .build();
+            throw new IllegalStateException("Error: Identity for this registration has already been verified.");
         }
 
         // Check for simulated failure flag for SIH testing
@@ -150,7 +146,7 @@ public class OfficerAuthService {
         }
 
         // Fetch identity from Provider
-        IdentityVerificationProvider.VerifiedIdentity providerIdentity = identityProvider.fetchIdentity(
+        DigiLockerProvider.DigiLockerIdentity providerIdentity = digiLockerProvider.fetchIdentity(
                 request.getTempToken(),
                 request.getAuthCode()
         );
@@ -164,96 +160,89 @@ public class OfficerAuthService {
                 ? request.getSimulatedDigilockerId().trim()
                 : providerIdentity.digilockerId();
 
-        // STEP 4: Identity Matching (Name comparison)
-        String signupNameNormalized = temp.getName().trim().toLowerCase();
-        String verifiedNameNormalized = verifiedName.trim().toLowerCase();
+        // Identity Matching (Case-insensitive, trimmed name comparison)
+        String signupNameNormalized = temp.getName().trim().replaceAll("\\s+", " ").toLowerCase();
+        String verifiedNameNormalized = verifiedName.trim().replaceAll("\\s+", " ").toLowerCase();
 
-        boolean isNameMatched = signupNameNormalized.equals(verifiedNameNormalized)
-                || signupNameNormalized.contains(verifiedNameNormalized)
-                || verifiedNameNormalized.contains(signupNameNormalized);
+        boolean isNameMatched = signupNameNormalized.equals(verifiedNameNormalized);
 
         if (!isNameMatched) {
             log.warn("Identity mismatch: Signup name '{}' does not match DigiLocker verified name '{}'",
                     temp.getName(), verifiedName);
+            temp.setIdentityVerified(false);
+            temp.setIdentityVerifiedAt(null);
+            tempRegistrationRepository.save(temp);
             throw new IllegalArgumentException("Identity verification failed: DigiLocker name ('"
                     + verifiedName + "') does not match signup name ('" + temp.getName() + "').");
         }
 
-        // Set verified attributes
+        // Set verified attributes on OfficerTempRegistration
         temp.setIdentityVerified(true);
         temp.setDigilockerId(digilockerId);
         temp.setIdentityProvider(providerIdentity.identityProvider());
         temp.setIdentityVerifiedAt(LocalDateTime.now());
         tempRegistrationRepository.save(temp);
 
-        // STEP 5: Send Email OTP ONLY after successful DigiLocker verification
+        // FIX 1: Automatically generate and send Email OTP upon successful identity verification
         generateAndSendEmailOtp(temp.getEmail(), temp.getName());
 
         return OfficerIdentityResponse.builder()
-                .tempToken(temp.getTempToken())
-                .digilockerId(temp.getDigilockerId())
+                .identityVerified(true)
                 .identityProvider(temp.getIdentityProvider())
+                .digilockerId(temp.getDigilockerId())
                 .verifiedName(verifiedName)
-                .status("VERIFIED")
-                .message("DigiLocker identity verified successfully! An Email OTP has been sent to " + temp.getEmail())
-                .otpSent(true)
-                .verifiedAt(temp.getIdentityVerifiedAt())
+                .tempToken(temp.getTempToken())
+                .identityVerifiedAt(temp.getIdentityVerifiedAt())
                 .build();
     }
 
     /**
-     * STEP 6 & STEP 7 & STEP 8: VERIFY OTP, CREATE FINAL OFFICER, SAFE CLEANUP
+     * STEP 6: Verify OTP and create final permanent Officer
      */
     @Transactional
     public OfficerAuthResponse verifyOtp(OfficerVerifyOtpRequest request) {
+        // 1. Normalize email
         String normalizedEmail = request.getEmail().trim().toLowerCase();
         String enteredOtp = request.getOtp().trim();
 
-        // 1. Check if already permanent & verified in main database
+        // Guard: Reject if email is already registered in permanent Officer database (Fix 2 - no JWT bypass)
         if (officerRepository.existsByEmail(normalizedEmail)) {
-            Officer existing = officerRepository.findByEmail(normalizedEmail).orElseThrow();
-            String token = officerJwtUtils.generateTokenFromUsername(existing.getEmail());
-            return OfficerAuthResponse.builder()
-                    .token(token)
-                    .type("Bearer")
-                    .id(existing.getId())
-                    .name(existing.getName())
-                    .email(existing.getEmail())
-                    .mobile(existing.getMobile())
-                    .role(existing.getRole())
-                    .verificationStatus(existing.getVerificationStatus())
-                    .message("Officer is already verified and registered.")
-                    .build();
+            throw new IllegalArgumentException("Error: Email is already registered.");
         }
 
-        // 2. Fetch pending temporary registration
+        // 2 & 3. Fetch pending temporary registration and check existence
         OfficerTempRegistration temp = tempRegistrationRepository.findTopByEmailOrderByCreatedAtDesc(normalizedEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Error: No pending signup found for " + normalizedEmail + ". Please signup first."));
 
-        // 3. Guard: Ensure DigiLocker identity verification was completed
-        if (!temp.isIdentityVerified()) {
-            throw new IllegalStateException("Error: DigiLocker identity verification must be completed before email OTP can be verified!");
+        // 4. Check if temporary registration session has expired
+        if (temp.getExpiryTime().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Error: Temporary registration session has expired. Please restart signup.");
         }
 
-        // 4. Find latest unverified OTP
+        // 5. Guard: Ensure DigiLocker identity verification was completed
+        if (!temp.isIdentityVerified()) {
+            throw new IllegalArgumentException("Error: DigiLocker identity verification must be completed before email OTP can be verified!");
+        }
+
+        // 6 & 7. Find latest unverified OTP and check existence
         OfficerEmailOtp activeOtp = otpRepository.findTopByEmailAndVerifiedFalseOrderByCreatedAtDesc(normalizedEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Error: No active OTP found for this email. Please request a new OTP."));
 
-        // 5. Check OTP expiration
+        // 8. Check OTP expiration
         if (activeOtp.getExpiryTime().isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("Error: OTP has expired. Please request a new OTP.");
         }
 
-        // 6. Check OTP match
+        // 9 & 10. Compare submitted OTP and reject if incorrect
         if (!activeOtp.getOtp().equals(enteredOtp)) {
             throw new IllegalArgumentException("Error: Invalid OTP entered!");
         }
 
-        // 7. Mark OTP as verified
+        // 11. Mark OTP as verified
         activeOtp.setVerified(true);
         otpRepository.save(activeOtp);
 
-        // 8. STEP 7: Create Permanent Officer Entity
+        // 12. Create Permanent Officer Entity
         Officer officer = Officer.builder()
                 .name(temp.getName())
                 .email(temp.getEmail())
@@ -266,15 +255,17 @@ public class OfficerAuthService {
                 .identityVerifiedAt(temp.getIdentityVerifiedAt())
                 .build();
 
+        // 13. Save Officer
         Officer savedOfficer = officerRepository.save(officer);
 
-        // 9. STEP 8: Atomic safe cleanup of temporary records
+        // 14 & 15. Safe cleanup of temporary records
         tempRegistrationRepository.delete(temp);
         otpRepository.deleteByEmail(normalizedEmail);
 
-        // 10. Generate JWT authentication token
+        // 16. Generate JWT authentication token
         String token = officerJwtUtils.generateTokenFromUsername(savedOfficer.getEmail());
 
+        // 17. Return successful OfficerAuthResponse
         return OfficerAuthResponse.builder()
                 .token(token)
                 .type("Bearer")
@@ -320,7 +311,7 @@ public class OfficerAuthService {
                             request.getEmailOrMobile().trim(),
                             request.getPassword()
                     )
-            );
+                    );
 
             OfficerPrincipal officerPrincipal = (OfficerPrincipal) authentication.getPrincipal();
 

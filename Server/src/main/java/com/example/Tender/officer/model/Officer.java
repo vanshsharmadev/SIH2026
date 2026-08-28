@@ -40,6 +40,7 @@ public class Officer {
 
     @NotBlank(message = "Email cannot be blank")
     @Email(message = "Email should be valid")
+    @Pattern(regexp = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", message = "Email format is invalid")
     @Size(max = 100, message = "Email cannot exceed 100 characters")
     @Column(name = "email", nullable = false, unique = true, length = 100)
     private String email;

@@ -13,12 +13,10 @@ import java.time.LocalDateTime;
 @Builder
 public class OfficerIdentityResponse {
 
-    private String tempToken;
-    private String digilockerId;
+    private Boolean identityVerified;
     private String identityProvider;
+    private String digilockerId;
     private String verifiedName;
-    private String status;
-    private String message;
-    private boolean otpSent;
-    private LocalDateTime verifiedAt;
+    private String tempToken;
+    private LocalDateTime identityVerifiedAt;
 }
