@@ -1,9 +1,6 @@
 package com.example.Tender.officer.controller;
 
-import com.example.Tender.officer.dto.OfficerApiResponse;
-import com.example.Tender.officer.dto.OfficerAuthResponse;
-import com.example.Tender.officer.dto.OfficerLoginRequest;
-import com.example.Tender.officer.dto.OfficerSignupRequest;
+import com.example.Tender.officer.dto.*;
 import com.example.Tender.officer.security.service.OfficerPrincipal;
 import com.example.Tender.officer.service.OfficerAuthService;
 import jakarta.validation.Valid;
@@ -27,6 +24,22 @@ public class OfficerAuthController {
         return new ResponseEntity<>(
                 OfficerApiResponse.success("Officer registered successfully", response),
                 HttpStatus.CREATED
+        );
+    }
+
+    @PostMapping("/verify-otp")
+    public ResponseEntity<OfficerApiResponse<OfficerAuthResponse>> verifyOtp(@Valid @RequestBody OfficerVerifyOtpRequest verifyOtpRequest) {
+        OfficerAuthResponse response = officerAuthService.verifyOtp(verifyOtpRequest);
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("Email verified successfully", response)
+        );
+    }
+
+    @PostMapping("/resend-otp")
+    public ResponseEntity<OfficerApiResponse<String>> resendOtp(@Valid @RequestBody OfficerResendOtpRequest resendOtpRequest) {
+        String message = officerAuthService.resendOtp(resendOtpRequest);
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("OTP resent successfully", message)
         );
     }
 
