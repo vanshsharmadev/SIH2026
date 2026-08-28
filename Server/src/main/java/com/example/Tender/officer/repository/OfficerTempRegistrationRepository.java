@@ -13,7 +13,13 @@ public interface OfficerTempRegistrationRepository extends JpaRepository<Officer
 
     Optional<OfficerTempRegistration> findByEmail(String email);
 
+    Optional<OfficerTempRegistration> findByTempToken(String tempToken);
+
     Boolean existsByEmail(String email);
 
+    Boolean existsByMobile(String mobile);
+
     void deleteByEmail(String email);
+
+    void deleteByTempToken(String tempToken);
 }

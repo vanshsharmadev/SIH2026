@@ -69,6 +69,9 @@ public class Officer {
     @Column(name = "digilocker_id", length = 100, nullable = true)
     private String digilockerId;
 
+    @Column(name = "identity_provider", length = 50, nullable = true)
+    private String identityProvider;
+
     @Column(name = "identity_verified_at", nullable = true)
     private LocalDateTime identityVerifiedAt;
 

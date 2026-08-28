@@ -18,23 +18,48 @@ public class OfficerAuthController {
 
     private final OfficerAuthService officerAuthService;
 
+    /**
+     * Step 1: Initial signup. Saves data in temp registration and returns DigiLocker verification URL.
+     */
     @PostMapping("/signup")
-    public ResponseEntity<OfficerApiResponse<OfficerAuthResponse>> registerOfficer(@Valid @RequestBody OfficerSignupRequest signupRequest) {
-        OfficerAuthResponse response = officerAuthService.signup(signupRequest);
+    public ResponseEntity<OfficerApiResponse<DigiLockerInitiateResponse>> registerOfficer(@Valid @RequestBody OfficerSignupRequest signupRequest) {
+        DigiLockerInitiateResponse response = officerAuthService.signup(signupRequest);
         return new ResponseEntity<>(
-                OfficerApiResponse.success("Officer registered successfully", response),
+                OfficerApiResponse.success("Signup initiated. Please verify identity via DigiLocker.", response),
                 HttpStatus.CREATED
         );
     }
 
+    /**
+     * Step 2: DigiLocker OAuth Callback.
+     * Validates code from DigiLocker, updates temp registration, and sends email OTP.
+     */
+    @GetMapping("/digilocker/callback")
+    public ResponseEntity<OfficerApiResponse<OfficerAuthResponse>> handleDigiLockerCallback(
+            @RequestParam("code") String code,
+            @RequestParam("state") String state
+    ) {
+        OfficerAuthResponse response = officerAuthService.processDigiLockerCallback(code, state);
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("DigiLocker identity verified. Email OTP has been sent.", response)
+        );
+    }
+
+    /**
+     * Step 3: Verify email OTP.
+     * Creates permanent Officer record in main table and cleans up temp records.
+     */
     @PostMapping("/verify-otp")
     public ResponseEntity<OfficerApiResponse<OfficerAuthResponse>> verifyOtp(@Valid @RequestBody OfficerVerifyOtpRequest verifyOtpRequest) {
         OfficerAuthResponse response = officerAuthService.verifyOtp(verifyOtpRequest);
         return ResponseEntity.ok(
-                OfficerApiResponse.success("Email verified successfully", response)
+                OfficerApiResponse.success("Email verified successfully! Registration complete.", response)
         );
     }
 
+    /**
+     * Resend email OTP (only available after DigiLocker verification).
+     */
     @PostMapping("/resend-otp")
     public ResponseEntity<OfficerApiResponse<String>> resendOtp(@Valid @RequestBody OfficerResendOtpRequest resendOtpRequest) {
         String message = officerAuthService.resendOtp(resendOtpRequest);
@@ -43,6 +68,9 @@ public class OfficerAuthController {
         );
     }
 
+    /**
+     * Officer Login.
+     */
     @PostMapping("/login")
     public ResponseEntity<OfficerApiResponse<OfficerAuthResponse>> authenticateOfficer(@Valid @RequestBody OfficerLoginRequest loginRequest) {
         OfficerAuthResponse response = officerAuthService.login(loginRequest);
@@ -51,6 +79,9 @@ public class OfficerAuthController {
         );
     }
 
+    /**
+     * Get Current Authenticated Officer Profile.
+     */
     @GetMapping("/me")
     public ResponseEntity<OfficerApiResponse<OfficerPrincipal>> getCurrentOfficer(@AuthenticationPrincipal OfficerPrincipal officerPrincipal) {
         if (officerPrincipal == null) {

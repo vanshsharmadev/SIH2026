@@ -11,7 +11,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "officer_temp_registrations", indexes = {
-    @Index(name = "idx_temp_officer_email", columnList = "email")
+    @Index(name = "idx_temp_officer_email", columnList = "email"),
+    @Index(name = "idx_temp_officer_token", columnList = "temp_token")
 })
 @Data
 @NoArgsConstructor
@@ -35,8 +36,21 @@ public class OfficerTempRegistration {
     @Column(nullable = false)
     private String password;
 
-    @Column(nullable = false, length = 6)
-    private String otp;
+    @Column(name = "temp_token", length = 64)
+    private String tempToken;
+
+    @Builder.Default
+    @Column(name = "identity_verified")
+    private boolean identityVerified = false;
+
+    @Column(name = "digilocker_id", length = 100)
+    private String digilockerId;
+
+    @Column(name = "identity_provider", length = 50)
+    private String identityProvider;
+
+    @Column(name = "identity_verified_at")
+    private LocalDateTime identityVerifiedAt;
 
     @Column(name = "expiry_time", nullable = false)
     private LocalDateTime expiryTime;
