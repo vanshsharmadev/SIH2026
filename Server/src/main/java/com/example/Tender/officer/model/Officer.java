@@ -1,5 +1,6 @@
 package com.example.Tender.officer.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -15,10 +16,13 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "officers", uniqueConstraints = {
-    @UniqueConstraint(columnNames = "email"),
-    @UniqueConstraint(columnNames = "mobile")
-})
+@Table(
+    name = "officers",
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uk_officers_email", columnNames = "email"),
+        @UniqueConstraint(name = "uk_officers_mobile", columnNames = "mobile")
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -29,30 +33,32 @@ public class Officer {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Name is required")
+    @NotBlank(message = "Name cannot be blank")
     @Size(min = 2, max = 100, message = "Name must be between 2 and 100 characters")
-    @Column(nullable = false, length = 100)
+    @Column(name = "name", nullable = false, length = 100)
     private String name;
 
-    @NotBlank(message = "Email is required")
-    @Size(max = 100)
+    @NotBlank(message = "Email cannot be blank")
     @Email(message = "Email should be valid")
-    @Column(nullable = false, unique = true, length = 100)
+    @Pattern(regexp = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", message = "Email format is invalid")
+    @Size(max = 100, message = "Email cannot exceed 100 characters")
+    @Column(name = "email", nullable = false, unique = true, length = 100)
     private String email;
 
-    @NotBlank(message = "Mobile number is required")
+    @NotBlank(message = "Mobile number cannot be blank")
     @Size(min = 10, max = 15, message = "Mobile number must be between 10 and 15 digits")
     @Pattern(regexp = "^[0-9+()\\-\\s]+$", message = "Invalid mobile number format")
-    @Column(nullable = false, unique = true, length = 20)
+    @Column(name = "mobile", nullable = false, unique = true, length = 20)
     private String mobile;
 
-    @NotBlank(message = "Password is required")
+    @NotBlank(message = "Password cannot be blank")
     @Size(min = 6, max = 120)
-    @Column(nullable = false)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    @Column(name = "password", nullable = false)
     private String password;
 
     @Enumerated(EnumType.STRING)
-    @Column(length = 20, nullable = false)
+    @Column(name = "role", length = 20, nullable = false)
     @Builder.Default
     private OfficerRole role = OfficerRole.ROLE_OFFICER;
 
@@ -61,8 +67,17 @@ public class Officer {
     @Builder.Default
     private OfficerVerificationStatus verificationStatus = OfficerVerificationStatus.NOT_VERIFIED;
 
+    @Column(name = "digilocker_id", length = 100, nullable = true)
+    private String digilockerId;
+
+    @Column(name = "identity_provider", length = 50, nullable = true)
+    private String identityProvider;
+
+    @Column(name = "identity_verified_at", nullable = true)
+    private LocalDateTime identityVerifiedAt;
+
     @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @UpdateTimestamp
