@@ -11,7 +11,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping({"/api/officer/auth", "/api/auth"})
+@RequestMapping({"/api/officer/auth", "/api/officer/identity", "/api/auth"})
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*", maxAge = 3600)
 public class OfficerAuthController {
@@ -31,22 +31,43 @@ public class OfficerAuthController {
     }
 
     /**
-     * Step 2: DigiLocker OAuth Callback.
-     * Validates code from DigiLocker, updates temp registration, and sends email OTP.
+     * Step 2: Explicit Initiate Identity Verification Endpoint (by tempToken)
      */
-    @GetMapping("/digilocker/callback")
-    public ResponseEntity<OfficerApiResponse<OfficerAuthResponse>> handleDigiLockerCallback(
-            @RequestParam("code") String code,
-            @RequestParam("state") String state
-    ) {
-        OfficerAuthResponse response = officerAuthService.processDigiLockerCallback(code, state);
+    @PostMapping("/initiate")
+    public ResponseEntity<OfficerApiResponse<DigiLockerInitiateResponse>> initiateIdentity(@Valid @RequestBody OfficerIdentityInitiateRequest request) {
+        DigiLockerInitiateResponse response = officerAuthService.initiateIdentityVerification(request);
         return ResponseEntity.ok(
-                OfficerApiResponse.success("DigiLocker identity verified. Email OTP has been sent.", response)
+                OfficerApiResponse.success("Identity verification initiated", response)
         );
     }
 
     /**
-     * Step 3: Verify email OTP.
+     * Step 3: Mock DigiLocker Identity Verification & Name Matching (POST)
+     */
+    @PostMapping("/mock-verify")
+    public ResponseEntity<OfficerApiResponse<OfficerIdentityResponse>> verifyMockIdentity(@Valid @RequestBody OfficerMockVerifyRequest request) {
+        OfficerIdentityResponse response = officerAuthService.verifyMockIdentity(request);
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("DigiLocker mock verification completed. Email OTP sent.", response)
+        );
+    }
+
+    /**
+     * Step 3 (Alternative): Mock DigiLocker Identity Verification (GET via browser redirect)
+     */
+    @GetMapping("/mock-verify")
+    public ResponseEntity<OfficerApiResponse<OfficerIdentityResponse>> verifyMockIdentityGet(@RequestParam("token") String token) {
+        OfficerMockVerifyRequest request = OfficerMockVerifyRequest.builder()
+                .tempToken(token)
+                .build();
+        OfficerIdentityResponse response = officerAuthService.verifyMockIdentity(request);
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("DigiLocker mock verification completed. Email OTP sent.", response)
+        );
+    }
+
+    /**
+     * Step 4: Verify email OTP.
      * Creates permanent Officer record in main table and cleans up temp records.
      */
     @PostMapping("/verify-otp")
