@@ -336,6 +336,41 @@ class BidderAuthServiceTest {
     }
 
     @Test
+    @DisplayName("10a. Verify OTP rejects if Udyam is provided but not yet verified")
+    void testVerifyOtp_UdyamPending_ThrowsException() {
+        String email = "bidder@acme.com";
+
+        BidderTempRegistration temp = BidderTempRegistration.builder()
+                .tempToken("token123")
+                .legalName("ACME INFRASTRUCTURE LTD")
+                .email(email)
+                .panNumber("ABCDE1234F")
+                .gstNumber("27ABCDE1234F1Z5")
+                .udyamNumber("UDYAM-MH-01-0123456")
+                .panVerified(true)
+                .gstVerified(true)
+                .udyamVerified(false) // Udyam not verified!
+                .expiryTime(LocalDateTime.now().plusMinutes(20))
+                .build();
+
+        when(bidderRepository.existsByEmail(email)).thenReturn(false);
+        when(tempRegistrationRepository.findTopByEmailOrderByCreatedAtDesc(email)).thenReturn(Optional.of(temp));
+
+        BidderVerifyOtpRequest request = BidderVerifyOtpRequest.builder()
+                .email(email)
+                .otp("123456")
+                .build();
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                bidderAuthService.verifyOtp(request)
+        );
+
+        assertTrue(ex.getMessage().contains("All required business verifications"));
+        verify(bidderRepository, never()).save(any());
+        verify(bidderJwtUtils, never()).generateJwtToken(any());
+    }
+
+    @Test
     @DisplayName("10. Verify OTP rejects invalid OTP code")
     void testVerifyOtp_InvalidCode_ThrowsException() {
         String email = "bidder@acme.com";

@@ -18,15 +18,6 @@ public class BidderController {
 
     private final BidderService bidderService;
 
-    @PostMapping
-    public ResponseEntity<BidderResponse> createBidder(
-            @Valid @RequestBody CreateBidderRequest request) {
-
-        return ResponseEntity.ok(
-                bidderService.createBidder(request)
-        );
-    }
-
     @GetMapping
     public ResponseEntity<List<BidderResponse>> getAllBidders() {
 

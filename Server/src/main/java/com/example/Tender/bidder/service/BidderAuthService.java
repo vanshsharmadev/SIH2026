@@ -285,8 +285,9 @@ public class BidderAuthService {
             throw new IllegalArgumentException("Error: Temporary registration session has expired. Please restart signup.");
         }
 
-        if (!temp.isPanVerified() || !temp.isGstVerified()) {
-            throw new IllegalArgumentException("Error: PAN and GST verification must be completed before verifying Email OTP!");
+        boolean udyamPending = StringUtils.hasText(temp.getUdyamNumber()) && !temp.isUdyamVerified();
+        if (!temp.isPanVerified() || !temp.isGstVerified() || udyamPending) {
+            throw new IllegalArgumentException("Error: All required business verifications (PAN, GST, and Udyam if provided) must be completed before verifying Email OTP!");
         }
 
         BidderEmailOtp activeOtp = otpRepository.findTopByEmailAndVerifiedFalseOrderByCreatedAtDesc(normalizedEmail)
@@ -371,8 +372,9 @@ public class BidderAuthService {
         BidderTempRegistration temp = tempRegistrationRepository.findTopByEmailOrderByCreatedAtDesc(normalizedEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Error: No pending signup found for " + normalizedEmail + ". Please initiate signup first."));
 
-        if (!temp.isPanVerified() || !temp.isGstVerified()) {
-            throw new IllegalStateException("Error: Cannot send email OTP. Please complete PAN and GST verification first.");
+        boolean udyamPending = StringUtils.hasText(temp.getUdyamNumber()) && !temp.isUdyamVerified();
+        if (!temp.isPanVerified() || !temp.isGstVerified() || udyamPending) {
+            throw new IllegalStateException("Error: Cannot send email OTP. Please complete all required business verifications (PAN, GST, and Udyam if provided) first.");
         }
 
         generateAndSendEmailOtp(temp.getEmail(), temp.getLegalName());
