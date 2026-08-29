@@ -22,6 +22,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import com.example.Tender.bidder.security.service.jwt.BidderAuthTokenFilter;
 
 import java.util.List;
 
@@ -34,6 +35,7 @@ public class OfficerSecurityConfig {
     private final OfficerDetailsServiceImpl officerDetailsService;
     private final OfficerAuthEntryPointJwt unauthorizedHandler;
     private final OfficerAuthTokenFilter officerAuthTokenFilter;
+    private final BidderAuthTokenFilter bidderAuthTokenFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -63,12 +65,17 @@ public class OfficerSecurityConfig {
                         .requestMatchers("/api/officer/auth/**").permitAll()
                         .requestMatchers("/api/officer/identity/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/bidder/auth/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()
                 );
 
         http.authenticationProvider(authenticationProvider());
         http.addFilterBefore(officerAuthTokenFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(
+                bidderAuthTokenFilter,
+                UsernamePasswordAuthenticationFilter.class
+        );
 
         return http.build();
     }
