@@ -21,7 +21,7 @@ public class BrevoEmailService {
     @Value("${brevo.api.key}")
     private String apiKey;
 
-    @Value("${brevo.sender.email:arnavtyagi96@gmail.com}")
+    @Value("${brevo.sender.email:noreply@tenderportal.gov.in}")
     private String senderEmail;
 
     @Value("${brevo.sender.name:Tender Portal}")
