@@ -6,47 +6,43 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "bidders")
+@Table(name = "bidder_temp_registrations")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Bidder {
+public class BidderTempRegistration {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false, unique = true)
+    private String tempToken;
+
     @Column(nullable = false)
     private String legalName;
 
-    @Column(unique = true)
-    private String panNumber;
-
-    @Column(unique = true)
-    private String gstNumber;
-
-    @Column(unique = true)
-    private String udyamNumber;
-
-    private String registrationNumber;
-
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String email;
 
-    @Column
+    @Column(nullable = false)
     private String password;
 
     private String phone;
 
     private String address;
 
-    @Column(columnDefinition = "TEXT")
-    private String profileMetadata;
+    @Column(nullable = false)
+    private String panNumber;
 
-    @Builder.Default
-    private boolean isVerified = false;
+    @Column(nullable = false)
+    private String gstNumber;
+
+    private String udyamNumber;
+
+    private String registrationNumber;
 
     @Builder.Default
     private boolean panVerified = false;
@@ -57,29 +53,22 @@ public class Bidder {
     @Builder.Default
     private boolean udyamVerified = false;
 
-    @Builder.Default
-    private boolean emailVerified = false;
-
     private LocalDateTime panVerifiedAt;
 
     private LocalDateTime gstVerifiedAt;
 
     private LocalDateTime udyamVerifiedAt;
 
-    private LocalDateTime emailVerifiedAt;
+    @Column(nullable = false)
+    private LocalDateTime expiryTime;
 
     private LocalDateTime createdAt;
-
-    private LocalDateTime updatedAt;
 
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
-    }
-
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        if (expiryTime == null) {
+            expiryTime = LocalDateTime.now().plusMinutes(30);
+        }
     }
 }

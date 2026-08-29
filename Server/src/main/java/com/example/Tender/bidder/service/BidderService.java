@@ -17,25 +17,6 @@ public class BidderService {
 
     private final BidderRepository bidderRepository;
 
-    public BidderResponse createBidder(CreateBidderRequest request) {
-
-        Bidder bidder = new Bidder();
-
-        bidder.setLegalName(request.getLegalName());
-        bidder.setPanNumber(request.getPanNumber());
-        bidder.setGstNumber(request.getGstNumber());
-        bidder.setUdyamNumber(request.getUdyamNumber());
-        bidder.setRegistrationNumber(request.getRegistrationNumber());
-        bidder.setEmail(request.getEmail());
-        bidder.setPhone(request.getPhone());
-        bidder.setAddress(request.getAddress());
-        bidder.setProfileMetadata(request.getProfileMetadata());
-
-        Bidder savedBidder = bidderRepository.save(bidder);
-
-        return mapToResponse(savedBidder);
-    }
-
     public List<BidderResponse> getAllBidders() {
         return bidderRepository.findAll()
                 .stream()

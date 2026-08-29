@@ -4,3 +4,9 @@
 *.iml
 .vscode/
 *.log
+
+# Environment variables
+.env
+.env.*
+*.env
+!.env.example
