@@ -1,5 +1,7 @@
 package com.example.Tender.officer.security;
 
+import com.example.Tender.bidder.security.RateLimiterFilter;
+import com.example.Tender.bidder.security.service.jwt.BidderAuthTokenFilter;
 import com.example.Tender.officer.security.jwt.OfficerAuthEntryPointJwt;
 import com.example.Tender.officer.security.jwt.OfficerAuthTokenFilter;
 import com.example.Tender.officer.security.service.OfficerDetailsServiceImpl;
@@ -22,7 +24,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import com.example.Tender.bidder.security.service.jwt.BidderAuthTokenFilter;
 
 import java.util.List;
 
@@ -36,6 +37,7 @@ public class OfficerSecurityConfig {
     private final OfficerAuthEntryPointJwt unauthorizedHandler;
     private final OfficerAuthTokenFilter officerAuthTokenFilter;
     private final BidderAuthTokenFilter bidderAuthTokenFilter;
+    private final RateLimiterFilter rateLimitFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -44,23 +46,38 @@ public class OfficerSecurityConfig {
 
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(officerDetailsService);
+        DaoAuthenticationProvider authProvider =
+                new DaoAuthenticationProvider(officerDetailsService);
+
         authProvider.setPasswordEncoder(passwordEncoder());
+
         return authProvider;
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration authConfig) throws Exception {
+
         return authConfig.getAuthenticationManager();
     }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+
         http
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
-                .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                .exceptionHandling(exception ->
+                        exception.authenticationEntryPoint(unauthorizedHandler)
+                )
+
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS
+                        )
+                )
+
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/officer/auth/**").permitAll()
                         .requestMatchers("/api/officer/identity/**").permitAll()
@@ -71,9 +88,22 @@ public class OfficerSecurityConfig {
                 );
 
         http.authenticationProvider(authenticationProvider());
-        http.addFilterBefore(officerAuthTokenFilter, UsernamePasswordAuthenticationFilter.class);
+
+        // Officer JWT filter
+        http.addFilterBefore(
+                officerAuthTokenFilter,
+                UsernamePasswordAuthenticationFilter.class
+        );
+
+        // Bidder JWT filter
         http.addFilterBefore(
                 bidderAuthTokenFilter,
+                UsernamePasswordAuthenticationFilter.class
+        );
+
+        // Rate limiting filter
+        http.addFilterBefore(
+                rateLimitFilter,
                 UsernamePasswordAuthenticationFilter.class
         );
 
@@ -82,14 +112,30 @@ public class OfficerSecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+
         CorsConfiguration configuration = new CorsConfiguration();
+
         configuration.setAllowedOriginPatterns(List.of("*"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+
+        configuration.setAllowedMethods(
+                List.of(
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "DELETE",
+                        "OPTIONS",
+                        "PATCH"
+                )
+        );
+
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
         source.registerCorsConfiguration("/**", configuration);
+
         return source;
     }
 }
