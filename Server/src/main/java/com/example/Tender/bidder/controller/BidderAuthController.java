@@ -90,4 +90,28 @@ public class BidderAuthController {
             @Valid @RequestBody BidderLoginRequest request) {
         return ResponseEntity.ok(bidderAuthService.login(request));
     }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, String>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+        String message = bidderAuthService.forgotPassword(request);
+        return ResponseEntity.ok(Map.of("message", message));
+    }
+
+    @PostMapping("/verify-forgot-password-otp")
+    public ResponseEntity<Map<String, String>> verifyForgotPasswordOtp(
+            @Valid @RequestBody VerifyForgotPasswordOtpRequest request) {
+        String resetToken = bidderAuthService.verifyForgotPasswordOtp(request);
+        return ResponseEntity.ok(Map.of(
+                "message", "OTP verified successfully.",
+                "resetToken", resetToken
+        ));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+        String message = bidderAuthService.resetPassword(request);
+        return ResponseEntity.ok(Map.of("message", message));
+    }
 }
