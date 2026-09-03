@@ -38,6 +38,12 @@ public class Officer {
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 
+    @Column(name = "department_id")
+    private Integer departmentId;
+
+    @Column(name = "department_name", length = 150)
+    private String departmentName;
+
     @NotBlank(message = "Email cannot be blank")
     @Email(message = "Email should be valid")
     @Pattern(regexp = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", message = "Email format is invalid")

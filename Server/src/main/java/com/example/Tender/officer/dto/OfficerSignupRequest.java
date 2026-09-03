@@ -19,6 +19,9 @@ public class OfficerSignupRequest {
     @Size(min = 2, max = 100, message = "Name must be between 2 and 100 characters")
     private String name;
 
+    private Integer departmentId;
+    private String departmentName;
+
     @NotBlank(message = "Email cannot be blank")
     @Size(max = 100, message = "Email cannot exceed 100 characters")
     @Email(message = "Email must be a valid email address")

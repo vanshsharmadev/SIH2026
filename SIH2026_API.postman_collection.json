@@ -1,0 +1,607 @@
+{
+	"info": {
+		"_postman_id": "b3e94a8f-2871-4a43-9823-1d6573c09b8a",
+		"name": "SIH2026 - Tender Verification Platform API",
+		"description": "# 🏛️ SIH 2026 - Tender Verification Platform API Documentation\n\nOfficial REST API Specification for both **Officer Module** (DigiLocker Identity Verification, Email OTP, JWT) and **Bidder Module** (PAN, GSTIN, Udyam MSME verification, Email OTP, Bidder Profile Management).\n\n### 🚀 Base URL\n`http://localhost:8080`\n\n### 🔐 Authentication\n- Bearer Token in `Authorization: Bearer <JWT_TOKEN>` header for protected endpoints.\n- Automated collection scripts capture tokens into `{{officer_token}}` and `{{bidder_token}}`.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Officer",
+			"description": "Officer Authentication and DigiLocker Identity Verification APIs.",
+			"item": [
+				{
+					"name": "SignUp",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201 || pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.tempToken) {",
+									"        pm.collectionVariables.set(\"temp_token\", jsonData.data.tempToken);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Itachi Uchiha\",\n  \"departmentId\": 1,\n  \"departmentName\": \"Public Works Department\",\n  \"email\": \"arnav24169006@akgec.ac.in\",\n  \"mobile\": \"+919876543210\",\n  \"password\": \"Password@123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/signup",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"signup"
+							]
+						},
+						"description": "Step 1: Initiates officer signup and generates DigiLocker OAuth URL & temporary token."
+					},
+					"response": [
+						{
+							"name": "201 Created",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"Itachi Uchiha\",\n  \"departmentId\": 1,\n  \"departmentName\": \"Public Works Department\",\n  \"email\": \"arnav24169006@akgec.ac.in\",\n  \"mobile\": \"+919876543210\",\n  \"password\": \"Password@123\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/auth/signup",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "auth", "signup"]
+								}
+							},
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{ "key": "Content-Type", "value": "application/json" }
+							],
+							"body": "{\n  \"success\": true,\n  \"message\": \"Signup initiated. Please verify identity via DigiLocker.\",\n  \"data\": {\n    \"tempToken\": \"732054aad4ec4d2390b51e5a2aaaf6c5\",\n    \"authorizationUrl\": \"http://localhost:8080/api/officer/identity/mock-login?token=732054aad4ec4d2390b51e5a2aaaf6c5\",\n    \"message\": \"Signup details saved. Please complete DigiLocker identity verification to proceed.\"\n  },\n  \"timestamp\": \"2026-09-03T23:50:00.000\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Initiate DigiLocker",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tempToken\": \"{{temp_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/identity/initiate",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"identity",
+								"initiate"
+							]
+						},
+						"description": "Re-generates DigiLocker verification URL using existing tempToken."
+					},
+					"response": []
+				},
+				{
+					"name": "dg locker verify",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tempToken\": \"{{temp_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/identity/mock-verify",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"identity",
+								"mock-verify"
+							]
+						},
+						"description": "Step 2: Verifies officer identity via DigiLocker and automatically triggers a 6-digit email OTP."
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [{ "key": "Content-Type", "value": "application/json" }],
+							"body": "{\n  \"success\": true,\n  \"message\": \"Identity verified successfully\",\n  \"data\": {\n    \"identityVerified\": true,\n    \"identityProvider\": \"DIGILOCKER_MOCK\",\n    \"digilockerId\": \"DL-DEMO-001\",\n    \"verifiedName\": \"Itachi Uchiha\",\n    \"tempToken\": \"732054aad4ec4d2390b51e5a2aaaf6c5\",\n    \"identityVerifiedAt\": \"2026-09-03T23:51:00.000\"\n  },\n  \"timestamp\": \"2026-09-03T23:51:00.000\"\n}"
+						}
+					]
+				},
+				{
+					"name": "verify otp",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.token) {",
+									"        pm.collectionVariables.set(\"officer_token\", jsonData.data.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"arnav24169006@akgec.ac.in\",\n  \"otp\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/verify-otp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"verify-otp"
+							]
+						},
+						"description": "Step 3: Verifies email OTP, creates permanent Officer account, and returns JWT Bearer token."
+					},
+					"response": []
+				},
+				{
+					"name": "Resend Otp",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"arnav24169006@akgec.ac.in\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/resend-otp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"resend-otp"
+							]
+						},
+						"description": "Resends a fresh 6-digit OTP to the registered email."
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.token) {",
+									"        pm.collectionVariables.set(\"officer_token\", jsonData.data.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"emailOrMobile\": \"arnav24169006@akgec.ac.in\",\n  \"password\": \"Password@123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Authenticates officer with email/mobile and password, returning JWT token."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Profile (/me)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{officer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"auth",
+								"me"
+							]
+						},
+						"description": "Fetches profile details of current authenticated officer."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Bidder",
+			"description": "Bidder Authentication, Business Verification (PAN, GSTIN, Udyam), and Profile Management.",
+			"item": [
+				{
+					"name": "Signup",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201 || pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.tempToken) {",
+									"        pm.collectionVariables.set(\"bidder_temp_token\", jsonData.tempToken);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"companyName\": \"Tech Infra Solutions Pvt Ltd\",\n  \"contactPerson\": \"Rajesh Kumar\",\n  \"email\": \"rajesh.kumar@techinfra.com\",\n  \"mobile\": \"+919876500001\",\n  \"password\": \"Bidder@12345\",\n  \"confirmPassword\": \"Bidder@12345\",\n  \"companyType\": \"PRIVATE_LIMITED\",\n  \"pan\": \"ABCDE1234F\",\n  \"gstin\": \"27ABCDE1234F1Z5\",\n  \"udyamNumber\": \"UDYAM-MH-01-0012345\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/signup",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"signup"
+							]
+						},
+						"description": "Step 1: Initiates Bidder registration and returns temporary token for business verification."
+					},
+					"response": []
+				},
+				{
+					"name": "verify-business (Unified)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tempToken\": \"{{bidder_temp_token}}\",\n  \"pan\": \"ABCDE1234F\",\n  \"gstin\": \"27ABCDE1234F1Z5\",\n  \"udyamNumber\": \"UDYAM-MH-01-0012345\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/verify-business",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"verify-business"
+							]
+						},
+						"description": "Step 2: Unified verification of PAN, GSTIN, and Udyam. Automatically sends 6-digit OTP to email."
+					},
+					"response": []
+				},
+				{
+					"name": "verify-pan",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tempToken\": \"{{bidder_temp_token}}\",\n  \"pan\": \"ABCDE1234F\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/verify-pan",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "bidder", "auth", "verify-pan"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "verify-gst",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tempToken\": \"{{bidder_temp_token}}\",\n  \"gstin\": \"27ABCDE1234F1Z5\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/verify-gst",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "bidder", "auth", "verify-gst"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "verify-udyam",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tempToken\": \"{{bidder_temp_token}}\",\n  \"udyamNumber\": \"UDYAM-MH-01-0012345\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/verify-udyam",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "bidder", "auth", "verify-udyam"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "verify-otp",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.token) {",
+									"        pm.collectionVariables.set(\"bidder_token\", jsonData.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"rajesh.kumar@techinfra.com\",\n  \"otp\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/verify-otp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"verify-otp"
+							]
+						},
+						"description": "Step 3: Verifies email OTP, creates permanent Bidder account, and returns JWT token."
+					},
+					"response": []
+				},
+				{
+					"name": "resend-otp",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"rajesh.kumar@techinfra.com\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/resend-otp",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "bidder", "auth", "resend-otp"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.token) {",
+									"        pm.collectionVariables.set(\"bidder_token\", jsonData.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"emailOrMobile\": \"rajesh.kumar@techinfra.com\",\n  \"password\": \"Bidder@12345\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Bidder login endpoint."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Bidders",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [{ "key": "token", "value": "{{bidder_token}}", "type": "string" }]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "bidder"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Bidder By ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [{ "key": "token", "value": "{{bidder_token}}", "type": "string" }]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/1",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "bidder", "1"]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "temp_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "officer_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "bidder_temp_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "bidder_token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
