@@ -1,6 +1,5 @@
 package com.example.Tender.bidder.security;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -9,21 +8,15 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class RateLimiter {
 
-    @Value("${rate-limit.login.requests:5}")
-    private int maxRequests;
-
-    @Value("${rate-limit.login.window-seconds:60}")
-    private long windowSeconds;
-
     private final Map<String, RequestInfo> requests = new ConcurrentHashMap<>();
 
-    public boolean isAllowed(String clientIp) {
+    public boolean isAllowed(String key, int maxRequests, long windowSeconds) {
 
         long now = System.currentTimeMillis();
 
         RequestInfo info = requests.computeIfAbsent(
-                clientIp,
-                key -> new RequestInfo(now, 0)
+                key,
+                k -> new RequestInfo(now, 0)
         );
 
         synchronized (info) {

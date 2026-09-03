@@ -36,4 +36,8 @@ public class BidderEmailOtp {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
     }
+
+    private String resetToken;
+
+    private LocalDateTime resetTokenExpiry;
 }
