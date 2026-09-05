@@ -1,20 +1,20 @@
-require("dotenv").config();
+const { GoogleGenerativeAIEmbeddings } = require("@langchain/google-genai");
 
-const { generateEmbedding } = require("./ragPipeline/embeddings/embedding.service");
+const embeddings = new GoogleGenerativeAIEmbeddings({
+  model: "gemini-embedding-2",
+  apiKey: process.env.GEMINI_API_KEY,
+});
 
-async function test() {
-  try {
-    const text = "Tender for supply of medical equipment";
-
-    const embedding = await generateEmbedding(text);
-
-    console.log("Embedding generated successfully");
-    console.log("Dimensions:", embedding.length);
-    console.log("First 5 values:", embedding.slice(0, 5));
-  } catch (error) {
-    console.error("Embedding failed:");
-    console.error(error);
+async function generateEmbedding(text) {
+  if (!text || !text.trim()) {
+    throw new Error("Text is required to generate embedding");
   }
+
+  const embedding = await embeddings.embedQuery(text);
+
+  return embedding;
 }
 
-test();
+module.exports = {
+  generateEmbedding,
+};
