@@ -1,6 +1,4 @@
-require("dotenv").config({
-    path: "../.env.example"
-  });
+require("dotenv").config();
 const { generateEmbedding } = require("./ragPipeline/embeddings/embedding.service");
 
 async function test() {
