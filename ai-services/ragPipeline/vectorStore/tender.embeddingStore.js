@@ -1,8 +1,33 @@
 const { Pool } = require("pg");
+const { GoogleGenerativeAIEmbeddings } = require("@langchain/google-genai");
+const { PGVectorStore } = require("@langchain/community/vectorstores/pgvector");
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
+
+async function getVectorStore() {
+  const embeddings = new GoogleGenerativeAIEmbeddings({
+    model: "gemini-embedding-2",
+    apiKey: process.env.GEMINI_API_KEY,
+  });
+
+  const store = await PGVectorStore.initialize(embeddings, {
+    postgresConnectionOptions: {
+      connectionString: process.env.DATABASE_URL,
+    },
+    tableName: "tender_embeddings",
+    columns: {
+      idColumnName: "id",
+      vectorColumnName: "embedding",
+      contentColumnName: "content",
+      metadataColumnName: "metadata",
+    },
+  });
+
+  return store;
+}
+
 
 async function saveTenderEmbeddings(tenderId, chunks) {
   const client = await pool.connect();
@@ -23,9 +48,10 @@ async function saveTenderEmbeddings(tenderId, chunks) {
           chunk.text,
           JSON.stringify(chunk.embedding),
           JSON.stringify({
+            tenderId: tenderId,
             chunkIndex: chunk.chunkIndex,
             documentType: chunk.documentType,
-          }),
+          })
         ]
       );
     }
@@ -46,4 +72,5 @@ async function saveTenderEmbeddings(tenderId, chunks) {
 
 module.exports = {
   saveTenderEmbeddings,
+  getVectorStore,
 };
