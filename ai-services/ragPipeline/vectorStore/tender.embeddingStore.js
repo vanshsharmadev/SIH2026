@@ -1,59 +1,49 @@
-const { PGVectorStore } = require("@langchain/pgvector");
-const { GoogleGenerativeAIEmbeddings } = require("@langchain/google-genai");
+const { Pool } = require("pg");
 
-let vectorStore = null;
-
-async function getVectorStore() {
-  if (vectorStore) {
-    return vectorStore;
-  }
-
-  const embeddings = new GoogleGenerativeAIEmbeddings({
-    model: process.env.GEMINI_EMBEDDING_MODEL,
-    apiKey: process.env.GEMINI_API_KEY,
-  });
-
-  vectorStore = await PGVectorStore.initialize(embeddings, {
-    postgresConnectionOptions: {
-      connectionString: process.env.DATABASE_URL,
-    },
-
-    tableName: "tender_embeddings",
-
-    columns: {
-      idColumnName: "id",
-      vectorColumnName: "embedding",
-      contentColumnName: "content",
-      metadataColumnName: "metadata",
-    },
-
-    distanceStrategy: "cosine",
-  });
-
-  return vectorStore;
-}
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 async function saveTenderEmbeddings(tenderId, chunks) {
-  const store = await getVectorStore();
+  const client = await pool.connect();
 
-  const documents = chunks.map((chunk) => ({
-    pageContent: chunk.text,
-    metadata: {
-      tenderId: tenderId,
-      chunkIndex: chunk.chunkIndex,
-      documentType: chunk.documentType,
-    },
-  }));
+  try {
+    await client.query("BEGIN");
 
-  await store.addDocuments(documents);
+    for (const chunk of chunks) {
+      await client.query(
+        `
+        INSERT INTO tender_embeddings
+          (tender_id, content, embedding, metadata)
+        VALUES
+          ($1, $2, $3::vector, $4)
+        `,
+        [
+          tenderId,
+          chunk.text,
+          JSON.stringify(chunk.embedding),
+          JSON.stringify({
+            chunkIndex: chunk.chunkIndex,
+            documentType: chunk.documentType,
+          }),
+        ]
+      );
+    }
 
-  return {
-    tenderId,
-    savedChunks: documents.length,
-  };
+    await client.query("COMMIT");
+
+    return {
+      tenderId,
+      savedChunks: chunks.length,
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 module.exports = {
-  getVectorStore,
-  saveTenderEmbeddings
+  saveTenderEmbeddings,
 };
