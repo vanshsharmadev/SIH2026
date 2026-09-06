@@ -1,5 +1,6 @@
 package com.example.Tender.bidder.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.*;
 
 @Getter
@@ -7,12 +8,11 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class BidderInitiateResponse {
     private String tempToken;
     private String email;
     private String legalName;
-    private String panNumber;
     private String gstNumber;
-    private String udyamNumber;
     private String message;
 }
