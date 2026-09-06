@@ -150,6 +150,7 @@ class OfficerAuthServiceTest {
 
         OfficerMockVerifyRequest request = OfficerMockVerifyRequest.builder()
                 .tempToken(token)
+                .simulatedName("Different Person")
                 .build();
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,

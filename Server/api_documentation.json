@@ -1,0 +1,385 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Tender Management Platform API",
+    "version": "1.0.0",
+    "description": "Complete REST API documentation for Bidder Authentication & Verification and Officer DigiLocker Authentication."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local Development Server"
+    }
+  ],
+  "paths": {
+    "/api/bidder/auth/signup": {
+      "post": {
+        "summary": "Step 1: Bidder Signup",
+        "description": "Initiates signup by verifying details against official government records (bidder_verification) and creates a temporary session.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["legalName", "email", "gstNumber", "phone", "password"],
+                "properties": {
+                  "legalName": { "type": "string", "example": "Arnav Tyagi" },
+                  "email": { "type": "string", "format": "email", "example": "arnav24169006@gmail.com" },
+                  "gstNumber": { "type": "string", "example": "09ARNAV9012H3Z7" },
+                  "phone": { "type": "string", "example": "9876500103" },
+                  "password": { "type": "string", "example": "Password@123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Signup initiated successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "tempToken": "93162d76aa9141d8950d9e7905ab3d5c",
+                  "email": "arnav24169006@gmail.com",
+                  "legalName": "Arnav Tyagi",
+                  "gstNumber": "09ARNAV9012H3Z7",
+                  "message": "Bidder verified successfully against government records! Verification OTP sent to arnav24169006@gmail.com"
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid credentials or name mismatch with govt records" }
+        }
+      }
+    },
+    "/api/bidder/auth/verify-token": {
+      "post": {
+        "summary": "Step 2: Verify Token (JWT or Temp Token)",
+        "description": "Verifies the temporary signup token or JWT. When verifying a tempToken, it automatically generates and sends the Brevo Email OTP.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": { "type": "string", "example": "93162d76aa9141d8950d9e7905ab3d5c" },
+                  "tempToken": { "type": "string", "example": "93162d76aa9141d8950d9e7905ab3d5c" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token verified successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "valid": true,
+                  "tokenType": "TEMP_TOKEN",
+                  "email": "arnav24169006@gmail.com",
+                  "legalName": "Arnav Tyagi",
+                  "gstNumber": "09ARNAV9012H3Z7",
+                  "phone": "9876500103",
+                  "isVerified": true,
+                  "message": "Temporary token verified successfully! Verification OTP sent to arnav24169006@gmail.com"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/auth/verify-otp": {
+      "post": {
+        "summary": "Step 3: Verify Email OTP",
+        "description": "Verifies the 6-digit email OTP, creates the permanent bidder account, and returns a JWT Bearer token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["otp"],
+                "properties": {
+                  "tempToken": { "type": "string", "example": "93162d76aa9141d8950d9e7905ab3d5c" },
+                  "email": { "type": "string", "example": "arnav24169006@gmail.com" },
+                  "otp": { "type": "string", "example": "123456" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP verified and bidder account created",
+            "content": {
+              "application/json": {
+                "example": {
+                  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                  "type": "Bearer",
+                  "bidderId": 1,
+                  "email": "arnav24169006@gmail.com",
+                  "legalName": "Arnav Tyagi",
+                  "phone": "9876500103",
+                  "gstNumber": "09ARNAV9012H3Z7",
+                  "isVerified": true,
+                  "message": "Registration completed successfully! Bidder account created and verified."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/auth/resend-otp": {
+      "post": {
+        "summary": "Resend OTP",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": { "type": "string", "example": "arnav24169006@gmail.com" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP resent successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "A fresh OTP has been sent to arnav24169006@gmail.com"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/auth/login": {
+      "post": {
+        "summary": "Bidder Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "example": "arnav24169006@gmail.com" },
+                  "password": { "type": "string", "example": "Password@123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "example": {
+                  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                  "type": "Bearer",
+                  "bidderId": 1,
+                  "email": "arnav24169006@gmail.com",
+                  "legalName": "Arnav Tyagi",
+                  "phone": "9876500103",
+                  "gstNumber": "09ARNAV9012H3Z7",
+                  "isVerified": true,
+                  "message": "Bidder logged in successfully!"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/auth/me": {
+      "get": {
+        "summary": "Get Current Bidder Profile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Authenticated bidder details",
+            "content": {
+              "application/json": {
+                "example": {
+                  "valid": true,
+                  "tokenType": "JWT",
+                  "bidderId": 1,
+                  "email": "arnav24169006@gmail.com",
+                  "legalName": "Arnav Tyagi",
+                  "gstNumber": "09ARNAV9012H3Z7",
+                  "phone": "9876500103",
+                  "isVerified": true,
+                  "message": "Current authenticated bidder profile"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/officer/auth/signup": {
+      "post": {
+        "summary": "Officer Signup",
+        "description": "Initiates officer signup and returns DigiLocker verification URL.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "email", "mobile", "departmentId", "departmentName", "password"],
+                "properties": {
+                  "name": { "type": "string", "example": "Itachi Uchiha" },
+                  "departmentId": { "type": "integer", "example": 1 },
+                  "departmentName": { "type": "string", "example": "Public Works Department" },
+                  "email": { "type": "string", "example": "arnav24169006@akgec.ac.in" },
+                  "mobile": { "type": "string", "example": "+919876543210" },
+                  "password": { "type": "string", "example": "Password@123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Signup initiated with DigiLocker URL",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Signup initiated. Please verify identity via DigiLocker.",
+                  "data": {
+                    "tempToken": "732054aad4ec4d2390b51e5a2aaaf6c5",
+                    "authorizationUrl": "http://localhost:8080/api/officer/identity/mock-login?token=732054aad4ec4d2390b51e5a2aaaf6c5",
+                    "message": "Signup details saved. Please complete DigiLocker identity verification to proceed."
+                  },
+                  "timestamp": "2026-09-06T14:30:00.000"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/officer/identity/mock-verify": {
+      "post": {
+        "summary": "DigiLocker Mock Verify",
+        "description": "Verifies identity against DigiLocker and triggers email OTP.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["tempToken"],
+                "properties": {
+                  "tempToken": { "type": "string", "example": "732054aad4ec4d2390b51e5a2aaaf6c5" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Identity verified",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Identity verified successfully",
+                  "data": {
+                    "identityVerified": true,
+                    "identityProvider": "DIGILOCKER_MOCK",
+                    "digilockerId": "DL-DEMO-001",
+                    "verifiedName": "Itachi Uchiha",
+                    "tempToken": "732054aad4ec4d2390b51e5a2aaaf6c5",
+                    "identityVerifiedAt": "2026-09-06T14:31:00.000"
+                  },
+                  "timestamp": "2026-09-06T14:31:00.000"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/officer/auth/verify-otp": {
+      "post": {
+        "summary": "Officer Verify OTP",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "otp"],
+                "properties": {
+                  "email": { "type": "string", "example": "arnav24169006@akgec.ac.in" },
+                  "otp": { "type": "string", "example": "123456" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Officer created with JWT Token" }
+        }
+      }
+    },
+    "/api/officer/auth/login": {
+      "post": {
+        "summary": "Officer Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["emailOrMobile", "password"],
+                "properties": {
+                  "emailOrMobile": { "type": "string", "example": "arnav24169006@akgec.ac.in" },
+                  "password": { "type": "string", "example": "Password@123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Login successful with JWT Token" }
+        }
+      }
+    },
+    "/api/officer/auth/me": {
+      "get": {
+        "summary": "Get Current Officer Profile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Current Officer profile" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

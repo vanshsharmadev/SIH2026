@@ -1,5 +1,6 @@
 package com.example.Tender.bidder.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.*;
 
 @Getter
@@ -7,6 +8,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class BidderAuthResponse {
 
     private String token;
@@ -16,9 +18,7 @@ public class BidderAuthResponse {
     private String email;
     private String legalName;
     private String phone;
-    private String panNumber;
     private String gstNumber;
-    private String udyamNumber;
     private boolean isVerified;
     private String message;
 

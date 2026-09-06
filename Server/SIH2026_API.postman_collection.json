@@ -1,0 +1,622 @@
+{
+	"info": {
+		"_postman_id": "b3e94a8f-2871-4a43-9823-1d6573c09b8a",
+		"name": "SIH2026 - Tender Verification Platform API",
+		"description": "# 🏛️ SIH 2026 - Tender Verification Platform API Documentation\n\nOfficial REST API Specification for both **Officer Module** (DigiLocker Identity Verification, Email OTP, JWT) and **Bidder Module** (GSTIN & Government Verification, Email OTP, JWT Auth, Token Verification, Profile Management).\n\n### 🚀 Base URL\n`http://localhost:8080`\n\n### 🔐 Authentication\n- Bearer Token in `Authorization: Bearer <JWT_TOKEN>` header for protected endpoints.\n- Automated collection scripts capture tokens into `{{officer_token}}` and `{{bidder_token}}`.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Officer",
+			"description": "Officer Authentication and DigiLocker Identity Verification APIs.",
+			"item": [
+				{
+					"name": "SignUp",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201 || pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.tempToken) {",
+									"        pm.collectionVariables.set(\"temp_token\", jsonData.data.tempToken);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Itachi Uchiha\",\n  \"departmentId\": 1,\n  \"departmentName\": \"Public Works Department\",\n  \"email\": \"arnav24169006@akgec.ac.in\",\n  \"mobile\": \"+919876543210\",\n  \"password\": \"Password@123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/signup",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"signup"
+							]
+						},
+						"description": "Step 1: Initiates officer signup and generates DigiLocker OAuth URL & temporary token."
+					},
+					"response": []
+				},
+				{
+					"name": "Initiate DigiLocker",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tempToken\": \"{{temp_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/identity/initiate",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"identity",
+								"initiate"
+							]
+						},
+						"description": "Re-generates DigiLocker verification URL using existing tempToken."
+					},
+					"response": []
+				},
+				{
+					"name": "dg locker verify",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tempToken\": \"{{temp_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/identity/mock-verify",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"identity",
+								"mock-verify"
+							]
+						},
+						"description": "Step 2: Verifies officer identity via DigiLocker and automatically triggers a 6-digit email OTP."
+					},
+					"response": []
+				},
+				{
+					"name": "verify otp",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.token) {",
+									"        pm.collectionVariables.set(\"officer_token\", jsonData.data.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"arnav24169006@akgec.ac.in\",\n  \"otp\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/verify-otp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"verify-otp"
+							]
+						},
+						"description": "Step 3: Verifies email OTP, creates permanent Officer account, and returns JWT Bearer token."
+					},
+					"response": []
+				},
+				{
+					"name": "Resend Otp",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"arnav24169006@akgec.ac.in\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/resend-otp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"resend-otp"
+							]
+						},
+						"description": "Resends a fresh 6-digit OTP to the registered email."
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.token) {",
+									"        pm.collectionVariables.set(\"officer_token\", jsonData.data.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"emailOrMobile\": \"arnav24169006@akgec.ac.in\",\n  \"password\": \"Password@123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Authenticates officer with email/mobile and password, returning JWT token."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Profile (/me)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{officer_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"auth",
+								"me"
+							]
+						},
+						"description": "Fetches profile details of current authenticated officer."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Bidder",
+			"description": "Bidder Authentication, Verification against Government Records, and Profile Management.",
+			"item": [
+				{
+					"name": "Signup",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201 || pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.tempToken) {",
+									"        pm.collectionVariables.set(\"bidder_temp_token\", jsonData.tempToken);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"legalName\": \"Arnav Tyagi\",\n  \"email\": \"arnav24169006@gmail.com\",\n  \"gstNumber\": \"09ARNAV9012H3Z7\",\n  \"phone\": \"9876500103\",\n  \"password\": \"Password@123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/signup",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"signup"
+							]
+						},
+						"description": "Step 1: Validates details against government records (bidder_verification) and sends Brevo Email OTP."
+					},
+					"response": []
+				},
+				{
+					"name": "Verify OTP",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.token) {",
+									"        pm.collectionVariables.set(\"bidder_token\", jsonData.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"arnav24169006@gmail.com\",\n  \"otp\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/verify-otp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"verify-otp"
+							]
+						},
+						"description": "Step 2: Verifies email OTP, creates permanent Bidder account, and returns JWT token."
+					},
+					"response": []
+				},
+				{
+					"name": "Resend OTP",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"arnav24169006@gmail.com\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/resend-otp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"resend-otp"
+							]
+						},
+						"description": "Resends a fresh OTP to the registered email."
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.token) {",
+									"        pm.collectionVariables.set(\"bidder_token\", jsonData.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"arnav24169006@gmail.com\",\n  \"password\": \"Password@123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Authenticates bidder with email & password, returning JWT Bearer token."
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Token (POST)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"{{bidder_temp_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/verify-token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"verify-token"
+							]
+						},
+						"description": "Verifies whether a JWT auth token or tempToken is active and valid."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Profile (/me)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bidder_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"me"
+							]
+						},
+						"description": "Fetches profile details of current authenticated bidder."
+					},
+					"response": []
+				},
+				{
+					"name": "Forgot Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"arnav24169006@gmail.com\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/forgot-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"forgot-password"
+							]
+						},
+						"description": "Sends password reset OTP."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Bidders",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bidder_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder"
+							]
+						},
+						"description": "Get all registered bidders list."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Bidder By ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bidder_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"1"
+							]
+						},
+						"description": "Get single bidder by ID."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "temp_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "officer_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "bidder_temp_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "bidder_token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

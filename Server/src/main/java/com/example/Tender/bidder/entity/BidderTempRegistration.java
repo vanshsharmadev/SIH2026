@@ -34,7 +34,7 @@ public class BidderTempRegistration {
 
     private String address;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String panNumber;
 
     @Column(nullable = false)

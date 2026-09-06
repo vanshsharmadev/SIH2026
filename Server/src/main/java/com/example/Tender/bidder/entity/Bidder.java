@@ -21,13 +21,13 @@ public class Bidder {
     @Column(nullable = false)
     private String legalName;
 
-    @Column(unique = true)
+    @Column(unique = true, nullable = true)
     private String panNumber;
 
     @Column(unique = true)
     private String gstNumber;
 
-    @Column(unique = true)
+    @Column(unique = true, nullable = true)
     private String udyamNumber;
 
     private String registrationNumber;
