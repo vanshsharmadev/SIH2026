@@ -31,43 +31,7 @@ public class BidderAuthController {
     }
 
     /**
-     * STEP 2a: Verify PAN with fake/mock ITD NSDL provider.
-     */
-    @PostMapping("/verify-pan")
-    public ResponseEntity<BidderVerificationStatusResponse> verifyPan(
-            @Valid @RequestBody BidderVerifyPanRequest request) {
-        return ResponseEntity.ok(bidderAuthService.verifyPan(request));
-    }
-
-    /**
-     * STEP 2b: Verify GSTIN with fake/mock GSTN provider.
-     */
-    @PostMapping("/verify-gst")
-    public ResponseEntity<BidderVerificationStatusResponse> verifyGst(
-            @Valid @RequestBody BidderVerifyGstRequest request) {
-        return ResponseEntity.ok(bidderAuthService.verifyGst(request));
-    }
-
-    /**
-     * STEP 2c: Verify Udyam MSME registration number.
-     */
-    @PostMapping("/verify-udyam")
-    public ResponseEntity<BidderVerificationStatusResponse> verifyUdyam(
-            @Valid @RequestBody BidderVerifyUdyamRequest request) {
-        return ResponseEntity.ok(bidderAuthService.verifyUdyam(request));
-    }
-
-    /**
-     * STEP 2 (Unified): Verify all business credentials (PAN, GSTIN, Udyam) in one call & send Email OTP.
-     */
-    @PostMapping("/verify-business")
-    public ResponseEntity<BidderVerificationStatusResponse> verifyBusiness(
-            @Valid @RequestBody BidderVerifyBusinessRequest request) {
-        return ResponseEntity.ok(bidderAuthService.verifyBusiness(request));
-    }
-
-    /**
-     * STEP 3: Verify Email OTP and finalize permanent Bidder registration.
+     * STEP 2: Verify Email OTP and finalize permanent Bidder registration.
      */
     @PostMapping("/verify-otp")
     public ResponseEntity<BidderAuthResponse> verifyOtp(
