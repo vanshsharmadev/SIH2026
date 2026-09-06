@@ -626,6 +626,7 @@ public class BidderAuthService {
             if (tempOpt.isPresent()) {
                 BidderTempRegistration temp = tempOpt.get();
                 if (temp.getExpiryTime().isAfter(LocalDateTime.now())) {
+                    generateAndSendEmailOtp(temp.getEmail(), temp.getLegalName());
                     return BidderTokenVerifyResponse.builder()
                             .valid(true)
                             .tokenType("TEMP_TOKEN")
@@ -633,8 +634,8 @@ public class BidderAuthService {
                             .legalName(temp.getLegalName())
                             .gstNumber(temp.getGstNumber())
                             .phone(temp.getPhone())
-                            .isVerified(false)
-                            .message("Temporary registration token is valid and active.")
+                            .isVerified(true)
+                            .message("Temporary token verified successfully! Verification OTP sent to " + temp.getEmail())
                             .build();
                 } else {
                     return BidderTokenVerifyResponse.builder()
@@ -658,6 +659,7 @@ public class BidderAuthService {
             if (tempOpt.isPresent()) {
                 BidderTempRegistration temp = tempOpt.get();
                 if (temp.getExpiryTime().isAfter(LocalDateTime.now())) {
+                    generateAndSendEmailOtp(temp.getEmail(), temp.getLegalName());
                     return BidderTokenVerifyResponse.builder()
                             .valid(true)
                             .tokenType("TEMP_TOKEN")
@@ -665,8 +667,8 @@ public class BidderAuthService {
                             .legalName(temp.getLegalName())
                             .gstNumber(temp.getGstNumber())
                             .phone(temp.getPhone())
-                            .isVerified(false)
-                            .message("Temporary registration token is valid and active.")
+                            .isVerified(true)
+                            .message("Temporary token verified successfully! Verification OTP sent to " + temp.getEmail())
                             .build();
                 } else {
                     return BidderTokenVerifyResponse.builder()
