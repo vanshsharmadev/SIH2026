@@ -2,10 +2,12 @@ package com.example.Tender.bidder.controller;
 
 import com.example.Tender.bidder.dto.*;
 import com.example.Tender.bidder.service.BidderAuthService;
+import com.example.Tender.bidder.security.BidderPrincipal;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -13,6 +15,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/bidder/auth")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "*", maxAge = 3600)
 public class BidderAuthController {
 
     private final BidderAuthService bidderAuthService;
@@ -89,6 +92,44 @@ public class BidderAuthController {
     public ResponseEntity<BidderAuthResponse> login(
             @Valid @RequestBody BidderLoginRequest request) {
         return ResponseEntity.ok(bidderAuthService.login(request));
+    }
+
+    /**
+     * Verify JWT or temporary registration token (POST).
+     * Accepts token in Authorization header (Bearer <token>), request body ({"token": "..."} / {"tempToken": "..."}), or ?token= query param.
+     */
+    @PostMapping("/verify-token")
+    public ResponseEntity<BidderTokenVerifyResponse> verifyToken(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody(required = false) BidderTokenVerifyRequest request,
+            @RequestParam(value = "token", required = false) String queryToken) {
+        String bodyToken = request != null ? request.getToken() : null;
+        String tempToken = request != null ? request.getTempToken() : null;
+        return ResponseEntity.ok(bidderAuthService.verifyToken(authHeader, bodyToken, tempToken, queryToken));
+    }
+
+    /**
+     * Verify JWT or temporary registration token (GET).
+     */
+    @GetMapping("/verify-token")
+    public ResponseEntity<BidderTokenVerifyResponse> verifyTokenGet(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestParam(value = "token", required = false) String queryToken,
+            @RequestParam(value = "tempToken", required = false) String tempToken) {
+        return ResponseEntity.ok(bidderAuthService.verifyToken(authHeader, null, tempToken, queryToken));
+    }
+
+    /**
+     * Get Current Authenticated Bidder Profile (Requires Bearer token).
+     */
+    @GetMapping("/me")
+    public ResponseEntity<BidderTokenVerifyResponse> getCurrentBidder(
+            @AuthenticationPrincipal BidderPrincipal bidderPrincipal,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        if (bidderPrincipal != null) {
+            return ResponseEntity.ok(bidderAuthService.verifyToken(null, null, null, bidderPrincipal.getUsername()));
+        }
+        return ResponseEntity.ok(bidderAuthService.verifyToken(authHeader, null, null, null));
     }
 
     @PostMapping("/forgot-password")

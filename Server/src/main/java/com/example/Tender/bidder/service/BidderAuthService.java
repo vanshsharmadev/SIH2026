@@ -294,7 +294,17 @@ public class BidderAuthService {
      */
     @Transactional
     public BidderAuthResponse verifyOtp(BidderVerifyOtpRequest request) {
-        String normalizedEmail = request.getEmail().trim().toLowerCase();
+        final String normalizedEmail;
+        if (StringUtils.hasText(request.getEmail())) {
+            normalizedEmail = request.getEmail().trim().toLowerCase();
+        } else if (StringUtils.hasText(request.getTempToken())) {
+            BidderTempRegistration tempReg = tempRegistrationRepository.findByTempToken(request.getTempToken().trim())
+                    .orElseThrow(() -> new IllegalArgumentException("Error: Invalid or expired temporary token."));
+            normalizedEmail = tempReg.getEmail().toLowerCase();
+        } else {
+            throw new IllegalArgumentException("Error: Email or tempToken is required to verify OTP.");
+        }
+
         String enteredOtp = request.getOtp().trim();
 
         if (bidderRepository.existsByEmail(normalizedEmail)) {
@@ -570,5 +580,112 @@ public class BidderAuthService {
         otpRepository.delete(resetOtp);
 
         return "Password reset successfully. You can now login with your new password.";
+    }
+
+    /**
+     * Verifies a JWT token or temporary session token.
+     */
+    public BidderTokenVerifyResponse verifyToken(String tokenHeader, String bodyToken, String tempToken, String queryToken) {
+        String token = null;
+
+        if (StringUtils.hasText(tokenHeader) && tokenHeader.startsWith("Bearer ")) {
+            token = tokenHeader.substring(7).trim();
+        } else if (StringUtils.hasText(bodyToken)) {
+            token = bodyToken.trim();
+        } else if (StringUtils.hasText(queryToken)) {
+            token = queryToken.trim();
+        }
+
+        // 1. Check if token is a valid JWT
+        if (StringUtils.hasText(token)) {
+            if (bidderJwtUtils.validateJwtToken(token)) {
+                try {
+                    String username = bidderJwtUtils.getUsernameFromJwtToken(token);
+                    Optional<Bidder> bidderOpt = bidderRepository.findByEmail(username);
+                    if (bidderOpt.isPresent()) {
+                        Bidder bidder = bidderOpt.get();
+                        return BidderTokenVerifyResponse.builder()
+                                .valid(true)
+                                .tokenType("JWT")
+                                .bidderId(bidder.getId())
+                                .email(bidder.getEmail())
+                                .legalName(bidder.getLegalName())
+                                .gstNumber(bidder.getGstNumber())
+                                .phone(bidder.getPhone())
+                                .isVerified(bidder.isVerified())
+                                .message("JWT token is valid and active.")
+                                .build();
+                    }
+                } catch (Exception e) {
+                    log.error("Error reading claims from valid JWT: {}", e.getMessage());
+                }
+            }
+
+            // Check if token string happens to be a tempToken
+            Optional<BidderTempRegistration> tempOpt = tempRegistrationRepository.findByTempToken(token);
+            if (tempOpt.isPresent()) {
+                BidderTempRegistration temp = tempOpt.get();
+                if (temp.getExpiryTime().isAfter(LocalDateTime.now())) {
+                    return BidderTokenVerifyResponse.builder()
+                            .valid(true)
+                            .tokenType("TEMP_TOKEN")
+                            .email(temp.getEmail())
+                            .legalName(temp.getLegalName())
+                            .gstNumber(temp.getGstNumber())
+                            .phone(temp.getPhone())
+                            .isVerified(false)
+                            .message("Temporary registration token is valid and active.")
+                            .build();
+                } else {
+                    return BidderTokenVerifyResponse.builder()
+                            .valid(false)
+                            .tokenType("TEMP_TOKEN")
+                            .message("Temporary registration token has expired.")
+                            .build();
+                }
+            }
+
+            return BidderTokenVerifyResponse.builder()
+                    .valid(false)
+                    .tokenType("JWT")
+                    .message("Invalid or expired JWT token.")
+                    .build();
+        }
+
+        // 2. Check explicit tempToken parameter
+        if (StringUtils.hasText(tempToken)) {
+            Optional<BidderTempRegistration> tempOpt = tempRegistrationRepository.findByTempToken(tempToken.trim());
+            if (tempOpt.isPresent()) {
+                BidderTempRegistration temp = tempOpt.get();
+                if (temp.getExpiryTime().isAfter(LocalDateTime.now())) {
+                    return BidderTokenVerifyResponse.builder()
+                            .valid(true)
+                            .tokenType("TEMP_TOKEN")
+                            .email(temp.getEmail())
+                            .legalName(temp.getLegalName())
+                            .gstNumber(temp.getGstNumber())
+                            .phone(temp.getPhone())
+                            .isVerified(false)
+                            .message("Temporary registration token is valid and active.")
+                            .build();
+                } else {
+                    return BidderTokenVerifyResponse.builder()
+                            .valid(false)
+                            .tokenType("TEMP_TOKEN")
+                            .message("Temporary registration token has expired.")
+                            .build();
+                }
+            }
+            return BidderTokenVerifyResponse.builder()
+                    .valid(false)
+                    .tokenType("TEMP_TOKEN")
+                    .message("Invalid temporary token.")
+                    .build();
+        }
+
+        return BidderTokenVerifyResponse.builder()
+                .valid(false)
+                .message("No token provided.")
+                .build();
     }
 }

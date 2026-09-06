@@ -1,6 +1,6 @@
 package com.example.Tender.bidder.dto;
 
-import jakarta.validation.constraints.Email;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.*;
@@ -10,13 +10,19 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class BidderVerifyOtpRequest {
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Invalid email format")
     private String email;
+
+    private String tempToken;
 
     @NotBlank(message = "OTP is required")
     @Pattern(regexp = "^[0-9]{6}$", message = "OTP must be exactly 6 numeric digits")
     private String otp;
+
+    public BidderVerifyOtpRequest(String email, String otp) {
+        this.email = email;
+        this.otp = otp;
+    }
 }
