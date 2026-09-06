@@ -473,4 +473,93 @@ public class BidderAuthService {
                 .message(message)
                 .build();
     }
+
+    @Transactional
+    public String forgotPassword(ForgotPasswordRequest request) {
+        String normalizedEmail = request.getEmail().trim().toLowerCase();
+
+        Bidder bidder = bidderRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Error: No bidder account found with this email."
+                ));
+
+        otpRepository.deleteByEmail(normalizedEmail);
+
+        generateAndSendEmailOtp(normalizedEmail, bidder.getLegalName());
+
+        return "Password reset OTP has been sent to " + normalizedEmail;
+    }
+
+    @Transactional
+    public String verifyForgotPasswordOtp(VerifyForgotPasswordOtpRequest request) {
+        String normalizedEmail = request.getEmail().trim().toLowerCase();
+        String enteredOtp = request.getOtp().trim();
+
+        Bidder bidder = bidderRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Error: No bidder account found with this email."
+                ));
+
+        BidderEmailOtp activeOtp = otpRepository
+                .findTopByEmailAndVerifiedFalseOrderByCreatedAtDesc(normalizedEmail)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Error: No active OTP found. Please request a new OTP."
+                ));
+
+        if (activeOtp.getExpiryTime().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException(
+                    "Error: OTP has expired. Please request a new OTP."
+            );
+        }
+
+        if (!activeOtp.getOtp().equals(enteredOtp)) {
+            throw new IllegalArgumentException("Error: Invalid OTP entered!");
+        }
+
+        String resetToken = UUID.randomUUID().toString().replace("-", "");
+
+        activeOtp.setVerified(true);
+        activeOtp.setResetToken(resetToken);
+        activeOtp.setResetTokenExpiry(LocalDateTime.now().plusMinutes(10));
+
+        otpRepository.save(activeOtp);
+
+        return resetToken;
+    }
+
+    @Transactional
+    public String resetPassword(ResetPasswordRequest request) {
+
+        BidderEmailOtp resetOtp = otpRepository
+                .findByResetToken(request.getResetToken())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Error: Invalid reset token."
+                ));
+
+        if (!resetOtp.isVerified()) {
+            throw new IllegalArgumentException(
+                    "Error: Reset token has not been verified."
+            );
+        }
+
+        if (resetOtp.getResetTokenExpiry() == null ||
+                resetOtp.getResetTokenExpiry().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException(
+                    "Error: Reset token has expired. Please restart the password reset process."
+            );
+        }
+
+        Bidder bidder = bidderRepository.findByEmail(resetOtp.getEmail())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Error: Bidder account not found."
+                ));
+
+        bidder.setPassword(passwordEncoder.encode(request.getNewPassword()));
+
+        bidderRepository.save(bidder);
+
+        otpRepository.delete(resetOtp);
+
+        return "Password reset successfully. You can now login with your new password.";
+    }
 }

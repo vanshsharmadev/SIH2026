@@ -5,12 +5,27 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import com.example.Tender.bidder.entity.MockPanRecord;
+import com.example.Tender.bidder.repository.MockPanRecordRepository;
+import lombok.RequiredArgsConstructor;
+import com.example.Tender.bidder.entity.MockGstRecord;
+import com.example.Tender.bidder.repository.MockGstRecordRepository;
+import java.util.Optional;
+import com.example.Tender.bidder.entity.MockUdyamRecord;
+import com.example.Tender.bidder.repository.MockUdyamRecordRepository;
 
 import java.util.regex.Pattern;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class MockBusinessVerificationProvider {
+
+    private final MockPanRecordRepository mockPanRecordRepository;
+
+    private final MockGstRecordRepository mockGstRecordRepository;
+
+    private final MockUdyamRecordRepository mockUdyamRecordRepository;
 
     // Standard Indian Government Registration Regex Patterns
     private static final Pattern PAN_PATTERN = Pattern.compile("^[A-Z]{5}[0-9]{4}[A-Z]{1}$");
@@ -78,32 +93,34 @@ public class MockBusinessVerificationProvider {
                     .build();
         }
 
-        // Determine registered name (simulation override or expected legal name)
-        String registeredName = StringUtils.hasText(simulatedNameOverride)
-                ? simulatedNameOverride.trim()
-                : (expectedLegalName != null ? expectedLegalName.trim() : "ENTERPRISE LTD");
+        Optional<MockPanRecord> record =
+                mockPanRecordRepository.findByPanNumber(normalizedPan);
 
-        // Determine category based on 4th character of PAN (C=Company, F=Firm, P=Person, etc.)
-        char categoryChar = normalizedPan.charAt(3);
-        String category = switch (categoryChar) {
-            case 'C' -> "COMPANY";
-            case 'F' -> "FIRM";
-            case 'P' -> "INDIVIDUAL";
-            case 'T' -> "TRUST";
-            case 'H' -> "HUF";
-            default -> "BUSINESS_ENTITY";
-        };
+        if (record.isEmpty()) {
+            return PanVerificationResult.builder()
+                    .panNumber(normalizedPan)
+                    .status("INVALID")
+                    .nameMatched(false)
+                    .message("PAN not found in mock government database")
+                    .build();
+        }
+
+        MockPanRecord panRecord = record.get();
+
+        String registeredName = panRecord.getRegisteredName();
 
         boolean nameMatched = isNameFuzzyMatch(expectedLegalName, registeredName);
 
         return PanVerificationResult.builder()
-            .panNumber(normalizedPan)
-            .registeredName(registeredName)
-            .status("VALID")
-            .panCategory(category)
-            .nameMatched(nameMatched)
-            .message(nameMatched ? "PAN verified successfully and name matched" : "PAN is valid but registered name does not match legal name")
-            .build();
+                .panNumber(normalizedPan)
+                .registeredName(registeredName)
+                .status("VALID")
+                .panCategory(panRecord.getPanCategory())
+                .nameMatched(nameMatched)
+                .message(nameMatched
+                        ? "PAN verified successfully and name matched"
+                        : "PAN is valid but registered name does not match legal name")
+                .build();
     }
 
     /**
@@ -132,34 +149,49 @@ public class MockBusinessVerificationProvider {
                     .build();
         }
 
-        // Extract state code (first 2 chars) and PAN (chars 3-12 / index 2-12)
-        String stateCode = normalizedGst.substring(0, 2);
-        String extractedPan = normalizedGst.substring(2, 12);
+        Optional<MockGstRecord> record =
+                mockGstRecordRepository.findByGstNumber(normalizedGst);
+
+        if (record.isEmpty()) {
+            return GstVerificationResult.builder()
+                    .gstNumber(normalizedGst)
+                    .status("INACTIVE")
+                    .nameMatched(false)
+                    .panConsistent(false)
+                    .message("GSTIN not found in mock government database")
+                    .build();
+        }
+
+        MockGstRecord gstRecord = record.get();
+
+        String extractedPan = gstRecord.getPanNumber();
 
         boolean panConsistent = true;
+
         if (StringUtils.hasText(expectedPan)) {
             String normalizedExpectedPan = expectedPan.trim().toUpperCase();
             panConsistent = extractedPan.equals(normalizedExpectedPan);
         }
 
-        String registeredLegalName = StringUtils.hasText(simulatedNameOverride)
-                ? simulatedNameOverride.trim()
-                : (expectedLegalName != null ? expectedLegalName.trim() : "ENTERPRISE LTD");
-
-        boolean nameMatched = isNameFuzzyMatch(expectedLegalName, registeredLegalName);
+        boolean nameMatched =
+                isNameFuzzyMatch(expectedLegalName, gstRecord.getLegalName());
 
         return GstVerificationResult.builder()
                 .gstNumber(normalizedGst)
-                .legalName(registeredLegalName)
-                .tradeName(registeredLegalName + " TRADING")
-                .status("ACTIVE")
-                .stateCode(stateCode)
+                .legalName(gstRecord.getLegalName())
+                .tradeName(gstRecord.getLegalName() + " TRADING")
+                .status(gstRecord.getStatus())
+                .stateCode(gstRecord.getStateCode())
                 .panExtracted(extractedPan)
                 .nameMatched(nameMatched)
                 .panConsistent(panConsistent)
-                .message(nameMatched && panConsistent
-                        ? "GSTIN verified active and matched with PAN and legal name"
-                        : (!panConsistent ? "GSTIN does not match provided PAN number" : "GSTIN is active but legal name does not match"))
+                .message(
+                        nameMatched && panConsistent
+                                ? "GSTIN verified active and matched with PAN and legal name"
+                                : (!panConsistent
+                                   ? "GSTIN does not match provided PAN number"
+                                   : "GSTIN is active but legal name does not match")
+                )
                 .build();
     }
 
@@ -176,7 +208,9 @@ public class MockBusinessVerificationProvider {
                     .build();
         }
 
-        String normalizedUdyam = udyamNumber != null ? udyamNumber.trim().toUpperCase() : "";
+        String normalizedUdyam = udyamNumber != null
+                ? udyamNumber.trim().toUpperCase()
+                : "";
 
         // Check if matches standard UDYAM-XX-00-0000000 format
         if (!UDYAM_PATTERN.matcher(normalizedUdyam).matches() && !normalizedUdyam.startsWith("UDYAM-")) {
@@ -188,20 +222,35 @@ public class MockBusinessVerificationProvider {
                     .build();
         }
 
-        String enterpriseName = StringUtils.hasText(simulatedNameOverride)
-                ? simulatedNameOverride.trim()
-                : (expectedLegalName != null ? expectedLegalName.trim() : "ENTERPRISE LTD");
+        Optional<MockUdyamRecord> record =
+                mockUdyamRecordRepository.findByUdyamNumber(normalizedUdyam);
 
-        boolean nameMatched = isNameFuzzyMatch(expectedLegalName, enterpriseName);
+        if (record.isEmpty()) {
+            return UdyamVerificationResult.builder()
+                    .udyamNumber(normalizedUdyam)
+                    .status("INVALID")
+                    .nameMatched(false)
+                    .message("Udyam number not found in mock government database")
+                    .build();
+        }
+
+        MockUdyamRecord udyamRecord = record.get();
+
+        String enterpriseName = udyamRecord.getEnterpriseName();
+
+        boolean nameMatched =
+                isNameFuzzyMatch(expectedLegalName, enterpriseName);
 
         return UdyamVerificationResult.builder()
                 .udyamNumber(normalizedUdyam)
                 .enterpriseName(enterpriseName)
-                .enterpriseType("SMALL")
-                .majorActivity("SERVICES")
-                .status("VERIFIED")
+                .enterpriseType(udyamRecord.getEnterpriseType())
+                .majorActivity(udyamRecord.getMajorActivity())
+                .status(udyamRecord.getStatus())
                 .nameMatched(nameMatched)
-                .message(nameMatched ? "Udyam MSME registration verified successfully" : "Udyam number valid but enterprise name does not match")
+                .message(nameMatched
+                        ? "Udyam MSME registration verified successfully"
+                        : "Udyam number exists but enterprise name does not match")
                 .build();
     }
 

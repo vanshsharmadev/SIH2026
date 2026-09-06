@@ -87,6 +87,6 @@ public class BidderAuthTokenFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
 
         return !request.getServletPath()
-                .startsWith("/api/bidders");
+                .startsWith("/api/bidder");
     }
 }

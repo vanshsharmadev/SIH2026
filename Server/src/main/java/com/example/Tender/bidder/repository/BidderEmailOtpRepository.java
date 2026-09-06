@@ -9,5 +9,6 @@ import java.util.Optional;
 @Repository
 public interface BidderEmailOtpRepository extends JpaRepository<BidderEmailOtp, Long> {
     Optional<BidderEmailOtp> findTopByEmailAndVerifiedFalseOrderByCreatedAtDesc(String email);
+    Optional<BidderEmailOtp> findByResetToken(String resetToken);
     void deleteByEmail(String email);
 }
