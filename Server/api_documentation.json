@@ -697,6 +697,187 @@
           "200": { "description": "Current officer profile" }
         }
       }
+    },
+    "/api/officer/tenders/upload": {
+      "post": {
+        "tags": ["Officer Tenders & ML AI"],
+        "summary": "1. Upload Tender Document & Analyze via ML (Cloudinary + AI)",
+        "description": "Uploads Tender PDF to Cloudinary, sends document to Python ML Service (http://20.40.44.184) for OCR, key-value criteria extraction, and authenticity/tamper analysis, and saves to PostgreSQL.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file", "title"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Tender Document PDF / Image"
+                  },
+                  "title": {
+                    "type": "string",
+                    "example": "Construction of High-Speed Flyover Corridor - GeM/2026/B/8912"
+                  },
+                  "description": {
+                    "type": "string",
+                    "example": "National highway widening and elevated corridor tender notice."
+                  },
+                  "documentType": {
+                    "type": "string",
+                    "example": "other",
+                    "description": "udyam_certificate, gst_certificate, pan_card, income_tax_return, oem_authorization, or other"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tender document uploaded to Cloudinary and processed by ML service",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Tender document uploaded and analyzed successfully",
+                  "data": {
+                    "id": 1,
+                    "title": "Construction of High-Speed Flyover Corridor",
+                    "description": "National highway widening",
+                    "fileName": "tender_rfp_2026.pdf",
+                    "fileType": "application/pdf",
+                    "fileSize": 1048576,
+                    "fileUrl": "https://res.cloudinary.com/tender-portal/image/upload/v1725700000/tenders/tender_rfp_2026.pdf",
+                    "cloudinaryPublicId": "tenders/tender_rfp_2026_xyz123",
+                    "documentType": "other",
+                    "uploadedByOfficerId": 1,
+                    "uploadedByOfficerName": "Rajesh Sharma",
+                    "uploadedByEmail": "officer@pwd.gov.in",
+                    "departmentName": "Public Works Department",
+                    "status": "PROCESSED",
+                    "authenticityScore": 0.98,
+                    "isAuthentic": true,
+                    "rawOcrText": "GOVERNMENT OF INDIA - MINISTRY OF ROAD TRANSPORT & HIGHWAYS...",
+                    "structuredData": {
+                      "tender_value": "₹ 15,00,00,000",
+                      "emd_amount": "₹ 30,00,000",
+                      "submission_deadline": "2026-10-15T18:00:00Z"
+                    },
+                    "authenticityDetails": {
+                      "signature_verified": true,
+                      "tampering_detected": false,
+                      "confidence": 0.98
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized - JWT required" }
+        }
+      }
+    },
+    "/api/officer/tenders": {
+      "get": {
+        "tags": ["Officer Tenders & ML AI"],
+        "summary": "2. Get All Tenders Uploaded by Authenticated Officer",
+        "description": "Returns list of all tenders and ML analysis results uploaded by the current officer.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of tenders" }
+        }
+      }
+    },
+    "/api/officer/tenders/{id}": {
+      "get": {
+        "tags": ["Officer Tenders & ML AI"],
+        "summary": "3. Get Tender Details & ML Intelligence by ID",
+        "description": "Fetches a specific tender's complete OCR text, structured criteria, Cloudinary link, and authenticity scores.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Tender details" },
+          "404": { "description": "Tender not found" }
+        }
+      }
+    },
+    "/api/officer/tenders/{id}/compare-bidders": {
+      "post": {
+        "tags": ["Officer Tenders & ML AI"],
+        "summary": "4. Compare Bidders via ML CIS Algorithm",
+        "description": "Compares multiple bidder proposals against tender requirements using the ML service CIS algorithm.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "bidders_data": [
+                  {
+                    "bidder_id": 1,
+                    "bidder_name": "L&T Construction",
+                    "bid_amount": 142000000,
+                    "experience_years": 15,
+                    "financial_rating": "AAA"
+                  },
+                  {
+                    "bidder_id": 2,
+                    "bidder_name": "Afcons Infrastructure",
+                    "bid_amount": 148000000,
+                    "experience_years": 12,
+                    "financial_rating": "AA+"
+                  }
+                ],
+                "tender_requirements": {
+                  "max_budget": 150000000,
+                  "min_experience_years": 10
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Comparison results from ML service" }
+        }
+      }
+    },
+    "/api/officer/tenders/document-types": {
+      "get": {
+        "tags": ["Officer Tenders & ML AI"],
+        "summary": "5. Get Supported ML Document Types & Weights",
+        "description": "Returns supported document types (GST, Udyam, PAN, ITR, etc.) and compliance weights.",
+        "responses": {
+          "200": { "description": "Supported document types" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml-health": {
+      "get": {
+        "tags": ["Officer Tenders & ML AI"],
+        "summary": "6. ML Service Health Status",
+        "description": "Checks connectivity to the live Python ML service at http://20.40.44.184.",
+        "responses": {
+          "200": { "description": "ML Service health status" }
+        }
+      }
     }
   },
   "components": {
@@ -709,3 +890,4 @@
     }
   }
 }
+

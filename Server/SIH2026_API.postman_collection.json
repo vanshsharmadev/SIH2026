@@ -590,6 +590,205 @@
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "Tender Documents & ML AI",
+			"description": "Tender Document Upload (Cloudinary storage), ML extraction (OCR, entities, authenticity) from live ML backend (http://20.40.44.184), and Bidder CIS comparison.",
+			"item": [
+				{
+					"name": "1. Upload Tender Document (Cloudinary + ML)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201 || pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.id) {",
+									"        pm.collectionVariables.set(\"tender_id\", jsonData.data.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{officer_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "title",
+									"value": "Construction of High-Speed Flyover Corridor - GeM/2026/B/8912",
+									"type": "text"
+								},
+								{
+									"key": "description",
+									"value": "National highway elevated corridor tender document.",
+									"type": "text"
+								},
+								{
+									"key": "documentType",
+									"value": "other",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/upload",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"upload"
+							]
+						},
+						"description": "Uploads PDF to Cloudinary and forwards to Python ML service for OCR text, structured data extraction, and authenticity check."
+					},
+					"response": []
+				},
+				{
+					"name": "2. Get Officer Tenders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{officer_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders"
+							]
+						},
+						"description": "Get all tenders uploaded by the currently authenticated officer."
+					},
+					"response": []
+				},
+				{
+					"name": "3. Get Tender by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{officer_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/{{tender_id}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"{{tender_id}}"
+							]
+						},
+						"description": "Retrieve full tender details including Cloudinary fileUrl, OCR text, and authenticity score."
+					},
+					"response": []
+				},
+				{
+					"name": "4. Compare Bidders via ML CIS",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{officer_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"bidders_data\": [\n    {\n      \"bidder_id\": 1,\n      \"bidder_name\": \"L&T Construction\",\n      \"bid_amount\": 142000000,\n      \"experience_years\": 15,\n      \"financial_rating\": \"AAA\"\n    },\n    {\n      \"bidder_id\": 2,\n      \"bidder_name\": \"Afcons Infrastructure\",\n      \"bid_amount\": 148000000,\n      \"experience_years\": 12,\n      \"financial_rating\": \"AA+\"\n    }\n  ],\n  \"tender_requirements\": {\n    \"max_budget\": 150000000,\n    \"min_experience_years\": 10\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/{{tender_id}}/compare-bidders",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"{{tender_id}}",
+								"compare-bidders"
+							]
+						},
+						"description": "Compares multiple bidders against tender requirements using the ML service CIS ranking algorithm."
+					},
+					"response": []
+				},
+				{
+					"name": "5. Get ML Document Types",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/document-types",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"document-types"
+							]
+						},
+						"description": "Retrieves supported document types and compliance weights."
+					},
+					"response": []
+				},
+				{
+					"name": "6. Check ML Service Health",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/ml-health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"ml-health"
+							]
+						},
+						"description": "Checks connectivity with the live ML service at http://20.40.44.184."
+					},
+					"response": []
+				}
+			]
 		}
 	],
 	"variable": [
@@ -616,6 +815,11 @@
 		{
 			"key": "bidder_token",
 			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "tender_id",
+			"value": "1",
 			"type": "string"
 		}
 	]
