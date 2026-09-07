@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.HashMap;
 import java.util.Map;
 
-@RestControllerAdvice
+@RestControllerAdvice(basePackages = "com.example.Tender.officer")
 public class OfficerGlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
