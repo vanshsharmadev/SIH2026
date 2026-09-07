@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -38,12 +39,16 @@ public class MlServiceClient {
         log.info("Initialized MlServiceClient with Base URL: {}", mlBaseUrl);
     }
 
+    // ==========================================
+    // 1. Unified Processing & Pipeline
+    // ==========================================
+
     /**
      * Complete Document Processing Pipeline:
-     * Extracts text, OCR confidence, structured entities, authenticity scores, and compliance metrics.
+     * Extracts OCR text, structured entities, authenticity scores, and compliance metrics.
      */
     public DocumentProcessResponse processDocument(MultipartFile file, String documentType, boolean fullAnalysis) {
-        log.info("Sending document to ML Service: fileName={}, size={}, documentType={}, fullAnalysis={}",
+        log.info("Sending document to ML Service (/api/ml/process-document): fileName={}, size={}, documentType={}, fullAnalysis={}",
                 file.getOriginalFilename(), file.getSize(), documentType, fullAnalysis);
 
         try {
@@ -61,7 +66,6 @@ public class MlServiceClient {
                     .retrieve()
                     .body(String.class);
 
-            log.info("Received ML service process-document response");
             return parseDocumentProcessResponse(rawResponse, documentType);
 
         } catch (Exception ex) {
@@ -70,27 +74,56 @@ public class MlServiceClient {
         }
     }
 
+    // ==========================================
+    // Group A: Document Authenticity & Anti-Forgery
+    // ==========================================
+
     /**
-     * Extract structured key-value criteria from document.
+     * Unified anti-forgery orchestration across cryptographic PDF signatures, QR codes, and physical stamps.
      */
-    public Map<String, Object> extractStructured(MultipartFile file, String documentType) {
+    public Map<String, Object> verifyDocument(MultipartFile file, String docType, String ocrText, boolean autoOcr) {
         try {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("file", toByteArrayResource(file));
-            if (documentType != null && !documentType.isBlank()) {
-                body.add("document_type", documentType);
+            body.add("doc_type", (docType != null && !docType.isBlank()) ? docType : "generic");
+            if (ocrText != null && !ocrText.isBlank()) {
+                body.add("ocr_text", ocrText);
             }
-            body.add("preprocess", "true");
+            body.add("auto_ocr", String.valueOf(autoOcr));
 
             return restClient.post()
-                    .uri("/api/ml/extract-structured")
+                    .uri("/api/ml/verify-document")
                     .contentType(MediaType.MULTIPART_FORM_DATA)
                     .body(body)
                     .retrieve()
-                    .body(new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {});
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
         } catch (Exception ex) {
-            log.error("Failed to extract structured data: {}", ex.getMessage(), ex);
-            throw new RuntimeException("Failed to extract structured data: " + ex.getMessage(), ex);
+            log.error("Failed to verify document: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Document verification failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Validates decoded QR strings against OCR text and document type.
+     */
+    public Map<String, Object> verifyQrPayload(String payload, String documentType, String ocrText) {
+        try {
+            Map<String, Object> req = new HashMap<>();
+            req.put("payload", payload);
+            req.put("document_type", documentType != null ? documentType : "generic");
+            if (ocrText != null) {
+                req.put("ocr_text", ocrText);
+            }
+
+            return restClient.post()
+                    .uri("/api/ml/verify-qr-payload")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(req)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to verify QR payload: {}", ex.getMessage(), ex);
+            throw new RuntimeException("QR payload verification failed: " + ex.getMessage(), ex);
         }
     }
 
@@ -107,37 +140,227 @@ public class MlServiceClient {
                     .contentType(MediaType.MULTIPART_FORM_DATA)
                     .body(body)
                     .retrieve()
-                    .body(new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {});
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
         } catch (Exception ex) {
             log.error("Failed to check document authenticity: {}", ex.getMessage(), ex);
             throw new RuntimeException("Failed to check authenticity: " + ex.getMessage(), ex);
         }
     }
 
+    // ==========================================
+    // Group B: Automated OCR & Barcode Intelligence
+    // ==========================================
+
     /**
-     * Advanced Document Verification (Digital Signature, QR Code scanner, Visual Stamp).
+     * Executes full-page OCR and automatically triggers QR/barcode engine when visual codes or keywords are detected.
      */
-    public Map<String, Object> verifyDocument(MultipartFile file, String docType) {
+    public Map<String, Object> ocrScanWithBarcode(MultipartFile file, String docType, boolean preprocess, boolean autoScanBarcode) {
         try {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("file", toByteArrayResource(file));
-            body.add("doc_type", (docType != null && !docType.isBlank()) ? docType : "generic");
-            body.add("auto_ocr", "true");
+            body.add("doc_type", (docType != null && !docType.isBlank()) ? docType : "auto");
+            body.add("preprocess", String.valueOf(preprocess));
+            body.add("auto_scan_barcode", String.valueOf(autoScanBarcode));
 
             return restClient.post()
-                    .uri("/api/ml/verify-document")
+                    .uri("/api/ml/ocr-scan-with-barcode")
                     .contentType(MediaType.MULTIPART_FORM_DATA)
                     .body(body)
                     .retrieve()
-                    .body(new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {});
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
         } catch (Exception ex) {
-            log.error("Failed to verify document: {}", ex.getMessage(), ex);
-            throw new RuntimeException("Document verification failed: " + ex.getMessage(), ex);
+            log.error("Failed to run OCR scan with barcode trigger: {}", ex.getMessage(), ex);
+            throw new RuntimeException("OCR scan with barcode failed: " + ex.getMessage(), ex);
         }
     }
 
     /**
-     * Compare multiple bidders against tender requirements using CIS scores.
+     * Extract raw text with confidence scores.
+     */
+    public Map<String, Object> extractText(MultipartFile file, String documentType, boolean preprocess) {
+        try {
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("file", toByteArrayResource(file));
+            if (documentType != null && !documentType.isBlank()) {
+                body.add("document_type", documentType);
+            }
+            body.add("preprocess", String.valueOf(preprocess));
+
+            return restClient.post()
+                    .uri("/api/ml/extract-text")
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(body)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to extract text: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Text extraction failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Extract structured layout, table grids, form fields, and visual barcode boxes.
+     */
+    public Map<String, Object> extractStructured(MultipartFile file, String documentType) {
+        try {
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("file", toByteArrayResource(file));
+            if (documentType != null && !documentType.isBlank()) {
+                body.add("document_type", documentType);
+            }
+            body.add("preprocess", "true");
+
+            return restClient.post()
+                    .uri("/api/ml/extract-structured")
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(body)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to extract structured data: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Failed to extract structured data: " + ex.getMessage(), ex);
+        }
+    }
+
+    // ==========================================
+    // Group C: Taxpayer Intelligence & Live GST Verification
+    // ==========================================
+
+    /**
+     * End-to-End Taxpayer Scanning & Validation (PDF/Image file upload).
+     */
+    public Map<String, Object> scanAndVerifyTaxpayer(MultipartFile file, String text, boolean preprocess, boolean useLivePortal) {
+        try {
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            if (file != null && !file.isEmpty()) {
+                body.add("file", toByteArrayResource(file));
+            }
+            if (text != null && !text.isBlank()) {
+                body.add("text", text);
+            }
+            body.add("preprocess", String.valueOf(preprocess));
+            body.add("use_live_portal", String.valueOf(useLivePortal));
+
+            return restClient.post()
+                    .uri("/api/ml/scan-and-verify-taxpayer")
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(body)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to scan and verify taxpayer: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Taxpayer scan failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Scan taxpayer from plain text JSON payload.
+     */
+    public Map<String, Object> scanTaxpayerText(String text, boolean useLivePortal) {
+        try {
+            Map<String, Object> req = new HashMap<>();
+            req.put("text", text);
+            req.put("use_live_portal", useLivePortal);
+
+            return restClient.post()
+                    .uri("/api/ml/scan-taxpayer-text")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(req)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to scan taxpayer text: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Taxpayer text scan failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Verify specific taxpayer identifier (GSTIN, PAN, or UIN) on Government GST portal.
+     */
+    public Map<String, Object> verifyTaxpayer(String identifier, String identifierType, String stateCode) {
+        try {
+            Map<String, Object> req = new HashMap<>();
+            req.put("identifier", identifier);
+            req.put("identifier_type", identifierType != null ? identifierType : "auto");
+            if (stateCode != null) {
+                req.put("state_code", stateCode);
+            }
+
+            return restClient.post()
+                    .uri("/api/ml/verify-taxpayer")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(req)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to verify taxpayer identifier: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Taxpayer verification failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Check live connectivity to Government GST portal (services.gst.gov.in/services/searchtp).
+     */
+    public Map<String, Object> getGstPortalStatus() {
+        try {
+            return restClient.get()
+                    .uri("/api/ml/gst-portal-status")
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.warn("GST Portal status check failed: {}", ex.getMessage());
+            Map<String, Object> res = new HashMap<>();
+            res.put("reachable", false);
+            res.put("error", ex.getMessage());
+            return res;
+        }
+    }
+
+    /**
+     * Returns the complete repository of errors, categories, and calibrated penalty deductions.
+     */
+    public Map<String, Object> getComplianceErrorsCatalog() {
+        try {
+            return restClient.get()
+                    .uri("/api/ml/compliance-errors-catalog")
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to get compliance errors catalog: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Failed to get compliance errors catalog: " + ex.getMessage(), ex);
+        }
+    }
+
+    // ==========================================
+    // Group D: CIS Scoring & Automated Clearance
+    // ==========================================
+
+    /**
+     * Calculate Composite Compliance Index - CIS (0.0 to 1.0) using research formula.
+     */
+    public Map<String, Object> calculateCis(Map<String, Object> documents, Map<String, Object> tenderRequirements, Map<String, Object> bidderInfo) {
+        try {
+            Map<String, Object> req = new HashMap<>();
+            req.put("documents", documents != null ? documents : Collections.emptyMap());
+            req.put("tender_requirements", tenderRequirements != null ? tenderRequirements : Collections.emptyMap());
+            if (bidderInfo != null) {
+                req.put("bidder_info", bidderInfo);
+            }
+
+            return restClient.post()
+                    .uri("/api/ml/calculate-cis")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(req)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to calculate CIS: {}", ex.getMessage(), ex);
+            throw new RuntimeException("CIS calculation failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Compare multiple competing bidders against tender requirements using CIS scores.
      */
     public Map<String, Object> compareBiddersCis(List<Map<String, Object>> biddersData, Map<String, Object> tenderRequirements) {
         try {
@@ -150,12 +373,133 @@ public class MlServiceClient {
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(requestPayload)
                     .retrieve()
-                    .body(new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {});
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
         } catch (Exception ex) {
             log.error("Failed to compare bidders via ML service: {}", ex.getMessage(), ex);
             throw new RuntimeException("Bidder comparison failed: " + ex.getMessage(), ex);
         }
     }
+
+    /**
+     * Evaluates whether a vendor package qualifies for Single-Click Clearance or requires manual officer review.
+     */
+    public Map<String, Object> processClearance(String officerId, Map<String, Object> complianceRequest) {
+        try {
+            String uri = "/api/ml/process-clearance" + (officerId != null ? "?officer_id=" + officerId : "");
+            return restClient.post()
+                    .uri(uri)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(complianceRequest)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to process clearance: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Clearance processing failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Generates formal clearance certificate and audit trail for an approved bid.
+     */
+    public Map<String, Object> executeSingleClickClearance(String clearanceId, String officerId, String justification) {
+        try {
+            Map<String, Object> req = new HashMap<>();
+            req.put("clearance_id", clearanceId);
+            if (officerId != null) req.put("officer_id", officerId);
+            if (justification != null) req.put("justification", justification);
+
+            return restClient.post()
+                    .uri("/api/ml/execute-single-click-clearance")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(req)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to execute single-click clearance: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Single-click clearance failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Get clearance workflow statistics.
+     */
+    public Map<String, Object> getClearanceStatistics() {
+        try {
+            return restClient.get()
+                    .uri("/api/ml/clearance-statistics")
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to get clearance statistics: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Failed to get clearance statistics: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Get CIS weight distribution system.
+     */
+    public Map<String, Object> getCisWeights() {
+        try {
+            return restClient.get()
+                    .uri("/api/ml/cis-weights")
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to get CIS weights: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Failed to get CIS weights: " + ex.getMessage(), ex);
+        }
+    }
+
+    // ==========================================
+    // Group E: Entity Extraction & Document Classification
+    // ==========================================
+
+    /**
+     * Extracts 15+ specialized Indian procurement entities from text (PAN, GSTIN, Udyam URN, TAN, CIN, DIN, etc.).
+     */
+    public Map<String, Object> extractEntities(String text, String documentType) {
+        try {
+            Map<String, Object> req = new HashMap<>();
+            req.put("text", text);
+            if (documentType != null) {
+                req.put("document_type", documentType);
+            }
+
+            return restClient.post()
+                    .uri("/api/ml/extract-entities")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(req)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to extract entities: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Entity extraction failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Classifies document image or PDF into known Indian procurement categories.
+     */
+    public Map<String, Object> classifyDocument(MultipartFile file) {
+        try {
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("file", toByteArrayResource(file));
+
+            return restClient.post()
+                    .uri("/api/ml/classify-document")
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(body)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to classify document: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Document classification failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    // ==========================================
+    // Group F: System & Infrastructure
+    // ==========================================
 
     /**
      * Get list of supported document types and compliance weights.
@@ -165,7 +509,7 @@ public class MlServiceClient {
             return restClient.get()
                     .uri("/api/ml/document-types")
                     .retrieve()
-                    .body(new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {});
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
         } catch (Exception ex) {
             log.error("Failed to retrieve document types: {}", ex.getMessage(), ex);
             throw new RuntimeException("Could not retrieve document types: " + ex.getMessage(), ex);
@@ -180,7 +524,7 @@ public class MlServiceClient {
             return restClient.get()
                     .uri("/health")
                     .retrieve()
-                    .body(new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {});
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
         } catch (Exception ex) {
             log.warn("ML Service health check failed: {}", ex.getMessage());
             Map<String, Object> health = new HashMap<>();
@@ -190,6 +534,10 @@ public class MlServiceClient {
             return health;
         }
     }
+
+    // ==========================================
+    // Helpers
+    // ==========================================
 
     private ByteArrayResource toByteArrayResource(MultipartFile file) throws IOException {
         String filename = file.getOriginalFilename() != null && !file.getOriginalFilename().isBlank()
@@ -215,7 +563,6 @@ public class MlServiceClient {
         try {
             DocumentProcessResponse response = objectMapper.readValue(rawResponseJson, DocumentProcessResponse.class);
 
-            // Also keep full raw JSON map in additional properties for fallback inspection
             Map<String, Object> rawMap = objectMapper.readValue(rawResponseJson, new TypeReference<Map<String, Object>>() {});
             if (response.getDocumentType() == null && fallbackDocType != null) {
                 response.setDocumentType(fallbackDocType);

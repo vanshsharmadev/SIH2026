@@ -173,6 +173,79 @@ public class TenderDocumentService {
         return mlServiceClient.checkHealth();
     }
 
+    // ==========================================
+    // Advanced ML Endpoints Delegations
+    // ==========================================
+
+    public Map<String, Object> verifyDocument(MultipartFile file, String docType, String ocrText, boolean autoOcr) {
+        return mlServiceClient.verifyDocument(file, docType, ocrText, autoOcr);
+    }
+
+    public Map<String, Object> verifyQrPayload(String payload, String documentType, String ocrText) {
+        return mlServiceClient.verifyQrPayload(payload, documentType, ocrText);
+    }
+
+    public Map<String, Object> ocrScanWithBarcode(MultipartFile file, String docType, boolean preprocess, boolean autoScanBarcode) {
+        return mlServiceClient.ocrScanWithBarcode(file, docType, preprocess, autoScanBarcode);
+    }
+
+    public Map<String, Object> extractText(MultipartFile file, String documentType, boolean preprocess) {
+        return mlServiceClient.extractText(file, documentType, preprocess);
+    }
+
+    public Map<String, Object> extractStructured(MultipartFile file, String documentType) {
+        return mlServiceClient.extractStructured(file, documentType);
+    }
+
+    public Map<String, Object> scanAndVerifyTaxpayer(MultipartFile file, String text, boolean preprocess, boolean useLivePortal) {
+        return mlServiceClient.scanAndVerifyTaxpayer(file, text, preprocess, useLivePortal);
+    }
+
+    public Map<String, Object> scanTaxpayerText(String text, boolean useLivePortal) {
+        return mlServiceClient.scanTaxpayerText(text, useLivePortal);
+    }
+
+    public Map<String, Object> verifyTaxpayer(String identifier, String identifierType, String stateCode) {
+        return mlServiceClient.verifyTaxpayer(identifier, identifierType, stateCode);
+    }
+
+    public Map<String, Object> getGstPortalStatus() {
+        return mlServiceClient.getGstPortalStatus();
+    }
+
+    public Map<String, Object> getComplianceErrorsCatalog() {
+        return mlServiceClient.getComplianceErrorsCatalog();
+    }
+
+    public Map<String, Object> calculateCis(Map<String, Object> documents, Map<String, Object> tenderRequirements, Map<String, Object> bidderInfo) {
+        return mlServiceClient.calculateCis(documents, tenderRequirements, bidderInfo);
+    }
+
+    public Map<String, Object> processClearance(String officerId, Map<String, Object> complianceRequest) {
+        return mlServiceClient.processClearance(officerId, complianceRequest);
+    }
+
+    public Map<String, Object> executeSingleClickClearance(String clearanceId, String officerId, String justification) {
+        return mlServiceClient.executeSingleClickClearance(clearanceId, officerId, justification);
+    }
+
+    public Map<String, Object> getClearanceStatistics() {
+        return mlServiceClient.getClearanceStatistics();
+    }
+
+    public Map<String, Object> getCisWeights() {
+        return mlServiceClient.getCisWeights();
+    }
+
+    public Map<String, Object> extractEntities(String text, String documentType) {
+        return mlServiceClient.extractEntities(text, documentType);
+    }
+
+    public Map<String, Object> classifyDocument(MultipartFile file) {
+        return mlServiceClient.classifyDocument(file);
+    }
+
+
     private TenderUploadResponse mapToUploadResponse(TenderDocument entity) {
         return TenderUploadResponse.builder()
                 .id(entity.getId())

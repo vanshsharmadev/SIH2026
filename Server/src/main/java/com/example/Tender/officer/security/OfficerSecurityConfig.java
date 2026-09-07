@@ -85,6 +85,10 @@ public class OfficerSecurityConfig {
                         .requestMatchers("/api/bidder/auth/**").permitAll()
                         .requestMatchers("/api/officer/tenders/document-types").permitAll()
                         .requestMatchers("/api/officer/tenders/ml-health").permitAll()
+                        .requestMatchers("/api/officer/tenders/ml/gst-portal-status").permitAll()
+                        .requestMatchers("/api/officer/tenders/ml/compliance-errors-catalog").permitAll()
+                        .requestMatchers("/api/officer/tenders/ml/cis-weights").permitAll()
+                        .requestMatchers("/api/officer/tenders/ml/clearance-statistics").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()
                 );

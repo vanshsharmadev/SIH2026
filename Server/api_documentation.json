@@ -878,7 +878,364 @@
           "200": { "description": "ML Service health status" }
         }
       }
+    },
+    "/api/officer/tenders/ml/verify-document": {
+      "post": {
+        "tags": ["ML Anti-Forgery & Verification"],
+        "summary": "Group A: Unified Document Authenticity Verification (Signatures, QR, Stamps)",
+        "description": "Performs pyHanko cryptographic CMS verification against CCA India CAs, pyzbar QR scanning, and OpenCV HSV visual stamp detection.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "doc_type": { "type": "string", "default": "generic", "example": "gst" },
+                  "ocr_text": { "type": "string" },
+                  "auto_ocr": { "type": "boolean", "default": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Document verification report" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/verify-qr-payload": {
+      "post": {
+        "tags": ["ML Anti-Forgery & Verification"],
+        "summary": "Group A: Verify Raw QR Code Payload String",
+        "description": "Direct verification of decoded QR code string against document type and OCR text.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "payload": "UDYAM-MH-01-0012345",
+                "document_type": "udyam",
+                "ocr_text": "UDYAM REGISTRATION CERTIFICATE UDYAM-MH-01-0012345"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "QR verification status" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/ocr-scan-with-barcode": {
+      "post": {
+        "tags": ["ML OCR & Barcode Intelligence"],
+        "summary": "Group B: Automated OCR with Barcode/QR Trigger",
+        "description": "Extracts text via Tesseract OCR and automatically triggers QR scanner if visual codes or keywords (IRN, Barcode, Scan QR) are detected.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "doc_type": { "type": "string", "default": "auto" },
+                  "preprocess": { "type": "boolean", "default": true },
+                  "auto_scan_barcode": { "type": "boolean", "default": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OCR and barcode scan results" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/extract-text": {
+      "post": {
+        "tags": ["ML OCR & Barcode Intelligence"],
+        "summary": "Group B: Extract Raw Text from Document",
+        "description": "Extracts plain text with overall OCR confidence scores.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "document_type": { "type": "string" },
+                  "preprocess": { "type": "boolean", "default": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Extracted text and confidence" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/extract-structured": {
+      "post": {
+        "tags": ["ML OCR & Barcode Intelligence"],
+        "summary": "Group B: Extract Structured Layout & Grids",
+        "description": "Returns layout text blocks, table grids, form fields, and barcode candidate boxes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "document_type": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Structured layout components" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/scan-and-verify-taxpayer": {
+      "post": {
+        "tags": ["ML Taxpayer Intelligence"],
+        "summary": "Group C: End-to-End Taxpayer Scanning & Live GST Validation",
+        "description": "Upload document, repairs OCR noise on identifiers, cross-validates PAN against GSTIN (chars 3-12), queries live GST portal, and calculates compliance verdict.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "text": { "type": "string" },
+                  "preprocess": { "type": "boolean", "default": true },
+                  "use_live_portal": { "type": "boolean", "default": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Taxpayer scan and compliance verdict" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/scan-taxpayer-text": {
+      "post": {
+        "tags": ["ML Taxpayer Intelligence"],
+        "summary": "Group C: Scan Taxpayer from Plain Text JSON",
+        "description": "JSON variant for automated PAN & GST validation from raw text.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "text": "Supplier: XYZ INFOTECH GSTIN: 07AABCB1234F1Z2 PAN: AABCB1234F",
+                "use_live_portal": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Taxpayer verification results" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/verify-taxpayer": {
+      "post": {
+        "tags": ["ML Taxpayer Intelligence"],
+        "summary": "Group C: Verify Specific Taxpayer Identifier (GSTIN / PAN / UIN)",
+        "description": "Queries government GST portal with automated identifier type detection and state mapping.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "identifier": "07AABCB1234F1Z2",
+                "identifier_type": "gstin",
+                "state_code": "07"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Identifier verification details" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/gst-portal-status": {
+      "get": {
+        "tags": ["ML Taxpayer Intelligence"],
+        "summary": "Group C: Live GST Portal Connectivity Status",
+        "description": "Checks connectivity to https://services.gst.gov.in/services/searchtp.",
+        "responses": {
+          "200": { "description": "GST Portal connectivity status" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/compliance-errors-catalog": {
+      "get": {
+        "tags": ["ML Taxpayer Intelligence"],
+        "summary": "Group C: Compliance Errors & Calibrated Penalty Catalog",
+        "description": "Returns full catalog of errors, severity, categories, and calibrated penalty deductions.",
+        "responses": {
+          "200": { "description": "Errors catalog" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/calculate-cis": {
+      "post": {
+        "tags": ["ML CIS Scoring & Clearance"],
+        "summary": "Group D: Calculate Composite Compliance Index (CIS Score)",
+        "description": "Evaluates submitted credentials against tender criteria to compute CIS index score (0.0 to 1.0).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "documents": {
+                  "pan_card": { "pan": [{ "value": "ABCDE1234F", "validated": true }] },
+                  "gst_certificate": { "gstin": [{ "value": "09ABCDE1234F1Z5", "validated": true }] }
+                },
+                "tender_requirements": {
+                  "tender_type": "general",
+                  "required_documents": ["pan_card", "gst_certificate"]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "CIS score result" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/process-clearance": {
+      "post": {
+        "tags": ["ML CIS Scoring & Clearance"],
+        "summary": "Group D: Process Clearance Decision (Single-Click vs Conditional Review)",
+        "description": "Determines whether vendor qualifies for SINGLE_CLICK_APPROVED or requires CONDITIONAL_REVIEW.",
+        "parameters": [
+          { "name": "officer_id", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "documents": {
+                  "pan_card": { "pan": [{ "value": "ABCDE1234F", "validated": true }] }
+                },
+                "tender_requirements": { "tender_type": "general" }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Clearance recommendation" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/execute-single-click-clearance": {
+      "post": {
+        "tags": ["ML CIS Scoring & Clearance"],
+        "summary": "Group D: Execute Single-Click Clearance Certificate",
+        "description": "Generates formal clearance certificate and audit trail for an approved bid.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "clearance_id": "CLR-2026-884920",
+                "officer_id": "OFFICER_01",
+                "justification": "All credentials verified authentic with 100% filing rate."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Clearance executed certificate" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/clearance-statistics": {
+      "get": {
+        "tags": ["ML CIS Scoring & Clearance"],
+        "summary": "Group D: Clearance Statistics",
+        "description": "Returns stats on single-click vs conditional clearance workflows.",
+        "responses": {
+          "200": { "description": "Clearance statistics" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/cis-weights": {
+      "get": {
+        "tags": ["ML CIS Scoring & Clearance"],
+        "summary": "Group D: CIS Weight Distribution System",
+        "description": "Retrieves formula, component weights, and risk thresholds.",
+        "responses": {
+          "200": { "description": "CIS weights" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/extract-entities": {
+      "post": {
+        "tags": ["ML Entity & Classification"],
+        "summary": "Group E: Extract 15+ Procurement Named Entities",
+        "description": "Extracts PAN, GSTIN, Udyam URN, TAN, CIN, DIN, Aadhaar masked, financial amounts, dates, and organizations from raw text.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "text": "National Institute of Technology Tender: NIT/PROC/2026/001 GSTIN: 09ABCDE1234F1Z5 PAN: ABCDE1234F",
+                "document_type": "other"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Extracted entities" }
+        }
+      }
+    },
+    "/api/officer/tenders/ml/classify-document": {
+      "post": {
+        "tags": ["ML Entity & Classification"],
+        "summary": "Group E: Classify Document Category",
+        "description": "Classifies document into categories (gst_certificate, pan_card, udyam_certificate, etc.) with full probability distribution.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Document classification and probabilities" }
+        }
+      }
     }
+
   },
   "components": {
     "securitySchemes": {
