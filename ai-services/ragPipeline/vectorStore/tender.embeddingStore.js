@@ -1,6 +1,6 @@
 const { Pool } = require("pg");
 const { GoogleGenerativeAIEmbeddings } = require("@langchain/google-genai");
-const { PGVectorStore } = require("@langchain/community/vectorstores/pgvector");
+const { PGVectorStore } = require("@langchain/pgvector");
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

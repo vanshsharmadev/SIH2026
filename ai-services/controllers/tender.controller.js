@@ -1,19 +1,25 @@
 const { downloadPdf } = require("../utils/pdfDownloader");
-const { processTender } = require(
-  "../ragPipeline/embeddings/tendorEmbeddings/tender.embedding"
-);
+const path = require("path");
+
+const {
+  processTender
+} = require("../ragPipeline/embeddings/tendorEmbeddings/tender.embedding");
+
+const {
+  saveTenderEmbeddings
+} = require("../ragPipeline/vectorStore/tender.embeddingStore");
+
 
 async function processTenderController(req, res) {
   try {
-    // 1. Receive data from Spring Boot
+
     const {
       tenderId,
       title,
-      pdfUrl,
+      // pdfUrl,
       publicId
     } = req.body;
 
-    // 2. Validate required fields
     if (!tenderId) {
       return res.status(400).json({
         success: false,
@@ -21,32 +27,42 @@ async function processTenderController(req, res) {
       });
     }
 
-    if (!pdfUrl) {
-      return res.status(400).json({
-        success: false,
-        message: "pdfUrl is required"
-      });
-    }
+    // if (!pdfUrl) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "pdfUrl is required"
+    //   });
+    // }
 
-    // 3. Download PDF from Cloudinary
-    console.log(`Downloading tender PDF: ${tenderId}`);
+    // // Download PDF
+    // const filePath = await downloadPdf(
+    //   pdfUrl,
+    //   tenderId
+    // );
 
-    const filePath = await downloadPdf(
-      pdfUrl,
-      tenderId
+
+    const filePath = path.join(
+      __dirname,
+       "../test-data/test-tender.pdf"
     );
 
-    console.log(`PDF downloaded: ${filePath}`);
+    console.log(
+      `Using local tender PDF: ${filePath}`
+    );
 
-    // 4. Send downloaded PDF to existing RAG pipeline
-    console.log(`Processing tender: ${tenderId}`);
 
+    // Parse → chunk → embed
     const result = await processTender(
       tenderId,
       filePath
     );
 
-    // 5. Send response back to Spring Boot
+    // Save generated embeddings
+    const saved = await saveTenderEmbeddings(
+      result.tenderId,
+      result.chunks
+    );
+
     return res.status(200).json({
       success: true,
       message: "Tender processed successfully",
@@ -55,7 +71,8 @@ async function processTenderController(req, res) {
         tenderId,
         title,
         publicId,
-        totalChunks: result.totalChunks
+        totalChunks: result.totalChunks,
+        savedChunks: saved.savedChunks
       }
     });
 
@@ -73,7 +90,6 @@ async function processTenderController(req, res) {
     });
   }
 }
-
 module.exports = {
   processTenderController
 };

@@ -3,7 +3,7 @@ const { downloadPdf } = require("../utils/pdfDownloader");
 const {
   processBidderDocument
 } = require(
-  "../ragPipeline/bidderEmbeddings/bidder.embedding"
+  "../ragPipeline/embeddings/bidderEmbeddings/bidder.embedding"
 );
 
 async function processBidderController(req, res) {
