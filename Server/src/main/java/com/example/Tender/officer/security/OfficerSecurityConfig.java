@@ -83,6 +83,8 @@ public class OfficerSecurityConfig {
                         .requestMatchers("/api/officer/identity/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/bidder/auth/**").permitAll()
+                        .requestMatchers("/api/officer/tenders/document-types").permitAll()
+                        .requestMatchers("/api/officer/tenders/ml-health").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()
                 );
