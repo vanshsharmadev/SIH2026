@@ -1,6 +1,6 @@
 const {
     generateEmbedding,
-  } = require("../embeddings/embedding.service");
+  } = require("../embedding.service.js");
   
   const {
     extractTenderText,
