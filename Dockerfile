@@ -39,6 +39,6 @@ ENV JAVA_OPTS="-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/
 
 # Health check endpoint
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost:8080/api/officer/tenders/document-types || exit 1
+  CMD wget --quiet --tries=1 --spider http://localhost:${PORT:-8080}/api/officer/tenders/document-types || exit 1
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
