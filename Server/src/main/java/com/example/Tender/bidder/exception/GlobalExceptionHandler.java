@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.Map;
 
-@RestControllerAdvice
+@RestControllerAdvice(basePackages = "com.example.Tender.bidder")
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BidderNotFoundException.class)
