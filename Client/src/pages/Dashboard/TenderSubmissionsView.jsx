@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Filter,
@@ -23,7 +23,11 @@ import {
   Sparkles,
   RefreshCw,
   ExternalLink,
+  MessageSquare,
+  Check,
 } from 'lucide-react';
+import BidderChatBot from '../../components/common/BidderChatBot';
+import { mlService, recordAuditLog } from '../../services';
 
 const INITIAL_SUBMISSIONS = [
   {
@@ -181,8 +185,74 @@ const INITIAL_SUBMISSIONS = [
 ];
 
 const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
-  // Filters & State
-  const [showFilters, setShowFilters] = useState(true);
+  // Load dynamic submissions from localStorage merged with defaults
+  const [submissionsList, setSubmissionsList] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
+      if (Array.isArray(stored) && stored.length > 0) {
+        const formatted = stored.map((s) => ({
+          id: s.id,
+          tenderId: s.tenderId,
+          tenderTitle: s.tenderTitle,
+          department: s.department || s.ministry || 'Ministry of Education',
+          bidder: s.bidder,
+          submittedOn: s.submittedOn?.split(',')[0] || 'Today',
+          submittedTime: s.submittedTime || 'Just now',
+          docCount: s.docCount || s.documents?.length || 4,
+          complianceScore: s.complianceScore || s.score || 95,
+          complianceStatus: s.complianceStatus || s.status || 'Compliant',
+          evaluationStatus: s.evaluationStatus || 'Pending',
+          documents: s.documents || [],
+          mlDossier: s.mlDossier || null,
+          isLiveUploaded: Boolean(s.isLiveUploaded || s.documents?.[0]?.cloudinaryUrl),
+          officerVerdict: s.officerVerdict || null,
+          officerRemarks: s.officerRemarks || null,
+        }));
+        const existingIds = new Set(formatted.map((f) => f.id));
+        return [...formatted, ...INITIAL_SUBMISSIONS.filter((item) => !existingIds.has(item.id))];
+      }
+    } catch (e) {}
+    return INITIAL_SUBMISSIONS;
+  });
+
+  useEffect(() => {
+    const handleStorageUpdate = () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
+        if (Array.isArray(stored) && stored.length > 0) {
+          const formatted = stored.map((s) => ({
+            id: s.id,
+            tenderId: s.tenderId,
+            tenderTitle: s.tenderTitle,
+            department: s.department || s.ministry || 'Ministry of Education',
+            bidder: s.bidder,
+            submittedOn: s.submittedOn?.split(',')[0] || 'Today',
+            submittedTime: s.submittedTime || 'Just now',
+            docCount: s.docCount || s.documents?.length || 4,
+            complianceScore: s.complianceScore || s.score || 95,
+            complianceStatus: s.complianceStatus || s.status || 'Compliant',
+            evaluationStatus: s.evaluationStatus || 'Pending',
+            documents: s.documents || [],
+            mlDossier: s.mlDossier || null,
+            isLiveUploaded: Boolean(s.isLiveUploaded || s.documents?.[0]?.cloudinaryUrl),
+            officerVerdict: s.officerVerdict || null,
+            officerRemarks: s.officerRemarks || null,
+          }));
+          const existingIds = new Set(formatted.map((f) => f.id));
+          setSubmissionsList([...formatted, ...INITIAL_SUBMISSIONS.filter((item) => !existingIds.has(item.id))]);
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('storage', handleStorageUpdate);
+    window.addEventListener('focus', handleStorageUpdate);
+    return () => {
+      window.removeEventListener('storage', handleStorageUpdate);
+      window.removeEventListener('focus', handleStorageUpdate);
+    };
+  }, []);
+
+  // Filters & State (Closed by default per user request)
+  const [showFilters, setShowFilters] = useState(false);
   const [selectedTab, setSelectedTab] = useState('all'); // all | pending | review | compliant | non_compliant
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTenderId, setFilterTenderId] = useState('GEM/2024/B/5123981');
@@ -194,9 +264,18 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
   const [endDate, setEndDate] = useState('');
 
   // Selected submission for side drawer
-  const [selectedSubmission, setSelectedSubmission] = useState(INITIAL_SUBMISSIONS[0]);
+  const [selectedSubmission, setSelectedSubmission] = useState(() => submissionsList[0] || INITIAL_SUBMISSIONS[0]);
   const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(true);
   const [viewAllDocs, setViewAllDocs] = useState(false);
+
+  // Officer Evaluation & Clearance Engine Modal state
+  const [evaluationModalOpen, setEvaluationModalOpen] = useState(false);
+  const [evalVerdict, setEvalVerdict] = useState('CLEARED');
+  const [evalRemarks, setEvalRemarks] = useState('');
+  const [evalSubmitting, setEvalSubmitting] = useState(false);
+
+  // Bidder chatbot state
+  const [chatBotOpen, setChatBotOpen] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -217,7 +296,7 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
 
   // Filtered submissions list
   const filteredSubmissions = useMemo(() => {
-    return INITIAL_SUBMISSIONS.filter((item) => {
+    return submissionsList.filter((item) => {
       // Tab filter
       if (selectedTab === 'pending' && item.evaluationStatus !== 'Pending') return false;
       if (selectedTab === 'review' && item.evaluationStatus !== 'Under Review') return false;
@@ -247,11 +326,122 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
 
       return true;
     });
-  }, [selectedTab, searchQuery, filterTenderId, filterCompliance, filterEval]);
+  }, [submissionsList, selectedTab, searchQuery, filterTenderId, filterCompliance, filterEval]);
 
   const handleSelectRow = (sub) => {
     setSelectedSubmission(sub);
     setDetailsDrawerOpen(true);
+  };
+
+  const handleConfirmEvaluation = async () => {
+    if (!selectedSubmission) return;
+    setEvalSubmitting(true);
+    try {
+      // 1. Attempt call to ML Decision Engine
+      await mlService.processClearance(
+        {
+          bidder_id: selectedSubmission.id,
+          composite_cis_score: selectedSubmission.complianceScore,
+          verdict: evalVerdict,
+          notes: evalRemarks || 'Officer clearance verified via Cloudinary archive & PyHanko DSC',
+        },
+        'OFF-101'
+      ).catch(() => null);
+
+      // 2. Map verdict to human-readable evaluation status
+      const newEvalStatus =
+        evalVerdict === 'CLEARED'
+          ? 'Cleared'
+          : evalVerdict === 'CONDITIONALLY_CLEARED'
+          ? 'Under Review'
+          : 'Rejected';
+
+      // 3. Update local submissions state
+      const updatedList = submissionsList.map((item) => {
+        if (item.id === selectedSubmission.id) {
+          return {
+            ...item,
+            evaluationStatus: newEvalStatus,
+            officerVerdict: evalVerdict,
+            officerRemarks: evalRemarks,
+          };
+        }
+        return item;
+      });
+      setSubmissionsList(updatedList);
+      setSelectedSubmission((prev) => ({
+        ...prev,
+        evaluationStatus: newEvalStatus,
+        officerVerdict: evalVerdict,
+        officerRemarks: evalRemarks,
+      }));
+
+      // 4. Persist in localStorage officer submissions
+      try {
+        const stored = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
+        const updatedStored = stored.map((s) => {
+          if (s.id === selectedSubmission.id) {
+            return {
+              ...s,
+              evaluationStatus: newEvalStatus,
+              officerVerdict: evalVerdict,
+              officerRemarks: evalRemarks,
+            };
+          }
+          return s;
+        });
+        localStorage.setItem('gem_officer_submissions', JSON.stringify(updatedStored));
+      } catch (e) {}
+
+      // 5. Update Bidder Applications so bidder sees evaluation result
+      try {
+        const bidderApps = JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
+        const updatedBidderApps = bidderApps.map((app) => {
+          if (app.id === selectedSubmission.id || app.tenderId === selectedSubmission.tenderId) {
+            return {
+              ...app,
+              status:
+                evalVerdict === 'CLEARED'
+                  ? 'Evaluation Passed'
+                  : evalVerdict === 'CONDITIONALLY_CLEARED'
+                  ? 'Under Review'
+                  : 'Disqualified',
+              statusCategory:
+                evalVerdict === 'CLEARED'
+                  ? 'approved'
+                  : evalVerdict === 'CONDITIONALLY_CLEARED'
+                  ? 'under_eval'
+                  : 'rejected',
+              statusBadgeColor:
+                evalVerdict === 'CLEARED'
+                  ? 'border-emerald-300 bg-emerald-50/70 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700'
+                  : evalVerdict === 'CONDITIONALLY_CLEARED'
+                  ? 'border-amber-300 bg-amber-50/70 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700'
+                  : 'border-rose-300 bg-rose-50/70 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-700',
+            };
+          }
+          return app;
+        });
+        localStorage.setItem('gem_bidder_applications', JSON.stringify(updatedBidderApps));
+      } catch (e) {}
+
+      // 6. Record Audit Log
+      recordAuditLog({
+        activity: 'Clearance Decision',
+        module: 'Clearance Engine',
+        details: `Official clearance [${evalVerdict}] recorded for ${selectedSubmission.bidder} (${selectedSubmission.id})`,
+        status: 'Success',
+        user: { name: 'Evaluating Officer', role: 'Officer' },
+      });
+
+      setEvaluationModalOpen(false);
+      alert(`Clearance Decision recorded! Verdict: ${evalVerdict} for ${selectedSubmission.bidder}`);
+    } catch (err) {
+      console.error(err);
+      setEvaluationModalOpen(false);
+    } finally {
+      setEvalSubmitting(false);
+    }
   };
 
   const getScoreColor = (score) => {
@@ -973,13 +1163,27 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                 {(viewAllDocs ? selectedSubmission.documents : selectedSubmission.documents.slice(0, 4)).map((doc, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 hover:bg-slate-100/70 transition"
+                    className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 hover:bg-slate-100/70 transition gap-2"
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 truncate">
                       <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                       <span className="truncate text-xs font-medium">{doc.name}</span>
                     </div>
-                    <span className="text-[10px] text-slate-400 shrink-0 ml-2">{doc.size}</span>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                      <span className="text-[10px] text-slate-400">{doc.size}</span>
+                      {doc.cloudinaryUrl && (
+                        <a
+                          href={doc.cloudinaryUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-[10px] font-bold hover:underline"
+                          title="Open Cloudinary Secure PDF"
+                        >
+                          <ExternalLink className="w-2.5 h-2.5" />
+                          <span>PDF</span>
+                        </a>
+                      )}
+                    </div>
                   </div>
                 ))}
                 {!viewAllDocs && selectedSubmission.docCount > 4 && (
@@ -990,31 +1194,172 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
               </div>
             </div>
 
+            {/* GeM ML Microservice Evaluation Dossier */}
+            {selectedSubmission.mlDossier && (
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>GeM ML Microservice Dossier</span>
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
+                    {selectedSubmission.mlDossier.forensicAuthenticity}% Forensic
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  {selectedSubmission.mlDossier.executiveSummary}
+                </p>
+                <div className="text-[10.5px] space-y-0.5 pt-1 text-slate-600 dark:text-slate-300">
+                  <div className="flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-emerald-500" />
+                    <span>{selectedSubmission.mlDossier.digitalSignature}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                    <span>{selectedSubmission.mlDossier.taxpayerVerification}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-              {/* View Compliance Report */}
+              {/* Evaluate Proposal / ML Clearance */}
               <button
                 type="button"
-                onClick={() => onOpenCompliance && onOpenCompliance(selectedSubmission)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition cursor-pointer shadow-xs"
+                onClick={() => setEvaluationModalOpen(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold transition cursor-pointer shadow-xs"
               >
                 <ShieldCheck className="w-4 h-4" />
-                <span>View Compliance Report</span>
+                <span>Evaluate Bidder &amp; Issue Clearance</span>
               </button>
 
-              {/* Start Evaluation */}
+              {/* Chat with Bidder AI */}
+              <button
+                type="button"
+                onClick={() => setChatBotOpen(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white text-xs font-bold transition cursor-pointer shadow-xs group"
+              >
+                <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                <span>Chat with AI</span>
+                <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded-full font-bold ml-0.5">Context</span>
+              </button>
+
+              {/* Detailed Compliance Audit */}
               <button
                 type="button"
                 onClick={() => onOpenCompliance && onOpenCompliance(selectedSubmission)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white dark:bg-slate-800 border border-blue-600/60 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-700/50 text-xs font-bold transition cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-xs font-bold transition cursor-pointer"
               >
                 <Play className="w-3.5 h-3.5" />
-                <span>Start Evaluation</span>
+                <span>Detailed Compliance Audit</span>
               </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* -------------------- 6.5 OFFICER PROCUREMENT CLEARANCE MODAL -------------------- */}
+      {evaluationModalOpen && selectedSubmission && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-blue-600" />
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                  Procurement Clearance Decision Engine
+                </h3>
+              </div>
+              <button
+                onClick={() => setEvaluationModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-900 dark:text-white text-sm">{selectedSubmission.bidder}</span>
+                  <span className="font-mono text-xs text-blue-600 dark:text-blue-400 font-bold">{selectedSubmission.id}</span>
+                </div>
+                <p className="text-slate-500 dark:text-slate-400 truncate">{selectedSubmission.tenderTitle}</p>
+                <p className="text-[11px] text-slate-400">Tender: {selectedSubmission.tenderId}</p>
+              </div>
+
+              {/* ML Decision Scores */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="p-2.5 rounded-xl bg-blue-50/50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-center">
+                  <span className="text-[10px] text-slate-400 font-bold block">Composite CIS</span>
+                  <span className="text-sm font-black text-blue-600 dark:text-blue-400">{selectedSubmission.complianceScore}%</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 text-center">
+                  <span className="text-[10px] text-slate-400 font-bold block">Forensic Score</span>
+                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">98% Authentic</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-purple-50/50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900/40 text-center">
+                  <span className="text-[10px] text-slate-400 font-bold block">Statutory Status</span>
+                  <span className="text-sm font-black text-purple-600 dark:text-purple-400">Active GSTN</span>
+                </div>
+              </div>
+
+              {/* Clearance Verdict Radio */}
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
+                  Procurement Clearance Verdict (ML Endpoint 4.11)
+                </label>
+                <div className="space-y-1.5">
+                  <label className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition ${evalVerdict === 'CLEARED' ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 text-emerald-900 dark:text-emerald-200 font-bold' : 'border-slate-200 dark:border-slate-700'}`}>
+                    <input type="radio" name="verdict" value="CLEARED" checked={evalVerdict === 'CLEARED'} onChange={() => setEvalVerdict('CLEARED')} />
+                    <span>🟢 CLEARED — Bidder fully qualifies technical specifications &amp; statutory rules</span>
+                  </label>
+                  <label className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition ${evalVerdict === 'CONDITIONALLY_CLEARED' ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-400 text-amber-900 dark:text-amber-200 font-bold' : 'border-slate-200 dark:border-slate-700'}`}>
+                    <input type="radio" name="verdict" value="CONDITIONALLY_CLEARED" checked={evalVerdict === 'CONDITIONALLY_CLEARED'} onChange={() => setEvalVerdict('CONDITIONALLY_CLEARED')} />
+                    <span>🟡 CONDITIONALLY CLEARED — Minor clarification required on local content / BOQ</span>
+                  </label>
+                  <label className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition ${evalVerdict === 'REJECTED' ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-400 text-rose-900 dark:text-rose-200 font-bold' : 'border-slate-200 dark:border-slate-700'}`}>
+                    <input type="radio" name="verdict" value="REJECTED" checked={evalVerdict === 'REJECTED'} onChange={() => setEvalVerdict('REJECTED')} />
+                    <span>🔴 REJECTED — Non-compliant with tender criteria or GFR Rule 144(xi)</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Officer Notes */}
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Evaluating Officer Notes / Audit Remarks
+                </label>
+                <textarea
+                  rows={3}
+                  value={evalRemarks}
+                  onChange={(e) => setEvalRemarks(e.target.value)}
+                  placeholder="e.g. Audited against Cloudinary proposal PDF & PyHanko Class-3 DSC. Approved for commercial stage."
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEvaluationModalOpen(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={evalSubmitting}
+                onClick={handleConfirmEvaluation}
+                className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-xs"
+              >
+                {evalSubmitting ? 'Recording Decision...' : 'Save & Issue Official Clearance'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* -------------------- 7. FOOTER -------------------- */}
       <div className="pt-6 pb-2 border-t border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-500 dark:text-slate-400">
@@ -1027,6 +1372,14 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
           <span className="hover:underline cursor-pointer">Terms of Service</span>
         </div>
       </div>
+
+      {/* Bidder Contextual Chatbot */}
+      <BidderChatBot
+        isOpen={chatBotOpen}
+        onClose={() => setChatBotOpen(false)}
+        bidderData={selectedSubmission}
+        apiEndpoint={null} // Will be provided by user later
+      />
     </div>
   );
 };

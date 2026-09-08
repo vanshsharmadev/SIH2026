@@ -170,10 +170,10 @@ const HeroSection = () => {
               <button
                 type="button"
                 onClick={() => alert('GeM Compliflix Walkthrough Video Demo is loading...')}
-                className="inline-flex items-center gap-2.5 px-5 py-3 bg-white/95 hover:bg-white text-[#073567] text-sm font-semibold rounded-lg border-2 border-[#073567] shadow-2xs hover:shadow-xs transition-all hover:bg-blue-50/50 cursor-pointer"
+                className="inline-flex items-center gap-2.5 px-5 py-3 bg-white/95 hover:bg-white dark:bg-slate-800/90 dark:hover:bg-slate-700 text-[#073567] dark:text-blue-300 text-sm font-semibold rounded-lg border-2 border-[#073567] dark:border-blue-400/70 shadow-2xs hover:shadow-xs transition-all hover:bg-blue-50/50 cursor-pointer"
               >
-                <div className="w-5 h-5 rounded-full bg-[#073567]/10 flex items-center justify-center">
-                  <Play className="w-3 h-3 fill-[#073567] text-[#073567] translate-x-0.5" />
+                <div className="w-5 h-5 rounded-full bg-[#073567]/10 dark:bg-blue-400/20 flex items-center justify-center">
+                  <Play className="w-3 h-3 fill-current text-current translate-x-0.5" />
                 </div>
                 <span>Watch Video (2 min)</span>
               </button>

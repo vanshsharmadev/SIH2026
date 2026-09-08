@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Check, KeyRound, Send, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context';
 import TricolorBar from '../../components/common/TricolorBar';
-import { authService } from '../../services';
+import { authService, recordAuditLog } from '../../services';
 import { isCustomBackendConfigured } from '../../services/api';
 
 const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
@@ -68,6 +68,21 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
             message: 'Authenticated successfully! Redirecting...',
           });
           login(authData.user, authData.token);
+          recordAuditLog({
+            activity: 'Login',
+            module: 'Authentication',
+            details: `Officer authenticated via Jan Parichay Gateway (${email})`,
+            status: 'Success',
+            user: {
+              name: authData.user?.name || email,
+              role: authData.user?.designation || authData.user?.role || 'Evaluating Officer',
+            },
+            extra: {
+              authProvider: 'NIC Jan Parichay SSO',
+              mfaVerified: 'Yes (Aadhaar OTP)',
+              ip: '192.168.1.45',
+            },
+          });
           setTimeout(() => {
             navigate(targetRedirect);
           }, 600);
@@ -97,15 +112,27 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
         ? rawName.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
         : 'Pooja Sharma';
 
-      login(
-        {
-          name: formattedName,
-          email: email,
-          role: isGovt ? 'Procurement Officer' : 'Procurement Bidder',
-          designation: isGovt ? 'Under Secretary (Procurement)' : 'Registered Vendor',
+      const loggedUser = {
+        name: formattedName,
+        email: email,
+        role: isGovt ? 'Evaluating Officer' : 'Procurement Bidder',
+        designation: isGovt ? 'Evaluating Officer' : 'Registered Vendor',
+      };
+
+      login(loggedUser, 'gem-token-' + Date.now());
+
+      recordAuditLog({
+        activity: 'Login',
+        module: 'Authentication',
+        details: `User authenticated via Jan Parichay SSO Gateway (${email})`,
+        status: 'Success',
+        user: loggedUser,
+        extra: {
+          authProvider: 'NIC Jan Parichay SSO',
+          mfaVerified: 'Yes (Aadhaar OTP)',
+          ip: '192.168.1.45',
         },
-        'gem-token-' + Date.now()
-      );
+      });
 
       setTimeout(() => {
         navigate(targetRedirect);

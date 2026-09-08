@@ -44,7 +44,7 @@ const Testimonials = () => {
           </div>
           <button
             type="button"
-            className="hidden sm:inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#073567] hover:text-blue-700 transition cursor-pointer"
+            className="hidden sm:inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#073567] dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition cursor-pointer"
           >
             <span>View All Testimonials</span>
             <ArrowRight className="w-4 h-4" />

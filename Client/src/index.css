@@ -117,8 +117,18 @@ html.dark .text-slate-900,
 html.dark .text-slate-800,
 html.dark .text-\[\#0A2540\],
 html.dark .text-\[\#073567\],
+html.dark .text-\[\#071D37\],
+html.dark .text-\[\#071d37\],
+html.dark .text-\[\#0c396d\],
+html.dark .text-\[\#0a2e5c\],
 html.dark .text-\[\#1e3a5f\] {
   color: #f8fafc !important;
+}
+
+html.dark .fill-slate-700,
+html.dark .fill-\[\#073567\],
+html.dark .fill-\[\#071D37\] {
+  fill: #f8fafc !important;
 }
 
 html.dark .text-slate-700,
@@ -136,6 +146,10 @@ html.dark .text-slate-400 {
 
 html.dark .text-\[\#3b5998\] {
   color: #93c5fd !important;
+}
+
+html.dark .hover\:bg-blue-50:hover {
+  background-color: #132a45 !important;
 }
 
 /* Hero Section Scrim in Dark Mode */

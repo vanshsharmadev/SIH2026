@@ -15,7 +15,7 @@ function AppContent({ fontScale, setFontScale }) {
   const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
   // Dedicated sidebar-based evaluation console is only rendered for officers
   const isOfficerDashboardPage = isOfficer && (location.pathname === '/dashboard' || location.pathname.startsWith('/dashboard'));
-  const isWidePage = isLandingPage || isAuthPage || isOfficerDashboardPage || location.pathname === '/my-applications';
+  const isWidePage = isLandingPage || isAuthPage || isOfficerDashboardPage || location.pathname === '/my-applications' || location.pathname === '/reports';
 
   // Initialize Lenis smooth scrolling
   useLenis();

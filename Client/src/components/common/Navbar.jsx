@@ -330,18 +330,6 @@ const Navbar = ({ fontScale, setFontScale }) => {
             >
               Tenders
             </Link>
-            {isAuthenticated && isOfficer && (
-              <Link
-                to="/reports"
-                className={`transition-colors py-1 relative ${
-                  location.pathname === '/reports'
-                    ? 'text-[#073567] dark:text-blue-400 font-bold after:content-[""] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2.5px] after:bg-[#073567] dark:after:bg-blue-500 after:rounded-full'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400'
-                }`}
-              >
-                Reports
-              </Link>
-            )}
             <Link
               to="/#about"
               onClick={(e) => {

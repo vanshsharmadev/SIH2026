@@ -103,7 +103,7 @@ const Footer = () => {
               <div>
                 <div className="text-xl font-black tracking-tight leading-none text-white">
                   <span>GeM</span>
-                  <span className="text-[#34D399] ml-0.5">Compliance</span>
+                  <span className="text-[#34D399] ml-0.5"> Compliflix</span>
                 </div>
                 <div className="text-[11px] text-slate-400 font-medium mt-1">
                   Compliant Procurement. Stronger India.

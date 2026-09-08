@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Filter,
+  ChevronDown,
   SlidersHorizontal,
   FileSpreadsheet,
   Building2,
@@ -37,6 +38,7 @@ const Tenders = () => {
   const [tendersList, setTendersList] = useState(mockTenders);
   const [isLoadingTenders, setIsLoadingTenders] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showFilters, setShowFilters] = useState(false); // Closed by default per user UX request
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [sortBy, setSortBy] = useState('default');
@@ -220,7 +222,7 @@ const Tenders = () => {
         }`}
       >
         <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm space-y-3">
-          <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
+          <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 items-stretch sm:items-center">
             {/* Keyword Search */}
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -241,65 +243,94 @@ const Tenders = () => {
               )}
             </div>
 
-            <div className="grid grid-cols-2 sm:flex gap-2.5 sm:gap-3 w-full sm:w-auto">
-              {/* Category Dropdown */}
-              <div className="w-full sm:w-52">
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full text-xs sm:text-sm px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
-                >
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat === 'All' ? 'All Categories (10)' : cat}
-                    </option>
-                  ))}
-                </select>
+            {/* Show / Hide Filters Button */}
+            <button
+              type="button"
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
+                showFilters || selectedCategory !== 'All' || selectedStatus !== 'All'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                  : 'border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+            >
+              <Filter className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>{showFilters ? 'Hide Filters' : 'Show Filters'}</span>
+              {(selectedCategory !== 'All' || selectedStatus !== 'All') && (
+                <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+              )}
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+
+          {/* Expandable Filters (Category, Sort By, Status) */}
+          {showFilters && (
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3 animate-in fade-in duration-150">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                {/* Category Dropdown */}
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                    Filter by Category
+                  </label>
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="w-full text-xs sm:text-sm px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                  >
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat === 'All' ? 'All Categories (10)' : cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Sort By Dropdown */}
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                    Sort Tenders By
+                  </label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="w-full text-xs sm:text-sm px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                  >
+                    <option value="default">Sort: Default</option>
+                    <option value="value-desc">Value: High to Low</option>
+                    <option value="value-asc">Value: Low to High</option>
+                    <option value="compliance">Highest Compliance Score</option>
+                    <option value="days">Closing Soonest</option>
+                  </select>
+                </div>
               </div>
 
-              {/* Sort By Dropdown */}
-              <div className="w-full sm:w-44">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full text-xs sm:text-sm px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
-                >
-                  <option value="default">Sort: Default</option>
-                  <option value="value-desc">Value: High to Low</option>
-                  <option value="value-asc">Value: Low to High</option>
-                  <option value="compliance">Highest Compliance Score</option>
-                  <option value="days">Closing Soonest</option>
-                </select>
+              {/* Status Filter Tabs */}
+              <div className="flex items-center gap-2 overflow-x-auto pt-1 pb-0.5 text-xs font-semibold">
+                <span className="text-slate-400 dark:text-slate-500 shrink-0 mr-1 flex items-center gap-1">
+                  <Filter className="w-3.5 h-3.5" />
+                  Status:
+                </span>
+                {[
+                  { label: 'All', count: tendersList.length },
+                  { label: 'Open', count: openCount },
+                  { label: 'Closing Soon', count: closingSoonCount },
+                  { label: 'Under Evaluation', count: evaluationCount },
+                  { label: 'Closed', count: closedCount },
+                ].map((statusTab) => (
+                  <button
+                    key={statusTab.label}
+                    onClick={() => setSelectedStatus(statusTab.label)}
+                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer shrink-0 ${
+                      selectedStatus === statusTab.label
+                        ? 'bg-[#073567] dark:bg-blue-600 text-white shadow-2xs font-bold'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {statusTab.label} ({statusTab.count})
+                  </button>
+                ))}
               </div>
             </div>
-          </div>
-
-          {/* Status Filter Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pt-1 pb-0.5 text-xs font-semibold">
-            <span className="text-slate-400 dark:text-slate-500 shrink-0 mr-1 flex items-center gap-1">
-              <Filter className="w-3.5 h-3.5" />
-              Status:
-            </span>
-            {[
-              { label: 'All', count: tendersList.length },
-              { label: 'Open', count: openCount },
-              { label: 'Closing Soon', count: closingSoonCount },
-              { label: 'Under Evaluation', count: evaluationCount },
-              { label: 'Closed', count: closedCount },
-            ].map((statusTab) => (
-              <button
-                key={statusTab.label}
-                onClick={() => setSelectedStatus(statusTab.label)}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer shrink-0 ${
-                  selectedStatus === statusTab.label
-                    ? 'bg-[#073567] dark:bg-blue-600 text-white shadow-2xs font-bold'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                {statusTab.label} ({statusTab.count})
-              </button>
-            ))}
-          </div>
+          )}
         </div>
       </div>
 

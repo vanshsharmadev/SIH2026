@@ -40,10 +40,10 @@ const CtaBanner = () => {
 
         <Link
           to="/signup"
-          className="inline-flex items-center gap-2.5 px-6 sm:px-8 py-3.5 bg-white hover:bg-blue-50 text-[#071D37] text-sm sm:text-base font-bold rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] active:scale-[0.99] shrink-0"
+          className="group inline-flex items-center gap-2.5 px-6 sm:px-8 py-3.5 bg-white hover:bg-blue-50 text-[#071D37] dark:bg-slate-800/90 dark:hover:bg-slate-700 dark:text-white dark:border dark:border-slate-600/70 text-sm sm:text-base font-bold rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] active:scale-[0.99] shrink-0"
         >
           <span>Get Started Now</span>
-          <ArrowRight className="w-4 h-4 text-[#071D37]" />
+          <ArrowRight className="w-4 h-4 text-[#071D37] dark:text-white transition-transform group-hover:translate-x-0.5" />
         </Link>
       </div>
     </section>

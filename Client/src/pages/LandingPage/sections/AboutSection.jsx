@@ -65,9 +65,9 @@ const AboutSection = () => {
               <button
                 type="button"
                 onClick={() => alert('Our Mission: To digitize and streamline government procurement compliance through AI-powered tools, ensuring transparency, fairness, and accountability for a Viksit Bharat.')}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 text-xs sm:text-sm font-semibold rounded-lg shadow-2xs transition cursor-pointer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 hover:border-slate-400 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-semibold rounded-lg shadow-2xs transition cursor-pointer"
               >
-                <Play className="w-3.5 h-3.5 fill-slate-700" />
+                <Play className="w-3.5 h-3.5 fill-current text-current" />
                 <span>Our Mission</span>
               </button>
             </div>

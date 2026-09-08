@@ -20,6 +20,8 @@ const AppRoutes = () => {
       <Route path="/verification" element={<Verification />} />
       <Route path="/verification/:tenderId" element={<Verification />} />
       <Route path="/reports" element={<Reports />} />
+      <Route path="/audit" element={<Navigate to="/dashboard?tab=audit" replace />} />
+      <Route path="/audit-trail" element={<Navigate to="/dashboard?tab=audit" replace />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/my-applications" element={<MyApplications />} />
       <Route path="/bidder-dashboard" element={<Navigate to="/my-applications" replace />} />
