@@ -18,6 +18,9 @@ async function getVectorStore() {
   const store = await PGVectorStore.initialize(embeddings, {
     postgresConnectionOptions: {
       connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false,
+      },
     },
     tableName: "tender_embeddings",
     columns: {

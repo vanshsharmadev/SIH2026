@@ -18,6 +18,9 @@ async function getSummaryVectorStore() {
   const store = await PGVectorStore.initialize(embeddings, {
     postgresConnectionOptions: {
       connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false,
+      },
     },
     tableName: "summary_embeddings",
     columns: {
