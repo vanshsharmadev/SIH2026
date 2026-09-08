@@ -2,16 +2,16 @@
 	"info": {
 		"_postman_id": "b3e94a8f-2871-4a43-9823-1d6573c09b8a",
 		"name": "SIH2026 - Tender Verification Platform API",
-		"description": "# 🏛️ SIH 2026 - Tender Verification Platform API Documentation\n\nOfficial REST API Specification for both **Officer Module** (DigiLocker Identity Verification, Email OTP, JWT) and **Bidder Module** (PAN, GSTIN, Udyam MSME verification, Email OTP, Bidder Profile Management).\n\n### 🚀 Base URL\n`http://localhost:8080`\n\n### 🔐 Authentication\n- Bearer Token in `Authorization: Bearer <JWT_TOKEN>` header for protected endpoints.\n- Automated collection scripts capture tokens into `{{officer_token}}` and `{{bidder_token}}`.",
+		"description": "# 🏛️ SIH 2026 - Tender Verification Platform API Documentation\n\nOfficial REST API Specification for both **Officer Module** (DigiLocker Identity Verification, Email OTP, JWT), **Bidder Module** (GSTIN & Government Verification, Email OTP, JWT Auth, Token Verification, Profile Management), **Tender Management** (Cloudinary uploads, DB persistence), and the **GeM ML Microservice v2.0.0** (13 consolidated production endpoints).\n\n### 🚀 Base URLs\n- **Spring Boot Backend (Local)**: `http://localhost:8080`\n- **Spring Boot Backend (Production Render)**: `https://sih2026-83r4.onrender.com`\n- **Python ML Microservice (Production Azure VM)**: `http://20.40.44.184`\n\n### 🔐 Authentication\n- Bearer Token in `Authorization: Bearer <JWT_TOKEN>` header for protected endpoints.\n- Automated collection scripts capture tokens into `{{officer_token}}` and `{{bidder_token}}`.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
 		{
-			"name": "Officer",
-			"description": "Officer Authentication and DigiLocker Identity Verification APIs.",
+			"name": "1. Officer Auth & DigiLocker",
+			"description": "Officer Registration with Department, DigiLocker MeriPehchaan OAuth/Mock Identity Verification, Email OTP dispatch, and JWT Login.",
 			"item": [
 				{
-					"name": "SignUp",
+					"name": "1.1 Officer SignUp (Step 1)",
 					"event": [
 						{
 							"listen": "test",
@@ -38,7 +38,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Itachi Uchiha\",\n  \"departmentId\": 1,\n  \"departmentName\": \"Public Works Department\",\n  \"email\": \"arnav24169006@akgec.ac.in\",\n  \"mobile\": \"+919876543210\",\n  \"password\": \"Password@123\"\n}"
+							"raw": "{\n  \"name\": \"Arnav Tyagi\",\n  \"departmentId\": 1,\n  \"departmentName\": \"Public Works Department\",\n  \"email\": \"arnav24169006@akgec.ac.in\",\n  \"mobile\": \"+919876543210\",\n  \"password\": \"Password@123\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/auth/signup",
@@ -53,34 +53,10 @@
 						},
 						"description": "Step 1: Initiates officer signup and generates DigiLocker OAuth URL & temporary token."
 					},
-					"response": [
-						{
-							"name": "201 Created",
-							"originalRequest": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n  \"name\": \"Itachi Uchiha\",\n  \"departmentId\": 1,\n  \"departmentName\": \"Public Works Department\",\n  \"email\": \"arnav24169006@akgec.ac.in\",\n  \"mobile\": \"+919876543210\",\n  \"password\": \"Password@123\"\n}"
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/auth/signup",
-									"host": ["{{baseUrl}}"],
-									"path": ["api", "auth", "signup"]
-								}
-							},
-							"status": "Created",
-							"code": 201,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{ "key": "Content-Type", "value": "application/json" }
-							],
-							"body": "{\n  \"success\": true,\n  \"message\": \"Signup initiated. Please verify identity via DigiLocker.\",\n  \"data\": {\n    \"tempToken\": \"732054aad4ec4d2390b51e5a2aaaf6c5\",\n    \"authorizationUrl\": \"http://localhost:8080/api/officer/identity/mock-login?token=732054aad4ec4d2390b51e5a2aaaf6c5\",\n    \"message\": \"Signup details saved. Please complete DigiLocker identity verification to proceed.\"\n  },\n  \"timestamp\": \"2026-09-03T23:50:00.000\"\n}"
-						}
-					]
+					"response": []
 				},
 				{
-					"name": "Initiate DigiLocker",
+					"name": "1.2 Re-Initiate DigiLocker URL",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -110,7 +86,7 @@
 					"response": []
 				},
 				{
-					"name": "dg locker verify",
+					"name": "1.3 DigiLocker Mock/OAuth Verify (Step 2)",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -135,21 +111,12 @@
 								"mock-verify"
 							]
 						},
-						"description": "Step 2: Verifies officer identity via DigiLocker and automatically triggers a 6-digit email OTP."
+						"description": "Step 2: Verifies officer identity via DigiLocker and automatically triggers a 6-digit email OTP via Brevo."
 					},
-					"response": [
-						{
-							"name": "200 OK",
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [{ "key": "Content-Type", "value": "application/json" }],
-							"body": "{\n  \"success\": true,\n  \"message\": \"Identity verified successfully\",\n  \"data\": {\n    \"identityVerified\": true,\n    \"identityProvider\": \"DIGILOCKER_MOCK\",\n    \"digilockerId\": \"DL-DEMO-001\",\n    \"verifiedName\": \"Itachi Uchiha\",\n    \"tempToken\": \"732054aad4ec4d2390b51e5a2aaaf6c5\",\n    \"identityVerifiedAt\": \"2026-09-03T23:51:00.000\"\n  },\n  \"timestamp\": \"2026-09-03T23:51:00.000\"\n}"
-						}
-					]
+					"response": []
 				},
 				{
-					"name": "verify otp",
+					"name": "1.4 Verify Email OTP & Finalize (Step 3)",
 					"event": [
 						{
 							"listen": "test",
@@ -194,7 +161,7 @@
 					"response": []
 				},
 				{
-					"name": "Resend Otp",
+					"name": "1.5 Resend Officer OTP",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -218,12 +185,12 @@
 								"resend-otp"
 							]
 						},
-						"description": "Resends a fresh 6-digit OTP to the registered email."
+						"description": "Resends a fresh 6-digit OTP to the registered officer email."
 					},
 					"response": []
 				},
 				{
-					"name": "Login",
+					"name": "1.6 Officer Login",
 					"event": [
 						{
 							"listen": "test",
@@ -250,25 +217,26 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"emailOrMobile\": \"arnav24169006@akgec.ac.in\",\n  \"password\": \"Password@123\"\n}"
+							"raw": "{\n  \"email\": \"arnav24169006@akgec.ac.in\",\n  \"password\": \"Password@123\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/auth/login",
+							"raw": "{{baseUrl}}/api/officer/auth/login",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
+								"officer",
 								"auth",
 								"login"
 							]
 						},
-						"description": "Authenticates officer with email/mobile and password, returning JWT token."
+						"description": "Authenticates officer and returns JWT Bearer token."
 					},
 					"response": []
 				},
 				{
-					"name": "Get Profile (/me)",
+					"name": "1.7 Get Officer Profile (/me)",
 					"request": {
 						"auth": {
 							"type": "bearer",
@@ -294,24 +262,24 @@
 								"me"
 							]
 						},
-						"description": "Fetches profile details of current authenticated officer."
+						"description": "Retrieves current authenticated officer details."
 					},
 					"response": []
 				}
 			]
 		},
 		{
-			"name": "Bidder",
-			"description": "Bidder Authentication, Business Verification (PAN, GSTIN, Udyam), and Profile Management.",
+			"name": "2. Bidder Auth & Profile",
+			"description": "Bidder Registration with statutory GSTIN validation, Email OTP verification, JWT login, Password recovery, and profile queries.",
 			"item": [
 				{
-					"name": "Signup",
+					"name": "2.1 Bidder SignUp (Step 1)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"exec": [
-									"if (pm.response.code === 201 || pm.response.code === 200) {",
+									"if (pm.response.code === 201) {",
 									"    var jsonData = pm.response.json();",
 									"    if (jsonData.tempToken) {",
 									"        pm.collectionVariables.set(\"bidder_temp_token\", jsonData.tempToken);",
@@ -332,7 +300,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"companyName\": \"Tech Infra Solutions Pvt Ltd\",\n  \"contactPerson\": \"Rajesh Kumar\",\n  \"email\": \"rajesh.kumar@techinfra.com\",\n  \"mobile\": \"+919876500001\",\n  \"password\": \"Bidder@12345\",\n  \"confirmPassword\": \"Bidder@12345\",\n  \"companyType\": \"PRIVATE_LIMITED\",\n  \"pan\": \"ABCDE1234F\",\n  \"gstin\": \"27ABCDE1234F1Z5\",\n  \"udyamNumber\": \"UDYAM-MH-01-0012345\"\n}"
+							"raw": "{\n  \"legalName\": \"Arnav Tyagi\",\n  \"email\": \"arnav24169006@gmail.com\",\n  \"gstNumber\": \"09ARNAV9012H3Z7\",\n  \"phone\": \"9876500103\",\n  \"password\": \"Password@123\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/bidder/auth/signup",
@@ -346,93 +314,12 @@
 								"signup"
 							]
 						},
-						"description": "Step 1: Initiates Bidder registration and returns temporary token for business verification."
+						"description": "Step 1: Validates duplicate email/GSTIN, checks statutory government pre-verification records, creates pending registration, and dispatches 6-digit OTP."
 					},
 					"response": []
 				},
 				{
-					"name": "verify-business (Unified)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"tempToken\": \"{{bidder_temp_token}}\",\n  \"pan\": \"ABCDE1234F\",\n  \"gstin\": \"27ABCDE1234F1Z5\",\n  \"udyamNumber\": \"UDYAM-MH-01-0012345\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/bidder/auth/verify-business",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"bidder",
-								"auth",
-								"verify-business"
-							]
-						},
-						"description": "Step 2: Unified verification of PAN, GSTIN, and Udyam. Automatically sends 6-digit OTP to email."
-					},
-					"response": []
-				},
-				{
-					"name": "verify-pan",
-					"request": {
-						"method": "POST",
-						"header": [{ "key": "Content-Type", "value": "application/json" }],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"tempToken\": \"{{bidder_temp_token}}\",\n  \"pan\": \"ABCDE1234F\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/bidder/auth/verify-pan",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "bidder", "auth", "verify-pan"]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "verify-gst",
-					"request": {
-						"method": "POST",
-						"header": [{ "key": "Content-Type", "value": "application/json" }],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"tempToken\": \"{{bidder_temp_token}}\",\n  \"gstin\": \"27ABCDE1234F1Z5\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/bidder/auth/verify-gst",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "bidder", "auth", "verify-gst"]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "verify-udyam",
-					"request": {
-						"method": "POST",
-						"header": [{ "key": "Content-Type", "value": "application/json" }],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"tempToken\": \"{{bidder_temp_token}}\",\n  \"udyamNumber\": \"UDYAM-MH-01-0012345\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/bidder/auth/verify-udyam",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "bidder", "auth", "verify-udyam"]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "verify-otp",
+					"name": "2.2 Verify Bidder OTP (Step 2)",
 					"event": [
 						{
 							"listen": "test",
@@ -459,7 +346,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"rajesh.kumar@techinfra.com\",\n  \"otp\": \"123456\"\n}"
+							"raw": "{\n  \"email\": \"arnav24169006@gmail.com\",\n  \"otp\": \"123456\",\n  \"tempToken\": \"{{bidder_temp_token}}\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/bidder/auth/verify-otp",
@@ -473,29 +360,42 @@
 								"verify-otp"
 							]
 						},
-						"description": "Step 3: Verifies email OTP, creates permanent Bidder account, and returns JWT token."
+						"description": "Step 2: Validates OTP, creates permanent Bidder account in database, and returns JWT Bearer token."
 					},
 					"response": []
 				},
 				{
-					"name": "resend-otp",
+					"name": "2.3 Resend Bidder OTP",
 					"request": {
 						"method": "POST",
-						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"rajesh.kumar@techinfra.com\"\n}"
+							"raw": "{\n  \"email\": \"arnav24169006@gmail.com\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/bidder/auth/resend-otp",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "bidder", "auth", "resend-otp"]
-						}
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"resend-otp"
+							]
+						},
+						"description": "Dispatches a new 6-digit OTP to the bidder's email address."
 					},
 					"response": []
 				},
 				{
-					"name": "login",
+					"name": "2.4 Bidder Login",
 					"event": [
 						{
 							"listen": "test",
@@ -522,7 +422,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"emailOrMobile\": \"rajesh.kumar@techinfra.com\",\n  \"password\": \"Bidder@12345\"\n}"
+							"raw": "{\n  \"email\": \"arnav24169006@gmail.com\",\n  \"password\": \"Password@123\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/bidder/auth/login",
@@ -536,41 +436,822 @@
 								"login"
 							]
 						},
-						"description": "Bidder login endpoint."
+						"description": "Authenticates bidder with email & password, returning JWT Bearer token."
 					},
 					"response": []
 				},
 				{
-					"name": "Get All Bidders",
+					"name": "2.5 Verify Token (POST)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"{{bidder_temp_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/verify-token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"verify-token"
+							]
+						},
+						"description": "Verifies whether a JWT auth token or tempToken is active and valid."
+					},
+					"response": []
+				},
+				{
+					"name": "2.6 Get Profile (/me)",
 					"request": {
 						"auth": {
 							"type": "bearer",
-							"bearer": [{ "key": "token", "value": "{{bidder_token}}", "type": "string" }]
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bidder_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"me"
+							]
+						},
+						"description": "Fetches profile details of current authenticated bidder."
+					},
+					"response": []
+				},
+				{
+					"name": "2.7 Forgot Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"arnav24169006@gmail.com\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/forgot-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"forgot-password"
+							]
+						},
+						"description": "Sends password reset OTP to registered bidder email."
+					},
+					"response": []
+				},
+				{
+					"name": "2.8 Verify Forgot Password OTP",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"arnav24169006@gmail.com\",\n  \"otp\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/verify-forgot-password-otp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"verify-forgot-password-otp"
+							]
+						},
+						"description": "Verifies reset OTP and returns a secure resetToken."
+					},
+					"response": []
+				},
+				{
+					"name": "2.9 Reset Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"resetToken\": \"sample-reset-token\",\n  \"newPassword\": \"NewPassword@123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/bidder/auth/reset-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"auth",
+								"reset-password"
+							]
+						},
+						"description": "Updates password using verified resetToken."
+					},
+					"response": []
+				},
+				{
+					"name": "2.10 Get All Bidders",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bidder_token}}",
+									"type": "string"
+								}
+							]
 						},
 						"method": "GET",
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/bidder",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "bidder"]
-						}
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder"
+							]
+						},
+						"description": "Get list of all registered bidders."
 					},
 					"response": []
 				},
 				{
-					"name": "Get Bidder By ID",
+					"name": "2.11 Get Bidder By ID",
 					"request": {
 						"auth": {
 							"type": "bearer",
-							"bearer": [{ "key": "token", "value": "{{bidder_token}}", "type": "string" }]
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{bidder_token}}",
+									"type": "string"
+								}
+							]
 						},
 						"method": "GET",
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/bidder/1",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "bidder", "1"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"bidder",
+								"1"
+							]
+						},
+						"description": "Get single bidder by ID."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "3. Tender Documents & Cloudinary Storage",
+			"description": "Officer Tender Document Management with Cloudinary CDN integration, OCR processing, and Bidder CIS comparisons.",
+			"item": [
+				{
+					"name": "3.1 Upload Tender Document (Cloudinary + ML)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201 || pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.id) {",
+									"        pm.collectionVariables.set(\"tender_id\", jsonData.data.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
 						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{officer_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "title",
+									"value": "Construction of High-Speed Flyover Corridor - GeM/2026/B/8912",
+									"type": "text"
+								},
+								{
+									"key": "description",
+									"value": "National highway elevated corridor tender document.",
+									"type": "text"
+								},
+								{
+									"key": "documentType",
+									"value": "other",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/upload",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"upload"
+							]
+						},
+						"description": "Uploads PDF to Cloudinary and forwards to Python ML service for OCR text, structured data extraction, and authenticity check."
+					},
+					"response": []
+				},
+				{
+					"name": "3.2 Get Officer Tenders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{officer_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders"
+							]
+						},
+						"description": "Get all tenders uploaded by the currently authenticated officer."
+					},
+					"response": []
+				},
+				{
+					"name": "3.3 Get Tender by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{officer_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/{{tender_id}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"{{tender_id}}"
+							]
+						},
+						"description": "Retrieve full tender details including Cloudinary fileUrl, OCR text, and authenticity score."
+					},
+					"response": []
+				},
+				{
+					"name": "3.4 Compare Bidders via ML CIS",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{officer_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"bidders_data\": [\n    {\n      \"bidder_id\": 1,\n      \"bidder_name\": \"L&T Construction\",\n      \"bid_amount\": 142000000,\n      \"experience_years\": 15,\n      \"financial_rating\": \"AAA\"\n    },\n    {\n      \"bidder_id\": 2,\n      \"bidder_name\": \"Afcons Infrastructure\",\n      \"bid_amount\": 148000000,\n      \"experience_years\": 12,\n      \"financial_rating\": \"AA+\"\n    }\n  ],\n  \"tender_requirements\": {\n    \"max_budget\": 150000000,\n    \"min_experience_years\": 10\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/{{tender_id}}/compare-bidders",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"{{tender_id}}",
+								"compare-bidders"
+							]
+						},
+						"description": "Compares multiple bidders against tender requirements using the ML service CIS ranking algorithm."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "4. GeM ML Microservice v2.0.0 (13 Consolidated Endpoints)",
+			"description": "The 13 Consolidated Production APIs of GeM ML Microservice v2.0.0 hosted at http://20.40.44.184 with Spring Boot Gateway proxies at /api/officer/tenders/ml/**.",
+			"item": [
+				{
+					"name": "4.1 ML Health & Statutory Connectivity Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/ml-health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"ml-health"
+							]
+						},
+						"description": "Endpoint 2: Verifies ML microservice health and statutory registry (GSTN/Income Tax) connectivity."
+					},
+					"response": []
+				},
+				{
+					"name": "4.2 Document Taxonomy & Compliance Weights",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/document-types",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"document-types"
+							]
+						},
+						"description": "Endpoint 3: Retrieves supported procurement document types, field extraction schemas, and compliance scoring weights."
+					},
+					"response": []
+				},
+				{
+					"name": "4.3 Single-File Consolidated Intake (OCR + Classification)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "document_type",
+									"value": "gst_certificate",
+									"type": "text"
+								},
+								{
+									"key": "full_analysis",
+									"value": "true",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/ml/process-document",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"ml",
+								"process-document"
+							]
+						},
+						"description": "Endpoint 4: Comprehensive single-file processing: OCR, classification, entity extraction, QR decoding, signature check, and tampering detection."
+					},
+					"response": []
+				},
+				{
+					"name": "4.4 Master Autonomous Tender Audit (JSON Intake)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"bidder_id\": \"BID-2026-001\",\n  \"gstin\": \"07AAAAA0000A1Z5\",\n  \"pan\": \"AAAAA0000A\",\n  \"tender_id\": \"GEM/2026/B/987654\",\n  \"documents\": [\n    {\n      \"doc_type\": \"gst_certificate\",\n      \"ocr_text\": \"GSTIN: 07AAAAA0000A1Z5 Legal Name: ABC INFRA TECH LIMITED\",\n      \"extracted_data\": {\n        \"gstin\": \"07AAAAA0000A1Z5\",\n        \"taxpayer_type\": \"Regular\",\n        \"status\": \"Active\"\n      }\n    },\n    {\n      \"doc_type\": \"financial_statement\",\n      \"ocr_text\": \"Annual Turnover FY2024-25: INR 45,00,00,000 Net Worth: INR 18,00,00,000\",\n      \"extracted_data\": {\n        \"turnover\": 450000000,\n        \"net_worth\": 180000000\n      }\n    }\n  ],\n  \"tender_requirements\": {\n    \"min_turnover\": 100000000,\n    \"min_experience_years\": 3,\n    \"mandatory_docs\": [\"gst_certificate\", \"financial_statement\", \"pan_card\"]\n  },\n  \"use_live_portal\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/ml/automate-all",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"ml",
+								"automate-all"
+							]
+						},
+						"description": "Endpoint 5: Master Autonomous End-to-End Pipeline executing forensic verification, statutory check, 6-pillar compliance scoring, ML score prediction, and clear/reject verdict."
+					},
+					"response": []
+				},
+				{
+					"name": "4.5 Master Multipart Batch File Upload Autonomous Audit",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "files",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "tender_file",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "is_msme",
+									"value": "false",
+									"type": "text"
+								},
+								{
+									"key": "is_startup",
+									"value": "false",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/ml/automate-all-files",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"ml",
+								"automate-all-files"
+							]
+						},
+						"description": "Endpoint 6: Fully autonomous batch file upload pipeline. Automatically classifies all uploaded PDFs/images, cross-verifies statutory registries, parses tender requirements, and computes composite CIS score."
+					},
+					"response": []
+				},
+				{
+					"name": "4.6 Consolidated Single-GET Comprehensive Dossier & RAG Synthesis",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/ml/overall-summary?identifier=07AAAAA0000A1Z5&bid_id=BID-2026-001&tender_type=goods&use_live_portal=false&include_rag_context=true",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"ml",
+								"overall-summary"
+							],
+							"query": [
+								{
+									"key": "identifier",
+									"value": "07AAAAA0000A1Z5"
+								},
+								{
+									"key": "bid_id",
+									"value": "BID-2026-001"
+								},
+								{
+									"key": "tender_type",
+									"value": "goods"
+								},
+								{
+									"key": "use_live_portal",
+									"value": "false"
+								},
+								{
+									"key": "include_rag_context",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Endpoint 7: Returns unified 360-degree bidder dossier, statutory risk indicators, GFR compliance report, and RAG knowledge retrieval context."
+					},
+					"response": []
+				},
+				{
+					"name": "4.7 Unified Forensic Verification & Anti-Tampering (File Mode)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "doc_type",
+									"value": "gst_certificate",
+									"type": "text"
+								},
+								{
+									"key": "auto_ocr",
+									"value": "true",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/ml/verify-document",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"ml",
+								"verify-document"
+							]
+						},
+						"description": "Endpoint 8: Multi-layer forgery detection: ELA analysis, pyHanko digital signature validation, QR code payload validation, and OpenCV official stamp verification."
+					},
+					"response": []
+				},
+				{
+					"name": "4.8 Unified Forensic Verification & Anti-Tampering (JSON Mode)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"document_type\": \"tax_invoice\",\n  \"extracted_fields\": {\n    \"taxable_amount\": 100000,\n    \"cgst_rate\": 9.0,\n    \"sgst_rate\": 9.0,\n    \"cgst_amount\": 9000,\n    \"sgst_amount\": 9000,\n    \"total_amount\": 118000\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/ml/verify-document",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"ml",
+								"verify-document"
+							]
+						},
+						"description": "Endpoint 8 (JSON): Arithmetic and statutory cross-validation for extracted invoice and financial documents."
+					},
+					"response": []
+				},
+				{
+					"name": "4.9 Unified Statutory Taxpayer Verification (GSTIN, PAN, UIN)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"identifier\": \"07AAAAA0000A1Z5\",\n  \"identifier_type\": \"gstin\",\n  \"use_live_portal\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/ml/verify-taxpayer",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"ml",
+								"verify-taxpayer"
+							]
+						},
+						"description": "Endpoint 9: Statutory taxpayer validation checking checksum algorithms, status (Active/Suspended), filing track record, and risk flag computation."
+					},
+					"response": []
+				},
+				{
+					"name": "4.10 Dynamic Tender Requirements Parsing & 6-Pillar Checklist",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tender_text\": \"Tender GEM/2026/B/987654 requires bidder to have minimum annual turnover of INR 10 Crores and at least 3 years experience. Mandatory documents: GST Certificate, PAN Card, Financial Audit Report.\",\n  \"tender_type\": \"goods\",\n  \"estimated_value\": 150000000\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/ml/tender-requirements",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"ml",
+								"tender-requirements"
+							]
+						},
+						"description": "Endpoint 10: NLP entity parsing to extract financial criteria, technical experience requirements, and mandatory document checklists."
+					},
+					"response": []
+				},
+				{
+					"name": "4.11 Procurement Clearance Decision Engine",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"bidder_id\": \"BID-2026-001\",\n  \"composite_cis_score\": 92.4,\n  \"forensic_authenticity_score\": 96.0,\n  \"taxpayer_verification\": {\n    \"status\": \"ACTIVE\",\n    \"filing_compliance\": 100.0\n  },\n  \"tender_requirements\": {\n    \"min_cis_score\": 75.0\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/ml/process-clearance?officer_id=OFF-101",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"ml",
+								"process-clearance"
+							],
+							"query": [
+								{
+									"key": "officer_id",
+									"value": "OFF-101"
+								}
+							]
+						},
+						"description": "Endpoint 11: Automated final procurement verdict (CLEARED, CONDITIONALLY_CLEARED, REJECTED, ESCALATED_FOR_MANUAL_AUDIT) with immutable audit hash."
+					},
+					"response": []
+				},
+				{
+					"name": "4.12 Direct ML Compliance Verdict & Score Predictor",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"features\": {\n    \"document_completeness\": 1.0,\n    \"tax_compliance_rate\": 0.98,\n    \"experience_ratio\": 1.2,\n    \"turnover_ratio\": 1.5,\n    \"authenticity_score\": 0.95,\n    \"tamper_risk\": 0.02\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/ml/compliance-predict",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"ml",
+								"compliance-predict"
+							]
+						},
+						"description": "Endpoint 12: Machine learning classification model predicting probability of tender compliance."
+					},
+					"response": []
+				},
+				{
+					"name": "4.13 Unified Machine Learning Retraining Pipeline",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"retrain_models\": [\"classification\", \"compliance_predictor\"],\n  \"epochs\": 50\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/ml/train-all",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"ml",
+								"train-all"
+							]
+						},
+						"description": "Endpoint 13: Triggers retraining pipelines for document classifiers, risk scoring models, and compliance predictors."
 					},
 					"response": []
 				}
@@ -601,6 +1282,11 @@
 		{
 			"key": "bidder_token",
 			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "tender_id",
+			"value": "1",
 			"type": "string"
 		}
 	]
