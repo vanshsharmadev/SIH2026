@@ -1,0 +1,210 @@
+@import "tailwindcss";
+
+/* Enable class-based dark mode (toggled via a `.dark` class on the app shell) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: 'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    color: #1e293b;
+    background-color: #f0f4f9;
+    margin: 0;
+    padding: 0;
+    overflow-x: clip;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
+
+@keyframes toastShrink {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+/* Global Dark Mode / High Contrast Styling */
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #071322 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+html.dark ::-webkit-scrollbar-track {
+  background: #09182a;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: #1e3550;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #2e4d70;
+}
+
+/* Dark Mode Overrides for UI Elements */
+html.dark header {
+  background-color: rgba(7, 19, 34, 0.95) !important;
+  border-color: #1e3550 !important;
+}
+
+html.dark header .bg-\[\#f8fafc\] {
+  background-color: #05101d !important;
+  border-color: #1a2e46 !important;
+}
+
+html.dark .bg-white {
+  background-color: #0c1e33 !important;
+}
+
+html.dark .bg-\[\#f8fafc\],
+html.dark .bg-\[\#f0f4f9\],
+html.dark .bg-slate-50 {
+  background-color: #071526 !important;
+}
+
+html.dark .border-slate-200,
+html.dark .border-slate-300,
+html.dark .border-slate-100 {
+  border-color: #1a324d !important;
+}
+
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-\[\#0A2540\],
+html.dark .text-\[\#073567\],
+html.dark .text-\[\#1e3a5f\] {
+  color: #f8fafc !important;
+}
+
+html.dark .text-slate-700,
+html.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html.dark .text-slate-400 {
+  color: #64748b !important;
+}
+
+html.dark .text-\[\#3b5998\] {
+  color: #93c5fd !important;
+}
+
+/* Hero Section Scrim in Dark Mode */
+html.dark .hero-daylight-scrim {
+  background: linear-gradient(90deg, rgba(7, 19, 34, 0.98) 0%, rgba(7, 19, 34, 0.95) 35%, rgba(7, 19, 34, 0.85) 50%, rgba(7, 19, 34, 0.4) 68%, rgba(7, 19, 34, 0.08) 85%, transparent 100%) !important;
+}
+
+html.dark .hero-bottom-fade {
+  background: linear-gradient(to top, #0c1e33 0%, transparent 100%) !important;
+}
+
+/* Cards & Badges in Dark Mode */
+html.dark .bg-white\/95 {
+  background-color: rgba(12, 30, 51, 0.95) !important;
+  border-color: #1a324d !important;
+}
+
+/* Inputs in Dark Mode */
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #081628 !important;
+  color: #f8fafc !important;
+  border-color: #1a324d !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* Hover States in Dark Mode */
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-slate-100:hover,
+html.dark .hover\:bg-slate-200:hover {
+  background-color: #132a45 !important;
+}
+
+/* Subtle animation pulses */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 120s linear infinite;
+}
+
+@keyframes progress {
+  0% {
+    width: 0%;
+    margin-left: 0%;
+  }
+  50% {
+    width: 65%;
+    margin-left: 20%;
+  }
+  100% {
+    width: 100%;
+    margin-left: 100%;
+  }
+}
+
+/* Hide Google Translate top banner, popup frames and highlight */
+.goog-te-banner-frame,
+.goog-te-banner-frame.skiptranslate,
+iframe.goog-te-banner-frame {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+}
+
+body {
+  top: 0px !important;
+  position: static !important;
+}
+
+#google_translate_element,
+.skiptranslate:not(#custom-translator) {
+  display: none !important;
+}
+
+.goog-tooltip,
+.goog-tooltip:hover {
+  display: none !important;
+}
+
+.goog-text-highlight {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
