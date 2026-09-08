@@ -1,38 +1,36 @@
-# 🏛️ Tender Management Platform - API Documentation
+# 🏛️ Tender Management Platform - Complete API Documentation (v2.0.0)
 
-**Base URL**: `http://localhost:8080`  
-**Environment**: Development / Production (Neon PostgreSQL + Brevo Email Service + DigiLocker Integration)
+**Backend Base URL (Local)**: `http://localhost:8080`  
+**Backend Base URL (Production)**: `https://sih2026-83r4.onrender.com`  
+**Python ML Microservice (v2.0.0)**: `http://20.40.44.184`  
+**Interactive Swagger UI**: `http://20.40.44.184/docs`  
+**Interactive Dashboard**: `http://20.40.44.184/ui`  
 
 ---
 
 ## 📑 Table of Contents
-1. [Overview & Authentication](#1-overview--authentication)
-2. [Bidder Authentication & Verification APIs](#2-bidder-authentication--verification-apis)
-3. [Bidder Profile Management APIs](#3-bidder-profile-management-apis)
-4. [Officer Authentication & DigiLocker APIs](#4-officer-authentication--digilocker-apis)
-5. [Error Handling & Status Codes](#5-error-handling--status-codes)
+1. [Security & Authentication Overview](#1-security--authentication-overview)
+2. [Bidder Module APIs](#2-bidder-module-apis)
+3. [Officer Authentication & DigiLocker APIs](#3-officer-authentication--digilocker-apis)
+4. [Tender Management & Cloudinary APIs](#4-tender-management--cloudinary-apis)
+5. [GeM ML Microservice v2.0.0 APIs (13 Consolidated Endpoints)](#5-gem-ml-microservice-v200-apis-13-consolidated-endpoints)
 
 ---
 
-## 1. Overview & Authentication
-
-### Security Model
-- **Public Endpoints**: `/api/bidder/auth/**`, `/api/officer/auth/**`, `/api/officer/identity/**`, `/api/auth/**`
-- **Protected Endpoints**: Require HTTP Header `Authorization: Bearer <JWT_TOKEN>`
+## 1. Security & Authentication Overview
+- **Authentication Scheme**: JWT Bearer Token (`Authorization: Bearer <JWT_TOKEN>`)
 - **Token Validity**: 24 Hours (`86400000 ms`)
+- **Public Routes**: `/api/bidder/auth/**`, `/api/officer/auth/**`, `/api/officer/tenders/ml-health`, `/api/officer/tenders/document-types`
 
 ---
 
-## 2. Bidder Authentication & Verification APIs
+## 2. Bidder Module APIs
 
 ### 2.1 Bidder Signup
-Initiates bidder signup by verifying the details against official government records (`bidder_verification` table) and dispatches an OTP to the verified email.
-
-- **Method**: `POST`
-- **Endpoint**: `/api/bidder/auth/signup`
-- **Auth Required**: No
-
-#### Request Body
+Initiates bidder signup by checking duplicates and verifying against government records (`bidder_verification` table), and dispatches a 6-digit OTP to the verified email via Brevo.
+* **Method**: `POST`
+* **Route**: `/api/bidder/auth/signup`
+* **Request Body**:
 ```json
 {
   "legalName": "Arnav Tyagi",
@@ -42,8 +40,7 @@ Initiates bidder signup by verifying the details against official government rec
   "password": "Password@123"
 }
 ```
-
-#### Response (`201 Created`)
+* **Response (`201 Created`)**:
 ```json
 {
   "tempToken": "93162d76aa9141d8950d9e7905ab3d5c",
@@ -56,33 +53,22 @@ Initiates bidder signup by verifying the details against official government rec
 
 ---
 
-### 2.2 Verify Email OTP
-Validates the 6-digit OTP sent to the bidder's email, creates the permanent bidder record, and returns a JWT authentication token.
-
-- **Method**: `POST`
-- **Endpoint**: `/api/bidder/auth/verify-otp`
-- **Auth Required**: No
-
-#### Request Body (Option A - Using Email)
+### 2.2 Verify Email OTP & Finalize Registration
+Validates OTP, creates permanent bidder account, and issues JWT Bearer token.
+* **Method**: `POST`
+* **Route**: `/api/bidder/auth/verify-otp`
+* **Request Body**:
 ```json
 {
   "email": "arnav24169006@gmail.com",
-  "otp": "123456"
+  "otp": "123456",
+  "tempToken": "93162d76aa9141d8950d9e7905ab3d5c"
 }
 ```
-
-#### Request Body (Option B - Using Temp Token)
+* **Response (`200 OK`)**:
 ```json
 {
-  "tempToken": "93162d76aa9141d8950d9e7905ab3d5c",
-  "otp": "123456"
-}
-```
-
-#### Response (`200 OK`)
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token": "eyJhbGciOiJIUzI1NiJ9...",
   "type": "Bearer",
   "bidderId": 1,
   "email": "arnav24169006@gmail.com",
@@ -96,37 +82,22 @@ Validates the 6-digit OTP sent to the bidder's email, creates the permanent bidd
 
 ---
 
-### 2.3 Resend Verification OTP
-Resends a fresh 6-digit OTP to the bidder's registered email address.
-
-- **Method**: `POST`
-- **Endpoint**: `/api/bidder/auth/resend-otp`
-- **Auth Required**: No
-
-#### Request Body
+### 2.3 Resend OTP
+* **Method**: `POST`
+* **Route**: `/api/bidder/auth/resend-otp`
+* **Request Body**:
 ```json
 {
   "email": "arnav24169006@gmail.com"
-}
-```
-
-#### Response (`200 OK`)
-```json
-{
-  "message": "A fresh OTP has been sent to arnav24169006@gmail.com"
 }
 ```
 
 ---
 
 ### 2.4 Bidder Login
-Authenticates an existing verified bidder and issues a JWT token.
-
-- **Method**: `POST`
-- **Endpoint**: `/api/bidder/auth/login`
-- **Auth Required**: No
-
-#### Request Body
+* **Method**: `POST`
+* **Route**: `/api/bidder/auth/login`
+* **Request Body**:
 ```json
 {
   "email": "arnav24169006@gmail.com",
@@ -134,313 +105,80 @@ Authenticates an existing verified bidder and issues a JWT token.
 }
 ```
 
-#### Response (`200 OK`)
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "type": "Bearer",
-  "bidderId": 1,
-  "email": "arnav24169006@gmail.com",
-  "legalName": "Arnav Tyagi",
-  "phone": "9876500103",
-  "gstNumber": "09ARNAV9012H3Z7",
-  "isVerified": true,
-  "message": "Bidder logged in successfully!"
-}
-```
+---
+
+### 2.5 Get Authenticated Bidder Profile
+* **Method**: `GET`
+* **Route**: `/api/bidder/auth/me`
+* **Headers**: `Authorization: Bearer <TOKEN>`
 
 ---
 
-### 2.5 Verify Token (JWT or Temp Token)
-Validates whether a given token (`JWT Auth Token` or `tempToken`) is active and valid, returning user session details.
-
-- **Method**: `POST` or `GET`
-- **Endpoint**: `/api/bidder/auth/verify-token`
-- **Auth Required**: Optional (Accepts Header `Authorization: Bearer <token>`, JSON body `{"token":"..."}`, or `?token=...` param)
-
-#### Request Body (POST)
-```json
-{
-  "token": "93162d76aa9141d8950d9e7905ab3d5c"
-}
-```
-
-#### Response (`200 OK` - Temp Token)
-```json
-{
-  "valid": true,
-  "tokenType": "TEMP_TOKEN",
-  "email": "arnav24169006@gmail.com",
-  "legalName": "Arnav Tyagi",
-  "gstNumber": "09ARNAV9012H3Z7",
-  "phone": "9876500103",
-  "isVerified": false,
-  "message": "Temporary registration token is valid and active."
-}
-```
-
-#### Response (`200 OK` - JWT Bearer Token)
-```json
-{
-  "valid": true,
-  "tokenType": "JWT",
-  "bidderId": 1,
-  "email": "arnav24169006@gmail.com",
-  "legalName": "Arnav Tyagi",
-  "gstNumber": "09ARNAV9012H3Z7",
-  "phone": "9876500103",
-  "isVerified": true,
-  "message": "JWT token is valid and active."
-}
-```
+### 2.6 Forgot Password & Reset Password
+* `POST /api/bidder/auth/forgot-password` -> `{"email": "..."}`
+* `POST /api/bidder/auth/verify-forgot-password-otp` -> `{"email": "...", "otp": "..."}` (Returns `resetToken`)
+* `POST /api/bidder/auth/reset-password` -> `{"resetToken": "...", "newPassword": "..."}`
 
 ---
 
-### 2.6 Get Current Bidder Profile (`/me`)
-Fetches the profile details of the logged-in bidder.
+## 3. Officer Authentication & DigiLocker APIs
 
-- **Method**: `GET`
-- **Endpoint**: `/api/bidder/auth/me`
-- **Auth Required**: Yes (`Authorization: Bearer <JWT_TOKEN>`)
-
-#### Response (`200 OK`)
+### 3.1 Officer Login
+* **Method**: `POST`
+* **Route**: `/api/officer/auth/login`
+* **Request Body**:
 ```json
 {
-  "valid": true,
-  "tokenType": "JWT",
-  "bidderId": 1,
-  "email": "arnav24169006@gmail.com",
-  "legalName": "Arnav Tyagi",
-  "gstNumber": "09ARNAV9012H3Z7",
-  "phone": "9876500103",
-  "isVerified": true,
-  "message": "Current authenticated bidder profile"
-}
-```
-
----
-
-### 2.7 Password Reset Flow
-
-#### A. Forgot Password (Request OTP)
-- **Method**: `POST`
-- **Endpoint**: `/api/bidder/auth/forgot-password`
-```json
-{
-  "email": "arnav24169006@gmail.com"
-}
-```
-**Response**: `{"message": "Password reset OTP sent to your registered email."}`
-
-#### B. Verify Forgot Password OTP
-- **Method**: `POST`
-- **Endpoint**: `/api/bidder/auth/verify-forgot-password-otp`
-```json
-{
-  "email": "arnav24169006@gmail.com",
-  "otp": "123456"
-}
-```
-**Response**:
-```json
-{
-  "message": "OTP verified successfully.",
-  "resetToken": "4b68e9f546bb4c87893c834bc7721867"
-}
-```
-
-#### C. Reset Password
-- **Method**: `POST`
-- **Endpoint**: `/api/bidder/auth/reset-password`
-```json
-{
-  "resetToken": "4b68e9f546bb4c87893c834bc7721867",
-  "newPassword": "NewPassword@123"
-}
-```
-**Response**: `{"message": "Password reset successfully. You can now login with your new password."}`
-
----
-
-## 3. Bidder Profile Management APIs
-
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/bidder` | Get list of all registered bidders | 🔒 Bearer Token |
-| `GET` | `/api/bidder/{id}` | Get specific bidder profile by ID | 🔒 Bearer Token |
-| `PUT` | `/api/bidder/{id}` | Update bidder details (phone, address, etc.) | 🔒 Bearer Token |
-| `DELETE` | `/api/bidder/{id}` | Delete bidder profile | 🔒 Bearer Token |
-
----
-
-## 4. Officer Authentication & DigiLocker APIs
-
-### 4.1 Officer Signup
-Initiates officer registration and generates a DigiLocker OAuth verification URL.
-
-- **Method**: `POST`
-- **Endpoint**: `/api/officer/auth/signup` (or `/api/auth/signup`)
-- **Auth Required**: No
-
-#### Request Body
-```json
-{
-  "name": "Itachi Uchiha",
-  "departmentId": 1,
-  "departmentName": "Public Works Department",
-  "email": "arnav24169006@akgec.ac.in",
-  "mobile": "+919876543210",
+  "email": "officer@pwd.gov.in",
   "password": "Password@123"
 }
 ```
 
-#### Response (`201 Created`)
-```json
-{
-  "success": true,
-  "message": "Signup initiated. Please verify identity via DigiLocker.",
-  "data": {
-    "tempToken": "732054aad4ec4d2390b51e5a2aaaf6c5",
-    "authorizationUrl": "http://localhost:8080/api/officer/identity/mock-login?token=732054aad4ec4d2390b51e5a2aaaf6c5",
-    "message": "Signup details saved. Please complete DigiLocker identity verification to proceed."
-  },
-  "timestamp": "2026-09-06T14:30:00.000"
-}
-```
+### 3.2 Verify Officer Token
+* **Method**: `POST`
+* **Route**: `/api/officer/auth/verify-token`
+* **Headers**: `Authorization: Bearer <TOKEN>`
+
+### 3.3 DigiLocker OAuth Verification
+* `GET /api/officer/auth/digilocker/initiate` -> Generates OAuth authorization URL
+* `GET /api/officer/auth/digilocker/callback?code=...` -> OAuth token exchange & Aadhaar/Gov ID validation
 
 ---
 
-### 4.2 DigiLocker Identity Verification
-Verifies Aadhaar identity with simulated DigiLocker and automatically dispatches email OTP upon success.
+## 4. Tender Management & Cloudinary APIs
 
-- **Method**: `POST`
-- **Endpoint**: `/api/officer/identity/mock-verify` (or `GET /api/officer/identity/mock-login?token={tempToken}`)
-- **Auth Required**: No
-
-#### Request Body
-```json
-{
-  "tempToken": "732054aad4ec4d2390b51e5a2aaaf6c5"
-}
-```
-
-#### Response (`200 OK`)
-```json
-{
-  "success": true,
-  "message": "Identity verified successfully",
-  "data": {
-    "identityVerified": true,
-    "identityProvider": "DIGILOCKER_MOCK",
-    "digilockerId": "DL-DEMO-001",
-    "verifiedName": "Itachi Uchiha",
-    "tempToken": "732054aad4ec4d2390b51e5a2aaaf6c5",
-    "identityVerifiedAt": "2026-09-06T14:31:00.000"
-  },
-  "timestamp": "2026-09-06T14:31:00.000"
-}
-```
+### 4.1 Upload & Process Tender Document
+Uploads tender PDF/Image to Cloudinary, runs single-call ML intake, and saves metadata into PostgreSQL.
+* **Method**: `POST`
+* **Route**: `/api/officer/tenders/upload`
+* **Headers**: `Authorization: Bearer <OFFICER_TOKEN>`
+* **Body Type**: `multipart/form-data`
+  * `file`: `[Select PDF / Image file]`
+  * `title`: `Construction of Elevated Expressway Corridor`
+  * `description`: `National Highway 6-lane elevated expressway tender`
+  * `documentType`: `tender_notice` *(or `other`)*
 
 ---
 
-### 4.3 Verify Officer OTP
-- **Method**: `POST`
-- **Endpoint**: `/api/officer/auth/verify-otp` (or `/api/auth/verify-otp`)
-- **Request Body**:
-```json
-{
-  "email": "arnav24169006@akgec.ac.in",
-  "otp": "123456"
-}
-```
-- **Response (`200 OK`)**: Returns JWT authentication token and officer profile.
+### 4.2 Get Officer Tenders
+* **Method**: `GET`
+* **Route**: `/api/officer/tenders`
+* **Headers**: `Authorization: Bearer <OFFICER_TOKEN>`
 
 ---
 
-### 4.4 Officer Login & Profile
-- **Login**: `POST /api/officer/auth/login` (Body: `{"emailOrMobile": "...", "password": "..."}`)
-- **Get Profile**: `GET /api/officer/auth/me` (`Authorization: Bearer <token>`)
+### 4.3 Get Specific Tender by ID
+* **Method**: `GET`
+* **Route**: `/api/officer/tenders/{id}`
+* **Headers**: `Authorization: Bearer <OFFICER_TOKEN>`
 
 ---
 
-## 5. Tender Document Management & ML AI Integration (Cloudinary + AI Analysis)
-
-### 5.1 Upload Tender Document
-Uploads tender document PDF to **Cloudinary** and forwards to the **Python ML Service** (`http://20.40.44.184`) for OCR extraction, key criteria parsing, and authenticity/tamper detection.
-
-- **Method**: `POST`
-- **Endpoint**: `/api/officer/tenders/upload`
-- **Content-Type**: `multipart/form-data`
-- **Headers**: `Authorization: Bearer <OFFICER_JWT_TOKEN>`
-- **Form Data**:
-  - `file`: `[binary PDF / Image file]` (Required)
-  - `title`: `Construction of High-Speed Flyover Corridor - GeM/2026/B/8912` (Required)
-  - `description`: `National highway widening and elevated corridor tender notice.` (Optional)
-  - `documentType`: `other` (Optional: `udyam_certificate`, `gst_certificate`, `pan_card`, `income_tax_return`, `oem_authorization`, or `other`)
-
-#### Response (`201 Created`)
-```json
-{
-  "success": true,
-  "message": "Tender document uploaded and analyzed successfully",
-  "data": {
-    "id": 1,
-    "title": "Construction of High-Speed Flyover Corridor - GeM/2026/B/8912",
-    "description": "National highway widening and elevated corridor tender notice.",
-    "fileName": "tender_rfp_2026.pdf",
-    "fileType": "application/pdf",
-    "fileSize": 1048576,
-    "fileUrl": "https://res.cloudinary.com/tender-portal/image/upload/v1725700000/tenders/tender_rfp_2026.pdf",
-    "cloudinaryPublicId": "tenders/tender_rfp_2026_xyz123",
-    "documentType": "other",
-    "uploadedByOfficerId": 1,
-    "uploadedByOfficerName": "Rajesh Sharma",
-    "uploadedByEmail": "officer@pwd.gov.in",
-    "departmentName": "Public Works Department",
-    "status": "PROCESSED",
-    "authenticityScore": 0.98,
-    "isAuthentic": true,
-    "rawOcrText": "GOVERNMENT OF INDIA - MINISTRY OF ROAD TRANSPORT & HIGHWAYS\nNOTICE INVITING TENDER\nEstimated Cost: Rs 15,00,00,000\nEMD: Rs 30,00,000...",
-    "structuredData": {
-      "tender_value": "₹ 15,00,00,000",
-      "emd_amount": "₹ 30,00,000",
-      "submission_deadline": "2026-10-15T18:00:00Z"
-    },
-    "authenticityDetails": {
-      "signature_verified": true,
-      "tampering_detected": false,
-      "confidence": 0.98
-    },
-    "createdAt": "2026-09-07T13:30:00.000",
-    "updatedAt": "2026-09-07T13:30:00.000"
-  },
-  "timestamp": "2026-09-07T13:30:00.000"
-}
-```
-
----
-
-### 5.2 Get All Officer Tenders
-- **Method**: `GET`
-- **Endpoint**: `/api/officer/tenders`
-- **Headers**: `Authorization: Bearer <OFFICER_JWT_TOKEN>`
-- **Response**: List of all tender documents uploaded by the authenticated officer with Cloudinary links and ML status.
-
----
-
-### 5.3 Get Tender Details by ID
-- **Method**: `GET`
-- **Endpoint**: `/api/officer/tenders/{id}`
-- **Headers**: `Authorization: Bearer <OFFICER_JWT_TOKEN>`
-- **Response**: Full tender entity, Cloudinary URL, complete OCR text, structured criteria, and authenticity scores.
-
----
-
-### 5.4 Compare Bidders via ML CIS Algorithm
-- **Method**: `POST`
-- **Endpoint**: `/api/officer/tenders/{id}/compare-bidders`
-- **Headers**: `Authorization: Bearer <OFFICER_JWT_TOKEN>`
-- **Request Body**:
+### 4.4 Compare Bidders against Tender Requirements
+* **Method**: `POST`
+* **Route**: `/api/officer/tenders/{id}/compare-bidders`
+* **Headers**: `Authorization: Bearer <OFFICER_TOKEN>`, `Content-Type: application/json`
+* **Request Body**:
 ```json
 {
   "bidders_data": [
@@ -465,24 +203,188 @@ Uploads tender document PDF to **Cloudinary** and forwards to the **Python ML Se
   }
 }
 ```
-- **Response**: CIS ranking score, compliance breakdowns, and top bidder recommendations.
 
 ---
 
-### 5.5 Supported Document Types & ML Health
-- **Document Types**: `GET /api/officer/tenders/document-types`
-- **ML Service Health**: `GET /api/officer/tenders/ml-health`
+## 5. GeM ML Microservice v2.0.0 APIs (13 Consolidated Endpoints)
+
+All endpoints can be called directly on Python ML Service (`http://20.40.44.184`) or through Spring Boot (`/api/officer/tenders/...`).
+
+### 1. Interactive Dashboard
+* **Route**: `GET http://20.40.44.184/` or `GET http://20.40.44.184/ui`
 
 ---
 
-## 6. Error Handling & Status Codes
+### 2. Unified Health & Live GST Portal Check
+* **Spring Boot Route**: `GET /api/officer/tenders/ml-health`
+* **Direct ML Route**: `GET http://20.40.44.184/health`
+* **Response**:
+```json
+{
+  "status": "healthy",
+  "service": "gem-ml-service",
+  "version": "2.0.0",
+  "gst_portal": {
+    "portal": "https://services.gst.gov.in/services/searchtp",
+    "reachable": true,
+    "status_code": 200,
+    "status": "active",
+    "response_time_ms": 204
+  }
+}
+```
 
-| Status Code | Description | Example Scenario |
-| :--- | :--- | :--- |
-| `200 OK` | Request succeeded | OTP verified, Token verified, Login successful |
-| `201 Created` | Resource created | Signup initiated, Tender uploaded |
-| `400 Bad Request` | Validation failure / Mismatch | Identity mismatch or invalid OTP entered |
-| `401 Unauthorized` | Authentication failure | Invalid password or missing JWT token |
-| `404 Not Found` | Resource not found | User or Tender not found |
-| `500 Server Error` | Internal exception | Database connection timeout or service failure |
+---
 
+### 3. Procurement Document Taxonomy & Weights (18 Categories)
+* **Spring Boot Route**: `GET /api/officer/tenders/document-types`
+* **Direct ML Route**: `GET http://20.40.44.184/api/ml/document-types`
+
+---
+
+### 4. Single-File Consolidated Intake (OCR + Classification + NER + Forgery)
+* **Spring Boot Route**: `POST /api/officer/tenders/ml/process-document`
+* **Direct ML Route**: `POST http://20.40.44.184/api/ml/process-document`
+* **Content-Type**: `multipart/form-data`
+* **Form-Data**:
+  * `file`: `[Select File]`
+  * `document_type`: `pan_card` *(optional)*
+  * `full_analysis`: `true`
+
+---
+
+### 5. Master Autonomous Tender Audit (JSON Intake)
+* **Spring Boot Route**: `POST /api/officer/tenders/ml/automate-all`
+* **Direct ML Route**: `POST http://20.40.44.184/api/ml/automate-all`
+* **Content-Type**: `application/json`
+* **Request Body**:
+```json
+{
+  "documents": [
+    {
+      "document_type": "pan_card",
+      "ocr_text": "INCOME TAX DEPARTMENT GOVT OF INDIA ABCDE1234F",
+      "entities": { "pan": "ABCDE1234F", "name": "ACME ENTERPRISE" }
+    },
+    {
+      "document_type": "gst_certificate",
+      "ocr_text": "GOVERNMENT OF INDIA FORM GST REG-06 07ABCDE1234F1Z5",
+      "entities": { "gstin": "07ABCDE1234F1Z5", "legal_name": "ACME ENTERPRISE" }
+    }
+  ],
+  "tender_specification": {
+    "tender_type": "goods",
+    "required_categories": ["pan_card", "gst_certificate"]
+  },
+  "bidder_profile": {
+    "is_msme": true,
+    "is_startup": false,
+    "annual_turnover": 4500000.0
+  }
+}
+```
+
+---
+
+### 6. Master Multipart Batch File Upload Autonomous Audit
+* **Spring Boot Route**: `POST /api/officer/tenders/ml/automate-all-files`
+* **Direct ML Route**: `POST http://20.40.44.184/api/ml/automate-all-files`
+* **Content-Type**: `multipart/form-data`
+* **Form-Data**:
+  * `files`: `[Select File 1]`
+  * `files`: `[Select File 2]`
+  * `tender_file`: `[Select Tender NIT File]` *(optional)*
+  * `is_msme`: `true`
+  * `is_startup`: `false`
+
+---
+
+### 7. Consolidated Single-GET Comprehensive Dossier & RAG Synthesis
+* **Spring Boot Route**: `GET /api/officer/tenders/ml/overall-summary?bid_id=GEM/2026/B/894721&identifier=07AABCB1234F1Z2`
+* **Direct ML Route**: `GET http://20.40.44.184/api/ml/overall-summary?bid_id=GEM/2026/B/894721&identifier=07AABCB1234F1Z2`
+
+---
+
+### 8. Unified Forensic Verification & Anti-Tampering (pyHanko + QR + Stamps)
+* **Spring Boot Route**: `POST /api/officer/tenders/ml/verify-document`
+* **Direct ML Route**: `POST http://20.40.44.184/api/ml/verify-document`
+* **Supports**:
+  - **Multipart File Upload**: `file`, `doc_type`, `auto_ocr=true`
+  - **JSON Card Tampering**: `{"document_text": "...", "qr_payload": "...", "doc_type": "pan"}`
+
+---
+
+### 9. Unified Statutory Taxpayer Verification (GSTIN, PAN, UIN)
+* **Spring Boot Route**: `POST /api/officer/tenders/ml/verify-taxpayer`
+* **Direct ML Route**: `POST http://20.40.44.184/api/ml/verify-taxpayer`
+* **Request Body**:
+```json
+{
+  "identifier": "07AABCB1234F1Z2",
+  "identifier_type": "gstin",
+  "use_live_portal": true
+}
+```
+
+---
+
+### 10. Dynamic Tender Requirements Parsing & 6-Pillar Checklist
+* **Spring Boot Route**: `POST /api/officer/tenders/ml/tender-requirements`
+* **Direct ML Route**: `POST http://20.40.44.184/api/ml/tender-requirements`
+* **Request Body**:
+```json
+{
+  "tender_type": "works",
+  "tender_text": "Required Documents: PAN Card, GST Registration, Audited Balance Sheet for 3 years, EMD of Rs 50,000",
+  "is_msme": true
+}
+```
+
+---
+
+### 11. Procurement Clearance Decision Engine
+* **Spring Boot Route**: `POST /api/officer/tenders/ml/process-clearance`
+* **Direct ML Route**: `POST http://20.40.44.184/api/ml/process-clearance`
+* **Request Body**:
+```json
+{
+  "cis_score": 0.96,
+  "authenticity_score": 95.0,
+  "risk_level": "low_risk"
+}
+```
+
+---
+
+### 12. Direct Machine Learning Compliance Verdict & Score Predictor
+* **Spring Boot Route**: `POST /api/officer/tenders/ml/compliance-predict`
+* **Direct ML Route**: `POST http://20.40.44.184/api/ml/compliance/predict`
+* **Request Body**:
+```json
+{
+  "feature_dict": {
+    "raw_cis_score": 0.95,
+    "mandatory_coverage_ratio": 1.0,
+    "authenticity_score": 0.98,
+    "financial_ratio": 1.0,
+    "statutory_tax_score": 1.0,
+    "past_performance_score": 0.9,
+    "is_fake_detected": 0.0,
+    "tampering_detected": 0.0,
+    "msme_exemption_boost": 0.0
+  }
+}
+```
+
+---
+
+### 13. Unified Machine Learning Retraining Pipeline
+* **Spring Boot Route**: `POST /api/officer/tenders/ml/train-all`
+* **Direct ML Route**: `POST http://20.40.44.184/api/ml/train/all`
+* **Request Body**:
+```json
+{
+  "retrain_all": true,
+  "classifier_epochs": 10
+}
+```
