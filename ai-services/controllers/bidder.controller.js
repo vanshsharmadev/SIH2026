@@ -11,7 +11,7 @@ const {
 
 
 async function processBidderController(req, res) {
-  console.log("🔥 NEW BIDDER CONTROLLER LOADED");
+ 
 
   try {
 
