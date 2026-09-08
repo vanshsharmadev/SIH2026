@@ -16,13 +16,12 @@ import {
   Users,
   Building2,
   Settings as SettingsIcon,
-  HelpCircle,
   Menu,
   X,
   Bell,
   ChevronDown,
   ChevronLeft,
-  ChevronRight,
+  PanelLeftClose,
   ArrowUpRight,
   ArrowDownRight,
   TrendingUp,
@@ -54,6 +53,7 @@ import { useAuth } from '../../context';
 import { ChatBox } from '../../components/common';
 import { isOfficerUser } from '../../utils/roleUtils';
 import ComplianceCheckView from './ComplianceCheckView';
+import TenderSubmissionsView from './TenderSubmissionsView';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -89,13 +89,19 @@ const Dashboard = () => {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const [activeMenu, setActiveMenu] = useState(() => (tabParam === 'compliance' ? 'compliance' : 'dashboard'));
+  const [activeMenu, setActiveMenu] = useState(() => {
+    if (tabParam === 'compliance') return 'compliance';
+    if (tabParam === 'submissions') return 'submissions';
+    return 'dashboard';
+  });
 
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab === 'compliance') {
       setActiveMenu('compliance');
-    } else if (!tab && activeMenu === 'compliance') {
+    } else if (tab === 'submissions') {
+      setActiveMenu('submissions');
+    } else if (!tab && (activeMenu === 'compliance' || activeMenu === 'submissions')) {
       setActiveMenu('dashboard');
     }
   }, [searchParams]);
@@ -103,6 +109,12 @@ const Dashboard = () => {
   const handleOpenCompliance = () => {
     setActiveMenu('compliance');
     setSearchParams({ tab: 'compliance' });
+    setSidebarOpen(false);
+  };
+
+  const handleOpenSubmissions = () => {
+    setActiveMenu('submissions');
+    setSearchParams({ tab: 'submissions' });
     setSidebarOpen(false);
   };
 
@@ -115,11 +127,6 @@ const Dashboard = () => {
   const [timeFilter, setTimeFilter] = useState('This Month');
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [chatBoxOpen, setChatBoxOpen] = useState(false);
-
-  // RAG AI Query State
-  const [ragQuery, setRagQuery] = useState('');
-  const [ragResponse, setRagResponse] = useState(null);
-  const [isAskingRag, setIsAskingRag] = useState(false);
 
   // Quick Action Modal states
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -150,7 +157,7 @@ const Dashboard = () => {
         setLocalOfficerSubmissions(subs);
         const acts = JSON.parse(localStorage.getItem('gem_officer_activities') || '[]');
         setLocalOfficerActivities(acts);
-      } catch (err) {}
+      } catch (err) { }
     };
 
     window.addEventListener('storage', handleStorageUpdate);
@@ -181,37 +188,6 @@ const Dashboard = () => {
   };
 
   const initials = getInitials(officerName);
-
-  const handleAskRag = (e) => {
-    e?.preventDefault();
-    if (!ragQuery.trim()) return;
-    setIsAskingRag(true);
-    setRagResponse(null);
-
-    setTimeout(() => {
-      setIsAskingRag(false);
-      const queryLower = ragQuery.toLowerCase();
-      if (queryLower.includes('144') || queryLower.includes('land border')) {
-        setRagResponse({
-          title: 'GFR 2017 Rule 144(xi) Land Border Requirement',
-          text: 'Under Department of Expenditure order F.No.6/18/2019-PPD, any bidder sharing a land border with India must be registered with DPIIT (Competent Authority) and possess political clearance from MEA & MHA before technical bid qualification.',
-          confidence: '98.4% Confidence &bull; CVC Policy Verified',
-        });
-      } else if (queryLower.includes('mii') || queryLower.includes('local content') || queryLower.includes('make in india')) {
-        setRagResponse({
-          title: 'Public Procurement (Preference to Make in India) Order 2017',
-          text: 'Class-I Local Suppliers (>=50% local content) receive statutory purchase preference in all tenders. For tenders above ₹10 Crores, local content percentage must be certified by a statutory auditor or cost accountant.',
-          confidence: '99.1% Confidence &bull; DPIIT PPP-MII Manual',
-        });
-      } else {
-        setRagResponse({
-          title: `GeM Regulatory Search: "${ragQuery}"`,
-          text: 'Bid parameters analyzed across Central Public Procurement Portal (CPPP) & GeM SPV standard operating guidelines. No debarment violations detected in current active repository.',
-          confidence: '95.2% Confidence &bull; Autonomous Engine',
-        });
-      }
-    }, 600);
-  };
 
   // Dynamic activity icons
   const activityIconMap = {
@@ -247,55 +223,55 @@ const Dashboard = () => {
   // Recent Tenders Data (Exact match with screenshot & connected to Redux)
   const recentTenders = reduxTenders?.length
     ? reduxTenders.slice(0, 5).map((t) => ({
-        id: t.id,
-        title: t.title,
-        department: t.department,
-        lastDate: t.lastDate,
-        submissions: t.submissions,
-        status: t.status,
-      }))
+      id: t.id,
+      title: t.title,
+      department: t.department,
+      lastDate: t.lastDate,
+      submissions: t.submissions,
+      status: t.status,
+    }))
     : [
-        {
-          id: 'GEM/2024/B/5123981',
-          title: 'Supply of Office Stationery...',
-          department: 'Ministry of Education',
-          lastDate: '25 May 2024',
-          submissions: 8,
-          status: 'Open',
-        },
-        {
-          id: 'GEM/2024/B/5123982',
-          title: 'IT Hardware Procurement...',
-          department: 'Ministry of Railways',
-          lastDate: '28 May 2024',
-          submissions: 12,
-          status: 'Open',
-        },
-        {
-          id: 'GEM/2024/B/5123983',
-          title: 'Road Construction Work...',
-          department: 'PWD Department',
-          lastDate: '30 May 2024',
-          submissions: 5,
-          status: 'Open',
-        },
-        {
-          id: 'GEM/2024/B/5123984',
-          title: 'Medical Equipment Supply...',
-          department: 'Health Department',
-          lastDate: '20 May 2024',
-          submissions: 14,
-          status: 'Closed',
-        },
-        {
-          id: 'GEM/2024/B/5123985',
-          title: 'Smart Classroom Setup...',
-          department: 'Ministry of Education',
-          lastDate: '18 May 2024',
-          submissions: 9,
-          status: 'Closed',
-        },
-      ];
+      {
+        id: 'GEM/2024/B/5123981',
+        title: 'Supply of Office Stationery...',
+        department: 'Ministry of Education',
+        lastDate: '25 May 2024',
+        submissions: 8,
+        status: 'Open',
+      },
+      {
+        id: 'GEM/2024/B/5123982',
+        title: 'IT Hardware Procurement...',
+        department: 'Ministry of Railways',
+        lastDate: '28 May 2024',
+        submissions: 12,
+        status: 'Open',
+      },
+      {
+        id: 'GEM/2024/B/5123983',
+        title: 'Road Construction Work...',
+        department: 'PWD Department',
+        lastDate: '30 May 2024',
+        submissions: 5,
+        status: 'Open',
+      },
+      {
+        id: 'GEM/2024/B/5123984',
+        title: 'Medical Equipment Supply...',
+        department: 'Health Department',
+        lastDate: '20 May 2024',
+        submissions: 14,
+        status: 'Closed',
+      },
+      {
+        id: 'GEM/2024/B/5123985',
+        title: 'Smart Classroom Setup...',
+        department: 'Ministry of Education',
+        lastDate: '18 May 2024',
+        submissions: 9,
+        status: 'Closed',
+      },
+    ];
 
   // Default base submissions if Redux is initial
   const defaultSubmissions = [
@@ -485,24 +461,39 @@ const Dashboard = () => {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 bg-[#0d1527] text-white flex flex-col transition-all duration-300 ease-in-out ${
-          sidebarCollapsed ? 'w-20' : 'w-64'
-        } ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
+        className={`fixed inset-y-0 left-0 z-40 h-screen max-h-screen bg-[#0d1527] text-white flex flex-col transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-20' : 'w-64'
+          } ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
         {/* Brand Header */}
         <div
-          className={`flex items-center ${
-            sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-5'
-          } py-4 border-b border-slate-800/80 transition-all duration-300`}
+          className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2 py-4 cursor-pointer group' : 'justify-between px-5 py-4'
+            } border-b border-slate-800/80 shrink-0 transition-all duration-300`}
+          onClick={sidebarCollapsed ? toggleCollapse : undefined}
+          title={sidebarCollapsed ? 'Click to expand sidebar' : undefined}
         >
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white shrink-0">
+            <button
+              type="button"
+              onClick={(e) => {
+                if (sidebarCollapsed) {
+                  e.stopPropagation();
+                  toggleCollapse();
+                } else {
+                  handleOpenDashboard();
+                }
+              }}
+              title={sidebarCollapsed ? 'Click to expand sidebar' : 'GeM Compliflix'}
+              className={`w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white shrink-0 transition-all cursor-pointer ${sidebarCollapsed
+                  ? 'group-hover:scale-105 group-hover:ring-2 group-hover:ring-blue-400/50 group-hover:shadow-blue-500/40'
+                  : 'hover:opacity-90'
+                }`}
+            >
               <ShieldCheck className="w-5 h-5" />
-            </div>
+            </button>
             {!sidebarCollapsed && (
               <div className="min-w-0 flex-1">
                 <h1 className="text-base font-bold tracking-tight text-white leading-tight truncate">
-                  GemCompliance
+                  GeM <span className='text-[#0E9F6E]'>Compliflix</span>
                 </h1>
                 <p className="text-[10px] font-medium text-slate-400 truncate">
                   AI Tender Compliance Platform
@@ -520,38 +511,35 @@ const Dashboard = () => {
             <X className="w-5 h-5" />
           </button>
 
-          {/* Desktop header toggle button */}
-          <button
-            type="button"
-            onClick={toggleCollapse}
-            className={`hidden lg:flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer ${
-              sidebarCollapsed ? 'hidden' : ''
-            }`}
-            title="Collapse sidebar"
-            aria-label="Collapse sidebar"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
+          {/* Desktop collapse toggle button on the right side of GeM Compliflix - ONLY VISIBLE WHEN EXPANDED */}
+          {!sidebarCollapsed && (
+            <button
+              type="button"
+              onClick={toggleCollapse}
+              className="hidden lg:flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer border border-slate-700/50"
+              title="Collapse sidebar"
+              aria-label="Collapse sidebar"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
-        {/* Scrollable Navigation Menu */}
+        {/* Scrollable Navigation Menu (sidebar-scroll + min-h-0 ensures smooth vertical scrolling) */}
         <div
-          className={`flex-1 overflow-y-auto ${
-            sidebarCollapsed ? 'px-2' : 'px-3.5'
-          } py-4 space-y-5 text-xs select-none`}
+          className={`flex-1 min-h-0 sidebar-scroll ${sidebarCollapsed ? 'px-2' : 'px-3.5'
+            } py-4 space-y-5 text-xs select-none overscroll-contain`}
         >
           {/* Main Dashboard Link */}
           <div>
             <button
               onClick={handleOpenDashboard}
               title="Dashboard"
-              className={`w-full flex items-center ${
-                sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-              } py-2.5 rounded-xl font-semibold transition-all cursor-pointer ${
-                activeMenu === 'dashboard'
+              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                } py-2.5 rounded-xl font-semibold transition-all cursor-pointer ${activeMenu === 'dashboard'
                   ? 'bg-blue-600/90 text-white shadow-md shadow-blue-600/20'
                   : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
-              }`}
+                }`}
             >
               <LayoutDashboard className="w-4 h-4 shrink-0" />
               {!sidebarCollapsed && <span className="text-xs truncate">Dashboard</span>}
@@ -571,24 +559,25 @@ const Dashboard = () => {
               to="/tenders"
               onClick={() => setSidebarOpen(false)}
               title="Search Tenders"
-              className={`flex items-center ${
-                sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-              } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer`}
+              className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer`}
             >
               <Search className="w-4 h-4 text-slate-400 shrink-0" />
               {!sidebarCollapsed && <span className="truncate">Search Tenders</span>}
             </Link>
-            <Link
-              to="/tenders"
-              onClick={() => setSidebarOpen(false)}
+            <button
+              type="button"
+              onClick={handleOpenSubmissions}
               title="Tender Submissions"
-              className={`flex items-center ${
-                sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-              } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer`}
+              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                } py-2 rounded-xl transition-all cursor-pointer text-left ${activeMenu === 'submissions'
+                  ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/25'
+                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                }`}
             >
-              <FileEdit className="w-4 h-4 text-slate-400 shrink-0" />
+              <FileEdit className="w-4 h-4 shrink-0" />
               {!sidebarCollapsed && <span className="truncate">Tender Submissions</span>}
-            </Link>
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -596,9 +585,8 @@ const Dashboard = () => {
                 setSidebarOpen(false);
               }}
               title="My Evaluations"
-              className={`w-full flex items-center ${
-                sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-              } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer text-left`}
+              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer text-left`}
             >
               <CheckSquare className="w-4 h-4 text-slate-400 shrink-0" />
               {!sidebarCollapsed && <span className="truncate">My Evaluations</span>}
@@ -621,9 +609,8 @@ const Dashboard = () => {
                 setSidebarOpen(false);
               }}
               title="Upload & Extract"
-              className={`w-full flex items-center ${
-                sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-              } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer text-left`}
+              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer text-left`}
             >
               <UploadCloud className="w-4 h-4 text-slate-400 shrink-0" />
               {!sidebarCollapsed && <span className="truncate">Upload & Extract</span>}
@@ -632,13 +619,11 @@ const Dashboard = () => {
               type="button"
               onClick={handleOpenCompliance}
               title="Compliance Check"
-              className={`w-full flex items-center ${
-                sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-              } py-2 rounded-xl transition-all cursor-pointer text-left ${
-                activeMenu === 'compliance'
+              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                } py-2 rounded-xl transition-all cursor-pointer text-left ${activeMenu === 'compliance'
                   ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/25'
                   : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
-              }`}
+                }`}
             >
               <ShieldCheck className="w-4 h-4 shrink-0" />
               {!sidebarCollapsed && <span className="truncate">Compliance Check</span>}
@@ -658,9 +643,8 @@ const Dashboard = () => {
               to="/reports"
               onClick={() => setSidebarOpen(false)}
               title="Compliance Reports"
-              className={`flex items-center ${
-                sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-              } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer`}
+              className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer`}
             >
               <FileSpreadsheet className="w-4 h-4 text-slate-400 shrink-0" />
               {!sidebarCollapsed && <span className="truncate">Compliance Reports</span>}
@@ -669,9 +653,8 @@ const Dashboard = () => {
               to="/reports"
               onClick={() => setSidebarOpen(false)}
               title="Audit Trail"
-              className={`flex items-center ${
-                sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-              } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer`}
+              className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer`}
             >
               <Clock className="w-4 h-4 text-slate-400 shrink-0" />
               {!sidebarCollapsed && <span className="truncate">Audit Trail</span>}
@@ -695,13 +678,11 @@ const Dashboard = () => {
                 setSidebarOpen(false);
               }}
               title="AI Chatbox (GFR 2017 & GeM Guidelines)"
-              className={`w-full flex items-center ${
-                sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
-              } py-2 rounded-xl transition-all cursor-pointer text-left relative ${
-                chatBoxOpen
+              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
+                } py-2 rounded-xl transition-all cursor-pointer text-left relative ${chatBoxOpen
                   ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-600/30'
                   : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
-              }`}
+                }`}
             >
               <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
                 <Bot className="w-4 h-4 text-indigo-400 shrink-0" />
@@ -730,9 +711,8 @@ const Dashboard = () => {
               to="/settings"
               onClick={() => setSidebarOpen(false)}
               title="Settings"
-              className={`flex items-center ${
-                sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-              } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer`}
+              className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer`}
             >
               <SettingsIcon className="w-4 h-4 text-slate-400 shrink-0" />
               {!sidebarCollapsed && <span className="truncate">Settings</span>}
@@ -741,57 +721,30 @@ const Dashboard = () => {
         </div>
 
         {/* Sidebar Footer Buttons */}
-        <div className={`p-3 border-t border-slate-800/80 space-y-1.5 ${sidebarCollapsed ? 'px-2' : ''}`}>
-          <Link
-            to="/#footer"
-            title="Help & Support"
-            className={`flex items-center ${
-              sidebarCollapsed ? 'justify-center px-2' : 'gap-2.5 px-3'
-            } py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800/80 rounded-xl transition cursor-pointer`}
-          >
-            <HelpCircle className="w-4 h-4 text-slate-400 shrink-0" />
-            {!sidebarCollapsed && <span className="truncate">Help & Support</span>}
-          </Link>
+        <div className={`p-3 border-t border-slate-800/80 space-y-1.5 shrink-0 ${sidebarCollapsed ? 'px-2' : ''}`}>
           <Link
             to="/"
             title="Back to GeM Portal"
-            className={`flex items-center ${
-              sidebarCollapsed ? 'justify-center px-2' : 'gap-2.5 px-3'
-            } py-2 text-xs font-semibold text-blue-400 hover:bg-slate-800/80 rounded-xl transition cursor-pointer`}
+            className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-2.5 px-3'
+              } py-2 text-xs font-semibold text-blue-400 hover:bg-slate-800/80 rounded-xl transition cursor-pointer`}
           >
             <ArrowLeft className="w-4 h-4 shrink-0" />
             {!sidebarCollapsed && <span className="truncate">Back to GeM Portal</span>}
           </Link>
-
-          {/* Bottom collapse / expand toggle button */}
-          <button
-            type="button"
-            onClick={toggleCollapse}
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className={`hidden lg:flex items-center ${
-              sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
-            } w-full py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-xl transition cursor-pointer border-t border-slate-800/40 mt-1`}
-          >
-            {!sidebarCollapsed && <span>Collapse Sidebar</span>}
-            {sidebarCollapsed ? (
-              <ChevronRight className="w-4 h-4 shrink-0" />
-            ) : (
-              <ChevronLeft className="w-4 h-4 shrink-0" />
-            )}
-          </button>
         </div>
       </aside>
 
       {/* -------------------- 2. MAIN CONTENT AREA -------------------- */}
       <div
-        className={`flex-1 flex flex-col min-w-0 overflow-x-hidden transition-all duration-300 ease-in-out ${
-          sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'
-        }`}
+        className={`flex-1 flex flex-col min-w-0 overflow-x-hidden transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'
+          }`}
       >
 
-        {/* Top Header Bar - FIXED/STICKY */}
-        <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/90 dark:border-slate-800 px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 shadow-2xs">
+        {/* Top Header Bar - FIXED AT TOP */}
+        <header
+          className={`fixed top-0 right-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/90 dark:border-slate-800 px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 shadow-2xs transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'left-0 lg:left-20' : 'left-0 lg:left-64'
+            }`}
+        >
           <div className="flex items-center gap-3">
             {/* Mobile hamburger button */}
             <button
@@ -802,23 +755,25 @@ const Dashboard = () => {
               <Menu className="w-5 h-5" />
             </button>
 
-            {/* Desktop collapse/expand toggle button in Navbar */}
-            <button
-              type="button"
-              onClick={toggleCollapse}
-              className="hidden lg:flex items-center justify-center p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer border border-slate-200 dark:border-slate-700/60"
-              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            >
-              {sidebarCollapsed ? (
-                <ChevronRight className="w-4 h-4" />
-              ) : (
-                <ChevronLeft className="w-4 h-4" />
-              )}
-            </button>
-
             <div>
-              {activeMenu === 'compliance' ? (
+              {activeMenu === 'submissions' ? (
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                    Tender Submissions
+                  </h2>
+                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                    <button
+                      type="button"
+                      onClick={handleOpenDashboard}
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                    >
+                      Dashboard
+                    </button>
+                    <span>&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Tender Submissions</span>
+                  </div>
+                </div>
+              ) : activeMenu === 'compliance' ? (
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
                     Compliance Check
@@ -852,15 +807,16 @@ const Dashboard = () => {
 
           {/* Right Top Header Controls */}
           <div className="flex items-center gap-2.5 sm:gap-4">
-            {/* Search Input matching screenshot */}
-            <div className="relative hidden md:block w-56 lg:w-72">
-              <input
-                type="text"
-                placeholder="Search anything..."
-                className="w-full pl-3 pr-8 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
-              />
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
+            {(activeMenu === 'submissions' || activeMenu === 'compliance') && (
+              <button
+                type="button"
+                onClick={handleOpenDashboard}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl transition cursor-pointer shadow-2xs"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Back to Dashboard</span>
+              </button>
+            )}
 
             {/* Notification Bell with Badge 6 */}
             <button
@@ -879,9 +835,9 @@ const Dashboard = () => {
               <button
                 type="button"
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                className="flex items-center gap-2 sm:gap-2.5 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-600 to-amber-500 text-white flex items-center justify-center font-bold text-xs shadow-2xs ring-2 ring-white dark:ring-slate-800">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-600 to-amber-500 text-white flex items-center justify-center font-bold text-xs shadow-2xs ring-2 ring-white dark:ring-slate-800 shrink-0">
                   {initials}
                 </div>
                 <div className="hidden sm:flex flex-col text-left leading-none">
@@ -892,6 +848,10 @@ const Dashboard = () => {
                     {officerRole}
                   </span>
                 </div>
+                <ChevronDown
+                  className={`w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform duration-200 shrink-0 ${userDropdownOpen ? 'rotate-180 text-slate-600 dark:text-slate-300' : ''
+                    }`}
+                />
               </button>
 
               {userDropdownOpen && (
@@ -926,562 +886,456 @@ const Dashboard = () => {
         </header>
 
         {/* Dashboard Content Container */}
-        <main className="p-4 sm:p-6 space-y-6 flex-1">
+        <main className="pt-[76px] sm:pt-[82px] p-4 sm:p-6 space-y-6 flex-1">
           {activeMenu === 'compliance' ? (
             <ComplianceCheckView onBackToDashboard={handleOpenDashboard} />
+          ) : activeMenu === 'submissions' ? (
+            <TenderSubmissionsView
+              onBackToDashboard={handleOpenDashboard}
+              onOpenCompliance={handleOpenCompliance}
+            />
           ) : (
             <>
 
-          {/* -------------------- 3. TOP STATS CARDS -------------------- */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              {/* -------------------- 3. TOP STATS CARDS -------------------- */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
 
-            {/* Card 1: Total Tenders */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-md transition">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                  <FileText className="w-6 h-6" />
+                {/* Card 1: Total Tenders */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-md transition">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                      <FileText className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Tenders</p>
+                      <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                        {metrics.totalTenders}
+                      </h3>
+                      <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-0.5">
+                        <span>↑ {metrics.totalTendersTrend?.replace('+', '')}</span>
+                        <span className="text-slate-400 font-normal">from last month</span>
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Tenders</p>
-                  <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-                    {metrics.totalTenders}
-                  </h3>
-                  <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-0.5">
-                    <span>↑ {metrics.totalTendersTrend?.replace('+', '')}</span>
-                    <span className="text-slate-400 font-normal">from last month</span>
-                  </p>
+
+                {/* Card 2: Submissions Received */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-md transition">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                      <ClipboardCheck className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Submissions Received</p>
+                      <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                        {metrics.submissionsReceived}
+                      </h3>
+                      <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-0.5">
+                        <span>↑ {metrics.submissionsReceivedTrend?.replace('+', '')}</span>
+                        <span className="text-slate-400 font-normal">from last month</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 3: Evaluations Completed */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-md transition">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Evaluations Completed</p>
+                      <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                        {metrics.evaluationsCompleted}
+                      </h3>
+                      <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-0.5">
+                        <span>↑ {metrics.evaluationsCompletedTrend?.replace('+', '')}</span>
+                        <span className="text-slate-400 font-normal">from last month</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 4: Compliance Issues */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-md transition">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Compliance Issues</p>
+                      <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                        {metrics.complianceIssues}
+                      </h3>
+                      <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-0.5">
+                        <span>↓ {metrics.complianceIssuesTrend?.replace('-', '')}</span>
+                        <span className="text-slate-400 font-normal">from last month</span>
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Card 2: Submissions Received */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-md transition">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                  <ClipboardCheck className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Submissions Received</p>
-                  <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-                    {metrics.submissionsReceived}
-                  </h3>
-                  <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-0.5">
-                    <span>↑ {metrics.submissionsReceivedTrend?.replace('+', '')}</span>
-                    <span className="text-slate-400 font-normal">from last month</span>
-                  </p>
-                </div>
-              </div>
-            </div>
+              {/* -------------------- 4. MIDDLE ROW: RECENT TENDERS & COMPLIANCE OVERVIEW -------------------- */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-            {/* Card 3: Evaluations Completed */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-md transition">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Evaluations Completed</p>
-                  <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-                    {metrics.evaluationsCompleted}
-                  </h3>
-                  <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-0.5">
-                    <span>↑ {metrics.evaluationsCompletedTrend?.replace('+', '')}</span>
-                    <span className="text-slate-400 font-normal">from last month</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 4: Compliance Issues */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-md transition">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Compliance Issues</p>
-                  <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-                    {metrics.complianceIssues}
-                  </h3>
-                  <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-0.5">
-                    <span>↓ {metrics.complianceIssuesTrend?.replace('-', '')}</span>
-                    <span className="text-slate-400 font-normal">from last month</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* -------------------- 4. MIDDLE ROW: RECENT TENDERS & COMPLIANCE OVERVIEW -------------------- */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-            {/* Left: Recent Tenders Table (~62%) */}
-            <div className="lg:col-span-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs p-5">
-              <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Recent Tenders
-                </h3>
-                <Link
-                  to="/tenders"
-                  className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  View All
-                </Link>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="text-slate-400 uppercase tracking-wider text-[10.5px] border-b border-slate-100 dark:border-slate-800">
-                      <th className="py-3 font-semibold">Tender ID</th>
-                      <th className="py-3 font-semibold">Title</th>
-                      <th className="py-3 font-semibold">Department</th>
-                      <th className="py-3 font-semibold">Last Date</th>
-                      <th className="py-3 font-semibold text-center">Submissions</th>
-                      <th className="py-3 font-semibold text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                    {recentTenders.map((item, idx) => (
-                      <tr
-                        key={idx}
-                        className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
-                      >
-                        <td className="py-3 font-semibold text-blue-600 dark:text-blue-400">
-                          <Link to="/tenders" className="hover:underline">
-                            {item.id}
-                          </Link>
-                        </td>
-                        <td className="py-3 text-slate-900 dark:text-slate-200 max-w-[190px] truncate">
-                          {item.title}
-                        </td>
-                        <td className="py-3 text-slate-600 dark:text-slate-400">
-                          {item.department}
-                        </td>
-                        <td className="py-3 text-slate-500 dark:text-slate-400">
-                          {item.lastDate}
-                        </td>
-                        <td className="py-3 text-center text-slate-700 dark:text-slate-200 font-bold">
-                          {item.submissions}
-                        </td>
-                        <td className="py-3 text-right">
-                          <span
-                            className={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold ${item.status === 'Open'
-                                ? 'bg-emerald-100/70 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
-                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                              }`}
-                          >
-                            {item.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Right: Compliance Overview Donut Chart (~38%) */}
-            <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs p-5 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    Compliance Overview
-                  </h3>
-                  <div className="relative">
-                    <select
-                      value={compliance.timeFilter || timeFilter}
-                      onChange={(e) => {
-                        setTimeFilter(e.target.value);
-                        dispatch(setReduxTimeFilter(e.target.value));
-                      }}
-                      className="text-xs font-semibold px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer"
+                {/* Left: Recent Tenders Table (~62%) */}
+                <div className="lg:col-span-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs p-5">
+                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Recent Tenders
+                    </h3>
+                    <Link
+                      to="/tenders"
+                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
                     >
-                      <option value="This Month">This Month</option>
-                      <option value="Last Month">Last Month</option>
-                      <option value="This Quarter">This Quarter</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Donut Chart & Legend */}
-                <div className="flex items-center justify-between gap-4 my-4">
-                  {/* SVG Donut */}
-                  <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
-                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                      {/* Background circle */}
-                      <path
-                        className="text-slate-100 dark:text-slate-800"
-                        strokeWidth="3.8"
-                        stroke="currentColor"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                      {/* Compliant: 73% (stroke-dasharray="73, 100") */}
-                      <path
-                        className="text-emerald-500"
-                        strokeDasharray={`${compliance.compliantPercentage || 73}, 100`}
-                        strokeWidth="4"
-                        strokeLinecap="round"
-                        stroke="currentColor"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                      {/* Minor Issues: 18% (offset 73) */}
-                      <path
-                        className="text-amber-500"
-                        strokeDasharray={`${compliance.minorIssuesPercentage || 18}, 100`}
-                        strokeDashoffset={`-${compliance.compliantPercentage || 73}`}
-                        strokeWidth="4"
-                        strokeLinecap="round"
-                        stroke="currentColor"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                      {/* Major Issues: 9% (offset 91) */}
-                      <path
-                        className="text-rose-500"
-                        strokeDasharray={`${compliance.majorIssuesPercentage || 9}, 100`}
-                        strokeDashoffset={`-${(compliance.compliantPercentage || 73) + (compliance.minorIssuesPercentage || 18)}`}
-                        strokeWidth="4"
-                        strokeLinecap="round"
-                        stroke="currentColor"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                    </svg>
-
-                    {/* Donut Center Label */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                      <span className="text-2xl font-black text-slate-900 dark:text-white">
-                        {compliance.totalChecks}
-                      </span>
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-tight">
-                        Total Checks
-                      </span>
-                    </div>
+                      View All
+                    </Link>
                   </div>
 
-                  {/* Legend Counts */}
-                  <div className="space-y-2.5 text-xs flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                        Compliant
-                      </span>
-                      <span className="font-bold text-slate-900 dark:text-white">
-                        {compliance.compliant} <span className="text-slate-400 font-normal">({compliance.compliantPercentage}%)</span>
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300">
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                        Minor Issues
-                      </span>
-                      <span className="font-bold text-slate-900 dark:text-white">
-                        {compliance.minorIssues} <span className="text-slate-400 font-normal">({compliance.minorIssuesPercentage}%)</span>
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300">
-                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                        Major Issues
-                      </span>
-                      <span className="font-bold text-slate-900 dark:text-white">
-                        {compliance.majorIssues} <span className="text-slate-400 font-normal">({compliance.majorIssuesPercentage}%)</span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom Compliance Rate Progress Bar */}
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
-                <div className="flex items-center justify-between text-xs font-semibold">
-                  <span className="text-slate-500 dark:text-slate-400">Compliance Rate</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                    <span>{compliance.complianceRate}%</span>
-                    <span className="text-[11px] font-bold">↑ {compliance.complianceRateTrend?.replace('+', '')} from last month</span>
-                  </span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                    style={{ width: `${compliance.complianceRate}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* -------------------- 5. LOWER ROW: RECENT SUBMISSIONS & AI ACTIVITY -------------------- */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-            {/* Left: Recent Submissions Table (~62%) */}
-            <div className="lg:col-span-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs p-5">
-              <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Recent Submissions
-                </h3>
-                <Link
-                  to="/tenders"
-                  className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  View All
-                </Link>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="text-slate-400 uppercase tracking-wider text-[10.5px] border-b border-slate-100 dark:border-slate-800">
-                      <th className="py-3 font-semibold">Tender ID</th>
-                      <th className="py-3 font-semibold">Bidder Name</th>
-                      <th className="py-3 font-semibold">Submitted On</th>
-                      <th className="py-3 font-semibold">Compliance Score</th>
-                      <th className="py-3 font-semibold text-center">Bidder Docs</th>
-                      <th className="py-3 font-semibold text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                    {recentSubmissions.map((sub, idx) => (
-                      <tr
-                        key={idx}
-                        className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
-                      >
-                        <td className="py-3 font-semibold text-blue-600 dark:text-blue-400">
-                          <button
-                            type="button"
-                            onClick={handleOpenCompliance}
-                            className="font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer text-left"
-                            title="Open Compliance Check"
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Tender ID</th>
+                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Title</th>
+                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Department</th>
+                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Last Date</th>
+                          <th className="py-2.5 px-3.5 font-bold text-center whitespace-nowrap">Submissions</th>
+                          <th className="py-2.5 px-3.5 font-bold text-right whitespace-nowrap">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                        {recentTenders.map((item, idx) => (
+                          <tr
+                            key={idx}
+                            className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
                           >
-                            {sub.tenderId}
-                          </button>
-                        </td>
-                        <td className="py-3 text-slate-900 dark:text-slate-200">
-                          {sub.bidder}
-                        </td>
-                        <td className="py-3 text-slate-500 dark:text-slate-400">
-                          {sub.submittedOn}
-                        </td>
-                        <td className="py-3">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-800 dark:text-slate-200 w-8">
-                              {sub.score}%
-                            </span>
-                            <div className="w-24 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                              <div
-                                className={`h-full rounded-full ${sub.score >= 80
-                                    ? 'bg-emerald-500'
-                                    : sub.score >= 60
-                                      ? 'bg-amber-500'
-                                      : 'bg-rose-500'
+                            <td className="py-2.5 px-3.5 font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                              <Link to="/tenders" className="hover:underline">
+                                {item.id}
+                              </Link>
+                            </td>
+                            <td className="py-2.5 px-3.5 text-slate-900 dark:text-slate-200">
+                              <span className="max-w-[160px] truncate block" title={item.title}>
+                                {item.title}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3.5 text-slate-600 dark:text-slate-400">
+                              <span className="max-w-[130px] truncate block" title={item.department}>
+                                {item.department}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3.5 text-slate-500 dark:text-slate-400 whitespace-nowrap text-[11px]">
+                              {item.lastDate}
+                            </td>
+                            <td className="py-2.5 px-3.5 text-center text-slate-700 dark:text-slate-200 font-bold whitespace-nowrap">
+                              {item.submissions}
+                            </td>
+                            <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                              <span
+                                className={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold ${item.status === 'Open'
+                                    ? 'bg-emerald-100/70 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
+                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
                                   }`}
-                                style={{ width: `${sub.score}%` }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDocSubmission(sub)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/70 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold text-[11px] transition border border-blue-200 dark:border-blue-800 cursor-pointer shadow-2xs group"
-                            title="Click to view bidder's uploaded documents"
-                          >
-                            <FileText className="w-3.5 h-3.5 text-blue-500 group-hover:scale-110 transition-transform" />
-                            <span>{sub.documents?.length || 3} Files</span>
-                          </button>
-                        </td>
-                        <td className="py-3 text-right">
-                          <span
-                            className={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold ${sub.statusColor === 'emerald'
-                                ? 'bg-emerald-100/70 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
-                                : sub.statusColor === 'amber'
-                                  ? 'bg-amber-100/70 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400'
-                                  : 'bg-rose-100/70 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
-                              }`}
-                          >
-                            {sub.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                              >
+                                {item.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
 
-            {/* Right: AI Verification Activity (~38%) */}
-            <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs p-5">
-              <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  AI Verification Activity
-                </h3>
-                <Link
-                  to="/reports"
-                  className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  View All
-                </Link>
-              </div>
-
-              <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                {activities.map((act) => {
-                  const Icon = act.icon;
-                  return (
-                    <div key={act.id} className="py-3 flex items-start gap-3">
-                      <div className={`p-1.5 rounded-full shrink-0 ${act.iconColor}`}>
-                        <Icon className="w-3.5 h-3.5" />
+                {/* Right: Compliance Overview Donut Chart (~38%) */}
+                <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs p-5 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                        Compliance Overview
+                      </h3>
+                      <div className="relative">
+                        <select
+                          value={compliance.timeFilter || timeFilter}
+                          onChange={(e) => {
+                            setTimeFilter(e.target.value);
+                            dispatch(setReduxTimeFilter(e.target.value));
+                          }}
+                          className="text-xs font-semibold px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer"
+                        >
+                          <option value="This Month">This Month</option>
+                          <option value="Last Month">Last Month</option>
+                          <option value="This Quarter">This Quarter</option>
+                        </select>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-1">
-                          <p className="text-xs font-bold text-slate-900 dark:text-white">
-                            {act.title}
-                          </p>
-                          <span className="text-[10px] text-slate-400 shrink-0">
-                            {act.time}
+                    </div>
+
+                    {/* Donut Chart & Legend */}
+                    <div className="flex items-center justify-between gap-4 my-4">
+                      {/* SVG Donut */}
+                      <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
+                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                          {/* Background circle */}
+                          <path
+                            className="text-slate-100 dark:text-slate-800"
+                            strokeWidth="3.8"
+                            stroke="currentColor"
+                            fill="none"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          />
+                          {/* Compliant: 73% (stroke-dasharray="73, 100") */}
+                          <path
+                            className="text-emerald-500"
+                            strokeDasharray={`${compliance.compliantPercentage || 73}, 100`}
+                            strokeWidth="4"
+                            strokeLinecap="round"
+                            stroke="currentColor"
+                            fill="none"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          />
+                          {/* Minor Issues: 18% (offset 73) */}
+                          <path
+                            className="text-amber-500"
+                            strokeDasharray={`${compliance.minorIssuesPercentage || 18}, 100`}
+                            strokeDashoffset={`-${compliance.compliantPercentage || 73}`}
+                            strokeWidth="4"
+                            strokeLinecap="round"
+                            stroke="currentColor"
+                            fill="none"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          />
+                          {/* Major Issues: 9% (offset 91) */}
+                          <path
+                            className="text-rose-500"
+                            strokeDasharray={`${compliance.majorIssuesPercentage || 9}, 100`}
+                            strokeDashoffset={`-${(compliance.compliantPercentage || 73) + (compliance.minorIssuesPercentage || 18)}`}
+                            strokeWidth="4"
+                            strokeLinecap="round"
+                            stroke="currentColor"
+                            fill="none"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          />
+                        </svg>
+
+                        {/* Donut Center Label */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                          <span className="text-2xl font-black text-slate-900 dark:text-white">
+                            {compliance.totalChecks}
+                          </span>
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-tight">
+                            Total Checks
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                          {act.subtext}
-                        </p>
+                      </div>
+
+                      {/* Legend Counts */}
+                      <div className="space-y-2.5 text-xs flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                            Compliant
+                          </span>
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {compliance.compliant} <span className="text-slate-400 font-normal">({compliance.compliantPercentage}%)</span>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300">
+                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                            Minor Issues
+                          </span>
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {compliance.minorIssues} <span className="text-slate-400 font-normal">({compliance.minorIssuesPercentage}%)</span>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300">
+                            <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                            Major Issues
+                          </span>
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {compliance.majorIssues} <span className="text-slate-400 font-normal">({compliance.majorIssuesPercentage}%)</span>
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+                  </div>
 
-          {/* -------------------- 6. BOTTOM ROW: QUICK ACTIONS & AI ASSISTANT -------------------- */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-            {/* Left: Quick Actions (~60%) */}
-            <div className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs p-5 space-y-3">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                Quick Actions
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-
-                <Link
-                  to="/tenders"
-                  className="flex flex-col items-center justify-center text-center p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition group cursor-pointer"
-                >
-                  <Search className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 mb-1.5" />
-                  <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">Search Tenders</span>
-                </Link>
-
-                <button
-                  type="button"
-                  onClick={() => setUploadModalOpen(true)}
-                  className="flex flex-col items-center justify-center text-center p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition group cursor-pointer"
-                >
-                  <UploadCloud className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 mb-1.5" />
-                  <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">Upload Documents</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleOpenCompliance}
-                  className="flex flex-col items-center justify-center text-center p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition group cursor-pointer"
-                >
-                  <Brain className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 mb-1.5" />
-                  <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">AI Compliance Check</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setEvalModalOpen(true)}
-                  className="flex flex-col items-center justify-center text-center p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition group cursor-pointer"
-                >
-                  <ClipboardCheck className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 mb-1.5" />
-                  <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">View My Evaluations</span>
-                </button>
-
-                <Link
-                  to="/reports"
-                  className="flex flex-col items-center justify-center text-center p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition group cursor-pointer"
-                >
-                  <FileText className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 mb-1.5" />
-                  <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">Generate Report</span>
-                </Link>
-              </div>
-            </div>
-
-            {/* Right: AI Assistant (RAG) (~40%) */}
-            <div
-              id="rag-section"
-              className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs p-5 space-y-3"
-            >
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-indigo-500" />
-                  <span>AI Assistant (RAG)</span>
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setChatBoxOpen(true)}
-                  className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Bot className="w-3.5 h-3.5" />
-                  <span>Open Live Chatbox</span>
-                </button>
+                  {/* Bottom Compliance Rate Progress Bar */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className="text-slate-500 dark:text-slate-400">Compliance Rate</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <span>{compliance.complianceRate}%</span>
+                        <span className="text-[11px] font-bold">↑ {compliance.complianceRateTrend?.replace('+', '')} from last month</span>
+                      </span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                        style={{ width: `${compliance.complianceRate}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <form onSubmit={handleAskRag} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={ragQuery}
-                  onChange={(e) => setRagQuery(e.target.value)}
-                  placeholder="Ask any question about tender documents, compliance rules, or GeM guidelines..."
-                  className="flex-1 px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                />
-                <button
-                  type="submit"
-                  disabled={isAskingRag || !ragQuery.trim()}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#4f46e5] hover:bg-[#4338ca] text-white text-xs font-bold rounded-xl shadow-xs transition disabled:opacity-50 shrink-0 cursor-pointer"
-                >
-                  <Brain className="w-3.5 h-3.5" />
-                  <span>{isAskingRag ? 'Analyzing...' : 'Ask AI Assistant'}</span>
-                </button>
-              </form>
+              {/* -------------------- 5. LOWER ROW: RECENT SUBMISSIONS & AI ACTIVITY -------------------- */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-              {/* RAG Response display */}
-              {ragResponse && (
-                <div className="p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-900/50 space-y-1 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold text-indigo-900 dark:text-indigo-200">
-                      {ragResponse.title}
-                    </p>
+                {/* Left: Recent Submissions Table (~62%) */}
+                <div className="lg:col-span-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs p-5">
+                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Recent Submissions
+                    </h3>
                     <button
-                      onClick={() => setRagResponse(null)}
-                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      type="button"
+                      onClick={handleOpenSubmissions}
+                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      View All
                     </button>
                   </div>
-                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-                    {ragResponse.text}
-                  </p>
-                  <p
-                    className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold pt-1"
-                    dangerouslySetInnerHTML={{ __html: ragResponse.confidence }}
-                  />
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Tender ID</th>
+                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Bidder Name</th>
+                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Submitted On</th>
+                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Compliance Score</th>
+                          <th className="py-2.5 px-3.5 font-bold text-center whitespace-nowrap">Bidder Docs</th>
+                          <th className="py-2.5 px-3.5 font-bold text-right whitespace-nowrap">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                        {recentSubmissions.map((sub, idx) => (
+                          <tr
+                            key={idx}
+                            className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
+                          >
+                            <td className="py-2.5 px-3.5 font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={handleOpenCompliance}
+                                className="font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer text-left truncate max-w-[130px] block"
+                                title={sub.tenderId}
+                              >
+                                {sub.tenderId}
+                              </button>
+                            </td>
+                            <td className="py-2.5 px-3.5 text-slate-900 dark:text-slate-200">
+                              <span className="truncate max-w-[125px] block font-medium" title={sub.bidder}>
+                                {sub.bidder}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3.5 text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap">
+                              {sub.submittedOn}
+                            </td>
+                            <td className="py-2.5 px-3.5 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-800 dark:text-slate-200 text-xs w-7">
+                                  {sub.score}%
+                                </span>
+                                <div className="w-14 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
+                                  <div
+                                    className={`h-full rounded-full ${sub.score >= 80
+                                        ? 'bg-emerald-500'
+                                        : sub.score >= 60
+                                          ? 'bg-amber-500'
+                                          : 'bg-rose-500'
+                                      }`}
+                                    style={{ width: `${sub.score}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedDocSubmission(sub)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/70 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold text-[11px] transition border border-blue-200 dark:border-blue-800 cursor-pointer shadow-2xs group"
+                                title="Click to view bidder's uploaded documents"
+                              >
+                                <FileText className="w-3.5 h-3.5 text-blue-500 group-hover:scale-110 transition-transform" />
+                                <span>{sub.documents?.length || 1} Docs</span>
+                              </button>
+                            </td>
+                            <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                              <span
+                                className={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold ${sub.statusColor === 'emerald'
+                                    ? 'bg-emerald-100/70 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
+                                    : sub.statusColor === 'amber'
+                                      ? 'bg-amber-100/70 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400'
+                                      : 'bg-rose-100/70 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
+                                  }`}
+                              >
+                                {sub.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
+
+                {/* Right: AI Verification Activity (~38%) */}
+                <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs p-5">
+                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      AI Verification Activity
+                    </h3>
+                    <Link
+                      to="/reports"
+                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      View All
+                    </Link>
+                  </div>
+
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {activities.map((act) => {
+                      const Icon = act.icon;
+                      return (
+                        <div key={act.id} className="py-3 flex items-start gap-3">
+                          <div className={`p-1.5 rounded-full shrink-0 ${act.iconColor}`}>
+                            <Icon className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="text-xs font-bold text-slate-900 dark:text-white">
+                                {act.title}
+                              </p>
+                              <span className="text-[10px] text-slate-400 shrink-0">
+                                {act.time}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                              {act.subtext}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
             </>
           )}
         </main>
 
         {/* -------------------- 7. FOOTER -------------------- */}
         <footer className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
-          <p>© 2024 GemCompliance Platform. All rights reserved.</p>
+          <p>© 2024 GeM Compliflix Platform. All rights reserved.</p>
           <div className="flex items-center gap-4 text-[11.5px]">
             <span>Version 1.0.0</span>
             <span>&bull;</span>

@@ -3,7 +3,7 @@ import { ArrowRight, Star } from 'lucide-react';
 
 const testimonials = [
   {
-    quote: 'GemCompliance has simplified our tender evaluation process and saved significant time.',
+    quote: 'GeM Compliflix has simplified our tender evaluation process and saved significant time.',
     name: 'R. Kumar',
     role: 'Procurement Officer, State Government',
     rating: 5,

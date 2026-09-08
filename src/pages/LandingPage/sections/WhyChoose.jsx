@@ -35,7 +35,7 @@ const WhyChoose = () => {
         {/* Header */}
         <div className="mb-8 sm:mb-10">
           <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 tracking-tight">
-            Why Choose GeMCompliance?
+            Why Choose GeM Compliflix?
           </h2>
         </div>
 

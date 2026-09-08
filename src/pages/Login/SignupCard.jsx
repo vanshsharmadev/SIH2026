@@ -258,7 +258,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
           {/* Heading */}
           <div className="mb-4 text-center sm:text-left">
             <h2 className="text-xl sm:text-[23px] font-extrabold tracking-tight text-slate-900">
-              Create your GemCompliance account
+              Create your GeM Compliflix account
             </h2>
             <p className="text-xs sm:text-[13px] mt-1 font-medium text-slate-500">
               Choose your account type to get started
@@ -712,7 +712,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                       className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
                     <span className="text-[10.5px] text-slate-600 leading-tight">
-                      I hereby declare that I am an authorized government official accessing GemCompliance for official duty.
+                      I hereby declare that I am an authorized government official accessing GeM Compliflix for official duty.
                     </span>
                   </label>
                 )}

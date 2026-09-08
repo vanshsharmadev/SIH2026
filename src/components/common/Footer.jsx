@@ -45,7 +45,7 @@ const Footer = () => {
             </Link>
             <span className="text-slate-300">|</span>
             <button
-              onClick={() => alert('About GemCompliance: The official AI Bid Compliance Platform of the Government of India.')}
+              onClick={() => alert('About GeM Compliflix: The official AI Bid Compliance Platform of the Government of India.')}
               className="hover:text-blue-600 transition cursor-pointer"
             >
               About
@@ -66,7 +66,7 @@ const Footer = () => {
             </button>
             <span className="text-slate-300">|</span>
             <button
-              onClick={() => alert('Terms of Use: Terms and Conditions for GemCompliance platform access.')}
+              onClick={() => alert('Terms of Use: Terms and Conditions for GeM Compliflix platform access.')}
               className="hover:text-blue-600 transition cursor-pointer"
             >
               Terms of Use
@@ -169,7 +169,7 @@ const Footer = () => {
             <ul className="space-y-2 text-xs text-slate-400">
               <li>
                 <button
-                  onClick={() => alert('FAQs: GeM Compliance AI helps evaluate bids, technical parameters, and financial eligibility.')}
+                  onClick={() => alert('FAQs: GeM Compliflix AI helps evaluate bids, technical parameters, and financial eligibility.')}
                   className="hover:text-white transition cursor-pointer"
                 >
                   FAQs
@@ -193,7 +193,7 @@ const Footer = () => {
               </li>
               <li>
                 <button
-                  onClick={() => alert('Contact: support@gemcompliance.gov.in')}
+                  onClick={() => alert('Contact: support@gemcompliflix.gov.in')}
                   className="hover:text-white transition cursor-pointer"
                 >
                   Contact Us
@@ -309,7 +309,7 @@ const Footer = () => {
             <div className="space-y-1.5 text-xs text-slate-400">
               <div className="flex items-center gap-2">
                 <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span className="truncate text-[11px]">support@gemcompliance.gov.in</span>
+                <span className="truncate text-[11px]">support@gemcompliflix.gov.in</span>
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -330,7 +330,7 @@ const Footer = () => {
       {/* Lower Copyright Bar */}
       <div className="border-t border-slate-800 bg-[#051322] py-4 text-xs text-slate-500">
         <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>&copy; 2026 GeMCompliance. All rights reserved.</span>
+          <span>&copy; 2026 GeM Compliflix. All rights reserved.</span>
           <div className="flex items-center gap-2">
             <span className="font-semibold text-slate-400">सत्यमेव जयते</span>
             <span className="text-slate-600">|</span>

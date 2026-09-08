@@ -268,7 +268,7 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
             Welcome Back
           </h2>
           <p className="text-[11px] sm:text-xs mt-0.5 font-medium text-slate-500 dark:text-slate-400">
-            Sign in to your GemCompliance account
+            Sign in to your GeM Compliflix account
           </p>
         </div>
 

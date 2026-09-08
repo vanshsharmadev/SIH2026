@@ -42,11 +42,11 @@ const AboutSection = () => {
             <TricolorBar className="w-14 h-1 mb-3" />
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight mb-4">
               About<br />
-              <span className="text-[#0A2540]">GeM</span>
-              <span className="text-[#0E9F6E]">Compliance</span>
+              <span className="text-[#0A2540]">GeM </span>
+              <span className="text-[#0E9F6E]">Compliflix</span>
             </h2>
             <p className="text-sm sm:text-[15px] text-slate-600 leading-relaxed mb-6 font-medium">
-              GemCompliance is an AI-powered platform designed to simplify
+              GeM Compliflix is an AI-powered platform designed to simplify
               government procurement by ensuring complete compliance with
               GeM tender documents, policies, and guidelines. Our platform
               empowers government officials and bidders with intelligent tools

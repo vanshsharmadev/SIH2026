@@ -1,4 +1,4 @@
-export const APP_NAME = 'GemCompliance';
+export const APP_NAME = 'GeM Compliflix';
 export const APP_SUBTITLE = 'AI Bid Compliance Platform - Government of India';
 
 export const COMPLIANCE_STATUS = {

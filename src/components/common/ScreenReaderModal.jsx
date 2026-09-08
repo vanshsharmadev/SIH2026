@@ -43,7 +43,7 @@ const ScreenReaderModal = ({ isOpen, onClose }) => {
     window.speechSynthesis.cancel();
 
     const textToRead = 
-      "Welcome to GeM Compliance, the official AI-powered Public Procurement Compliance Platform of the Government of India. " +
+      "Welcome to GeM Compliflix, the official AI-powered Public Procurement Compliance Platform of the Government of India. " +
       "This portal assists government buyers and vendors in analyzing tender documents, ensuring compliance with general financial rules and GeM guidelines. " +
       "Use Alt plus M to skip to main content, or press Tab to navigate through interactive elements.";
 

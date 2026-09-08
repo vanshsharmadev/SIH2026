@@ -259,17 +259,20 @@ const Navbar = ({ fontScale, setFontScale }) => {
 
         {/* 2. Main Navigation Bar */}
         <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-4">
-          {/* Left: National Emblem + GeMCompliance Brand */}
+          {/* Left: National Emblem + GeM Compliflix Brand */}
           <Link to="/" className="flex items-center gap-2.5 sm:gap-3 group shrink-0">
             <img
               src="/emblem.svg"
               alt="National Emblem of India"
+              width="40"
+              height="40"
+              style={{ maxHeight: '40px', width: 'auto' }}
               className="h-9 sm:h-10 w-auto object-contain shrink-0 drop-shadow-2xs"
             />
             <div className="flex flex-col leading-none">
               <div className="flex items-center text-xl sm:text-[22px] font-black tracking-tight">
                 <span className="text-[#0A2540] dark:text-white">GeM</span>
-                <span className="text-[#0E9F6E] ml-0.5">Compliance</span>
+                <span className="text-[#0E9F6E] ml-1">Compliflix</span>
               </div>
               <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">
                 Compliant Procurement. Stronger India.
