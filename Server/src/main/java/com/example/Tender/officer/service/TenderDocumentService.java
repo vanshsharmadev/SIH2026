@@ -2,34 +2,61 @@ package com.example.Tender.officer.service;
 
 import com.example.Tender.officer.dto.cloudinary.CloudinaryUploadResult;
 import com.example.Tender.officer.dto.ml.*;
+import com.example.Tender.officer.dto.rag.TenderChatRequest;
+import com.example.Tender.officer.dto.rag.TenderChatResponse;
 import com.example.Tender.officer.model.TenderDocument;
 import com.example.Tender.officer.repository.TenderDocumentRepository;
 import com.example.Tender.officer.security.service.OfficerPrincipal;
 import com.example.Tender.officer.service.cloudinary.CloudinaryService;
 import com.example.Tender.officer.service.ml.MlServiceClient;
+import com.example.Tender.officer.service.rag.NodeRagServiceClient;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class TenderDocumentService {
 
     private final TenderDocumentRepository tenderDocumentRepository;
     private final MlServiceClient mlServiceClient;
+    private final NodeRagServiceClient nodeRagServiceClient;
     private final CloudinaryService cloudinaryService;
     private final ObjectMapper objectMapper;
+    private final Executor documentProcessingExecutor;
+
+    public TenderDocumentService(
+            TenderDocumentRepository tenderDocumentRepository,
+            MlServiceClient mlServiceClient,
+            NodeRagServiceClient nodeRagServiceClient,
+            CloudinaryService cloudinaryService,
+            ObjectMapper objectMapper,
+            @Qualifier("documentProcessingExecutor") Executor documentProcessingExecutor) {
+        this.tenderDocumentRepository = tenderDocumentRepository;
+        this.mlServiceClient = mlServiceClient;
+        this.nodeRagServiceClient = nodeRagServiceClient;
+        this.cloudinaryService = cloudinaryService;
+        this.objectMapper = objectMapper;
+        this.documentProcessingExecutor = documentProcessingExecutor;
+    }
 
     /**
-     * Upload tender PDF, forward to ML service for OCR/Authenticity/Structure analysis, and save in PostgreSQL.
+     * Parallel Ingestion Pipeline:
+     * 1. Upload PDF to Cloudinary CDN
+     * 2. Save initial entity in DB to obtain primary tender ID
+     * 3. Dispatches PARALLEL asynchronous execution to:
+     *    - Python GeM ML Microservice (OCR, Statutory Check, Authenticity, Forgery detection)
+     *    - Node AI RAG Service (Text chunking, Gemini Embeddings, pgvector indexing)
+     * 4. Joins results concurrently and persists complete analysis in PostgreSQL.
      */
     @Transactional
     public TenderUploadResponse uploadAndProcessTender(
@@ -47,7 +74,7 @@ public class TenderDocumentService {
             throw new IllegalArgumentException("Tender title is required");
         }
 
-        log.info("Processing tender document upload: title='{}', officerEmail='{}'", title, principal.getEmail());
+        log.info("Starting Parallel Pipeline for tender upload: title='{}', officerEmail='{}'", title, principal.getEmail());
 
         String effectiveDocType = (documentType != null && !documentType.isBlank()) ? documentType : "other";
 
@@ -61,29 +88,8 @@ public class TenderDocumentService {
             log.warn("Cloudinary upload failed for tender '{}': {}", title, e.getMessage());
         }
 
-        // 2. Call ML Service v2.0.0 (Consolidated Intake Endpoint 4: POST /api/ml/process-document)
-        DocumentProcessResponse mlResponse;
-        try {
-            mlResponse = mlServiceClient.processDocument(file, effectiveDocType, true);
-        } catch (Exception e) {
-            log.error("ML analysis failed for tender '{}': {}", title, e.getMessage());
-            mlResponse = DocumentProcessResponse.builder()
-                    .status("FAILED")
-                    .message("ML Analysis unavailable: " + e.getMessage())
-                    .build();
-        }
-
-        // 3. Prepare JSON strings for database persistence
-        String structuredJson = toJson(mlResponse.getStructuredData());
-        String authenticityDetailsJson = toJson(
-                mlResponse.getAuthenticityDetails() != null
-                        ? mlResponse.getAuthenticityDetails()
-                        : mlResponse.getAuthenticity()
-        );
-        String mlRawResponseJson = toJson(mlResponse.getAdditionalProperties());
-
-        // 4. Build TenderDocument Entity
-        TenderDocument entity = TenderDocument.builder()
+        // 2. Save Initial Entity to get Tender ID
+        TenderDocument initialEntity = TenderDocument.builder()
                 .title(title)
                 .description(description)
                 .fileName(file.getOriginalFilename())
@@ -96,19 +102,70 @@ public class TenderDocumentService {
                 .uploadedByOfficerName(principal.getName())
                 .uploadedByEmail(principal.getEmail())
                 .departmentName(principal.getDepartmentName())
-                .rawOcrText(mlResponse.getConsolidatedOcrText())
-                .structuredDataJson(structuredJson)
-                .authenticityDetailsJson(authenticityDetailsJson)
-                .mlRawResponseJson(mlRawResponseJson)
-                .status("PROCESSED")
-                .authenticityScore(mlResponse.getAuthenticityScore())
-                .isAuthentic(mlResponse.getIsAuthentic())
+                .status("PROCESSING")
                 .build();
 
-        TenderDocument saved = tenderDocumentRepository.save(entity);
-        log.info("Saved TenderDocument to database with ID: {}", saved.getId());
+        TenderDocument saved = tenderDocumentRepository.save(initialEntity);
+        final Long tenderId = saved.getId();
+        log.info("Initialized Tender entity with ID: {}", tenderId);
 
-        return mapToUploadResponse(saved);
+        // 3. PARALLEL PIPELINE: Thread A (Python ML) + Thread B (Node AI RAG)
+        CompletableFuture<DocumentProcessResponse> mlFuture = CompletableFuture.supplyAsync(() -> {
+            log.info("[Thread A] Dispatching tenderId={} to Python ML Service (OCR/Authenticity)...", tenderId);
+            try {
+                return mlServiceClient.processDocument(file, effectiveDocType, true);
+            } catch (Exception e) {
+                log.error("[Thread A] ML analysis failed for tenderId={}: {}", tenderId, e.getMessage());
+                return DocumentProcessResponse.builder()
+                        .status("FAILED")
+                        .message("ML Analysis unavailable: " + e.getMessage())
+                        .build();
+            }
+        }, documentProcessingExecutor);
+
+        CompletableFuture<Map<String, Object>> ragFuture = CompletableFuture.supplyAsync(() -> {
+            log.info("[Thread B] Dispatching tenderId={} to Node AI RAG Service (pgvector embeddings)...", tenderId);
+            try {
+                return nodeRagServiceClient.processTender(String.valueOf(tenderId));
+            } catch (Exception e) {
+                log.error("[Thread B] Node AI RAG vectorization failed for tenderId={}: {}", tenderId, e.getMessage());
+                return Map.of("status", "ERROR", "error", e.getMessage());
+            }
+        }, documentProcessingExecutor);
+
+        // 4. Wait for both to complete simultaneously
+        CompletableFuture.allOf(mlFuture, ragFuture).join();
+
+        DocumentProcessResponse mlResponse = mlFuture.join();
+        Map<String, Object> ragResponse = ragFuture.join();
+        log.info("Parallel Pipeline completed for tenderId={}. RAG status={}", tenderId, ragResponse.get("status"));
+
+        // 5. Update Entity with ML Analysis & RAG status
+        String structuredJson = toJson(mlResponse.getStructuredData());
+        String authenticityDetailsJson = toJson(
+                mlResponse.getAuthenticityDetails() != null
+                        ? mlResponse.getAuthenticityDetails()
+                        : mlResponse.getAuthenticity()
+        );
+
+        Map<String, Object> rawProps = mlResponse.getAdditionalProperties() != null
+                ? new HashMap<>(mlResponse.getAdditionalProperties())
+                : new HashMap<>();
+        rawProps.put("rag_vectorization", ragResponse);
+        String mlRawResponseJson = toJson(rawProps);
+
+        saved.setRawOcrText(mlResponse.getConsolidatedOcrText());
+        saved.setStructuredDataJson(structuredJson);
+        saved.setAuthenticityDetailsJson(authenticityDetailsJson);
+        saved.setMlRawResponseJson(mlRawResponseJson);
+        saved.setStatus("PROCESSED");
+        saved.setAuthenticityScore(mlResponse.getAuthenticityScore());
+        saved.setIsAuthentic(mlResponse.getIsAuthentic());
+
+        TenderDocument finalSaved = tenderDocumentRepository.save(saved);
+        log.info("Successfully completed and persisted parallel processed Tender ID: {}", finalSaved.getId());
+
+        return mapToUploadResponse(finalSaved);
     }
 
     /**
@@ -168,6 +225,27 @@ public class TenderDocumentService {
                 .status("SUCCESS")
                 .comparisonResult(comparisonResult)
                 .build();
+    }
+
+    // ==========================================
+    // AI RAG & Chatbot Operations
+    // ==========================================
+
+    /**
+     * Query Node AI RAG Chatbot with Tender + Bidder context (Gemini LLM)
+     */
+    public TenderChatResponse askTenderChatbot(TenderChatRequest request, OfficerPrincipal principal) {
+        if (request.getQuery() == null || request.getQuery().trim().isEmpty()) {
+            throw new IllegalArgumentException("Chat query must not be empty");
+        }
+        return nodeRagServiceClient.askChatbot(request);
+    }
+
+    /**
+     * Health check for Node AI RAG Microservice
+     */
+    public Map<String, Object> getRagHealth() {
+        return nodeRagServiceClient.checkHealth();
     }
 
     // ==========================================
