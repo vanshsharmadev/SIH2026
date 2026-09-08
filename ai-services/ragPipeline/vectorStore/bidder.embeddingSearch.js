@@ -1,7 +1,12 @@
 const { generateEmbedding } = require("../embedding.service");
 const { pool } = require("./bidder.embeddingStore");
 
-async function searchBidderEmbeddings({ tenderId, bidderId, query, limit = 5 }) {
+async function searchBidderEmbeddings(
+  tenderId,
+  bidderId,
+  query,
+  limit = 5
+){
   if (!tenderId) throw new Error("tenderId is required");
   if (!query) throw new Error("query is required");
 
