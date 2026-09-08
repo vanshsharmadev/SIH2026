@@ -1,5 +1,5 @@
-const { searchTenderEmbeddings } = require("../retrival/tender.retrieval");
-const { searchBidderEmbeddings } = require("../retrival/bidder.retrieval");
+const { searchTenderEmbeddings } = require("../vectorStore/tender.embeddingSearch");
+const { searchBidderEmbeddings } = require("../vectorStore/bidder.embeddingSearch");
 const { searchSummaryEmbeddings } = require("../retrival/summary.retrieval");
 
 async function retrieveBidderTenderContext(
