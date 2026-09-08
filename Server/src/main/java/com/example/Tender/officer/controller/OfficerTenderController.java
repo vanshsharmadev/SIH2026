@@ -343,4 +343,81 @@ public class OfficerTenderController {
         Map<String, Object> result = tenderDocumentService.classifyDocument(file);
         return ResponseEntity.ok(OfficerApiResponse.success("Document classified successfully", result));
     }
+
+    // ==========================================
+    // 3. GeM ML Microservice v2.0.0 Master Endpoints
+    // ==========================================
+
+    /**
+     * Master Autonomous Tender Audit (JSON Intake):
+     * Synthesizes document classification, QR verification, forensic anti-tampering,
+     * GFR 173(i) MSME/Startup statutory exemptions, dynamic CIS scoring, and Random Forest qualification prediction.
+     */
+    @PostMapping("/ml/automate-all")
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> automateAll(@RequestBody Map<String, Object> req) {
+        Map<String, Object> result = tenderDocumentService.automateAll(req);
+        return ResponseEntity.ok(OfficerApiResponse.success("Master autonomous audit complete", result));
+    }
+
+    /**
+     * Master Multipart Batch File Upload Autonomous Audit:
+     * Accepts multiple physical document uploads and optional tender documents.
+     */
+    @PostMapping(value = "/ml/automate-all-files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> automateAllFiles(
+            @RequestParam("files") List<MultipartFile> files,
+            @RequestParam(value = "tender_file", required = false) MultipartFile tenderFile,
+            @RequestParam(value = "is_msme", required = false, defaultValue = "false") Boolean isMsme,
+            @RequestParam(value = "is_startup", required = false, defaultValue = "false") Boolean isStartup) {
+
+        Map<String, Object> result = tenderDocumentService.automateAllFiles(files, tenderFile, isMsme, isStartup);
+        return ResponseEntity.ok(OfficerApiResponse.success("Batch file audit complete", result));
+    }
+
+    /**
+     * Consolidated Single-GET Comprehensive Dossier & RAG Synthesis:
+     * Merges all ML analysis, statutory tax compliance, forensic authenticity, identity coherence,
+     * and pre-synthesized markdown chunks for LLM RAG pipelines.
+     */
+    @GetMapping("/ml/overall-summary")
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> getOverallSummary(
+            @RequestParam(value = "bid_id", required = false) String bidId,
+            @RequestParam(value = "identifier", required = false) String identifier,
+            @RequestParam(value = "tender_type", required = false, defaultValue = "goods") String tenderType,
+            @RequestParam(value = "use_live_portal", required = false, defaultValue = "false") Boolean useLivePortal,
+            @RequestParam(value = "include_rag_context", required = false, defaultValue = "true") Boolean includeRagContext) {
+
+        Map<String, Object> result = tenderDocumentService.getOverallSummary(bidId, identifier, tenderType, useLivePortal, includeRagContext);
+        return ResponseEntity.ok(OfficerApiResponse.success("Overall summary dossier retrieved", result));
+    }
+
+    /**
+     * Dynamic Tender Requirements Parsing & 6-Pillar Checklist:
+     * Parses tender documents, Notice Inviting Tenders (NIT), and Bid Qualification Criteria (BQC).
+     */
+    @PostMapping("/ml/tender-requirements")
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> getTenderRequirements(@RequestBody Map<String, Object> req) {
+        Map<String, Object> result = tenderDocumentService.getTenderRequirements(req);
+        return ResponseEntity.ok(OfficerApiResponse.success("Tender requirements parsed", result));
+    }
+
+    /**
+     * Direct Machine Learning Compliance Verdict & Score Predictor:
+     * Runs direct inference using trained AutomatedComplianceScorer model (Random Forest Classifier + Regressor).
+     */
+    @PostMapping("/ml/compliance-predict")
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> predictComplianceVerdict(@RequestBody Map<String, Object> req) {
+        Map<String, Object> result = tenderDocumentService.predictComplianceVerdict(req);
+        return ResponseEntity.ok(OfficerApiResponse.success("Compliance prediction completed", result));
+    }
+
+    /**
+     * Unified Machine Learning Retraining Pipeline:
+     * Retrains Document Classifier, Forgery Detector, and Compliance Scorer with hot reloading.
+     */
+    @PostMapping("/ml/train-all")
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> trainAllModels(@RequestBody(required = false) Map<String, Object> req) {
+        Map<String, Object> result = tenderDocumentService.trainAllModels(req);
+        return ResponseEntity.ok(OfficerApiResponse.success("ML model retraining triggered", result));
+    }
 }

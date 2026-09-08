@@ -245,6 +245,30 @@ public class TenderDocumentService {
         return mlServiceClient.classifyDocument(file);
     }
 
+    public Map<String, Object> automateAll(Map<String, Object> request) {
+        return mlServiceClient.automateAll(request);
+    }
+
+    public Map<String, Object> automateAllFiles(List<MultipartFile> files, MultipartFile tenderFile, Boolean isMsme, Boolean isStartup) {
+        return mlServiceClient.automateAllFiles(files, tenderFile, isMsme, isStartup);
+    }
+
+    public Map<String, Object> getOverallSummary(String bidId, String identifier, String tenderType, Boolean useLivePortal, Boolean includeRagContext) {
+        return mlServiceClient.getOverallSummary(bidId, identifier, tenderType, useLivePortal, includeRagContext);
+    }
+
+    public Map<String, Object> getTenderRequirements(Map<String, Object> request) {
+        return mlServiceClient.getTenderRequirements(request);
+    }
+
+    public Map<String, Object> predictComplianceVerdict(Map<String, Object> request) {
+        return mlServiceClient.predictComplianceVerdict(request);
+    }
+
+    public Map<String, Object> trainAllModels(Map<String, Object> request) {
+        return mlServiceClient.trainAllModels(request);
+    }
+
 
     private TenderUploadResponse mapToUploadResponse(TenderDocument entity) {
         return TenderUploadResponse.builder()

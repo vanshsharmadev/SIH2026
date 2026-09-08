@@ -498,6 +498,158 @@ public class MlServiceClient {
     }
 
     // ==========================================
+    // Group G: GeM ML Service v2.0.0 Master Endpoints
+    // ==========================================
+
+    /**
+     * Master Autonomous Tender Audit (JSON Intake):
+     * Synthesizes document classification, QR verification, forensic anti-tampering,
+     * GFR 173(i) MSME/Startup statutory exemptions, dynamic CIS scoring, and Random Forest qualification prediction.
+     */
+    public Map<String, Object> automateAll(Map<String, Object> request) {
+        try {
+            return restClient.post()
+                    .uri("/api/ml/automate-all")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request != null ? request : Collections.emptyMap())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to execute master autonomous audit (/api/ml/automate-all): {}", ex.getMessage(), ex);
+            throw new RuntimeException("Master audit failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Master Multipart Batch File Upload Autonomous Audit:
+     * Accepts multiple physical document uploads and optional tender documents.
+     */
+    public Map<String, Object> automateAllFiles(List<MultipartFile> files, MultipartFile tenderFile, Boolean isMsme, Boolean isStartup) {
+        try {
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            if (files != null) {
+                for (MultipartFile f : files) {
+                    if (f != null && !f.isEmpty()) {
+                        body.add("files", toByteArrayResource(f));
+                    }
+                }
+            }
+            if (tenderFile != null && !tenderFile.isEmpty()) {
+                body.add("tender_file", toByteArrayResource(tenderFile));
+            }
+            if (isMsme != null) {
+                body.add("is_msme", String.valueOf(isMsme));
+            }
+            if (isStartup != null) {
+                body.add("is_startup", String.valueOf(isStartup));
+            }
+
+            return restClient.post()
+                    .uri("/api/ml/automate-all-files")
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(body)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to execute batch file audit (/api/ml/automate-all-files): {}", ex.getMessage(), ex);
+            throw new RuntimeException("Batch file audit failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Consolidated Single-GET Comprehensive Dossier & RAG Synthesis:
+     * Merges all ML analysis, statutory tax compliance, forensic authenticity, identity coherence,
+     * and pre-synthesized markdown chunks for LLM RAG pipelines.
+     */
+    public Map<String, Object> getOverallSummary(String bidId, String identifier, String tenderType, Boolean useLivePortal, Boolean includeRagContext) {
+        try {
+            StringBuilder uriBuilder = new StringBuilder("/api/ml/overall-summary?");
+            if (bidId != null && !bidId.isBlank()) {
+                uriBuilder.append("bid_id=").append(bidId).append("&");
+            }
+            if (identifier != null && !identifier.isBlank()) {
+                uriBuilder.append("identifier=").append(identifier).append("&");
+            }
+            if (tenderType != null && !tenderType.isBlank()) {
+                uriBuilder.append("tender_type=").append(tenderType).append("&");
+            }
+            if (useLivePortal != null) {
+                uriBuilder.append("use_live_portal=").append(useLivePortal).append("&");
+            }
+            if (includeRagContext != null) {
+                uriBuilder.append("include_rag_context=").append(includeRagContext).append("&");
+            }
+
+            String uri = uriBuilder.toString();
+            if (uri.endsWith("&") || uri.endsWith("?")) {
+                uri = uri.substring(0, uri.length() - 1);
+            }
+
+            return restClient.get()
+                    .uri(uri)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to retrieve overall summary dossier (/api/ml/overall-summary): {}", ex.getMessage(), ex);
+            throw new RuntimeException("Overall summary retrieval failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Dynamic Tender Requirements Parsing & 6-Pillar Checklist:
+     * Parses tender documents, Notice Inviting Tenders (NIT), and Bid Qualification Criteria (BQC).
+     */
+    public Map<String, Object> getTenderRequirements(Map<String, Object> request) {
+        try {
+            return restClient.post()
+                    .uri("/api/ml/tender-requirements")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request != null ? request : Collections.emptyMap())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to parse tender requirements (/api/ml/tender-requirements): {}", ex.getMessage(), ex);
+            throw new RuntimeException("Tender requirements parsing failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Direct Machine Learning Compliance Verdict & Score Predictor:
+     * Runs direct inference using trained AutomatedComplianceScorer model (Random Forest Classifier + Regressor).
+     */
+    public Map<String, Object> predictComplianceVerdict(Map<String, Object> request) {
+        try {
+            return restClient.post()
+                    .uri("/api/ml/compliance/predict")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request != null ? request : Collections.emptyMap())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to predict compliance verdict (/api/ml/compliance/predict): {}", ex.getMessage(), ex);
+            throw new RuntimeException("Compliance prediction failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    /**
+     * Unified Machine Learning Retraining Pipeline:
+     * Retrains Document Classifier, Forgery Detector, and Compliance Scorer with hot reloading.
+     */
+    public Map<String, Object> trainAllModels(Map<String, Object> request) {
+        try {
+            return restClient.post()
+                    .uri("/api/ml/train/all")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request != null ? request : Collections.emptyMap())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to trigger ML retraining (/api/ml/train/all): {}", ex.getMessage(), ex);
+            throw new RuntimeException("ML retraining failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    // ==========================================
     // Group F: System & Infrastructure
     // ==========================================
 
