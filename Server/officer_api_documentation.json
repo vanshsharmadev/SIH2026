@@ -212,6 +212,75 @@
         "summary": "12. Unified ML Retraining Pipeline (POST /api/ml/train/all)",
         "description": "Retrains Document Classifier, Forgery Detector, and Compliance Scorer with hot reloading."
       }
+    },
+    "/api/officer/tenders/{tenderId}/chat": {
+      "post": {
+        "tags": ["Node AI RAG Chatbot & Embeddings"],
+        "summary": "Ask Bidder-Tender Chatbot (Specific Tender)",
+        "description": "Sends officer question to Node AI RAG service; retrieves pgvector chunks + ML summary and generates Gemini LLM response.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "tenderId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "1" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "bidderId": "BID-007",
+                "query": "Does this bidder meet the minimum annual turnover requirement of INR 10 Crores?"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chatbot response generated successfully with source citations"
+          }
+        }
+      }
+    },
+    "/api/officer/tenders/chat": {
+      "post": {
+        "tags": ["Node AI RAG Chatbot & Embeddings"],
+        "summary": "Ask Bidder-Tender Chatbot (General Endpoint)",
+        "description": "General endpoint taking tenderId and bidderId in request body.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "tenderId": "1",
+                "bidderId": "BID-007",
+                "query": "Provide a complete compliance summary and risk evaluation for this bidder."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chatbot response generated successfully"
+          }
+        }
+      }
+    },
+    "/api/officer/tenders/rag-health": {
+      "get": {
+        "tags": ["Node AI RAG Chatbot & Embeddings"],
+        "summary": "Node AI RAG Service Health Check",
+        "description": "Checks connectivity with live Node AI RAG service at https://sih2026-86kl.onrender.com.",
+        "responses": {
+          "200": {
+            "description": "Node AI RAG service is active and connected to pgvector"
+          }
+        }
+      }
     }
   },
   "components": {
