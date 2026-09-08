@@ -1,35 +1,31 @@
 const { downloadPdf } = require("../utils/pdfDownloader");
+const path = require("path");
 
 const {
   processBidderDocument
-} = require(
-  "../ragPipeline/embeddings/bidderEmbeddings/bidder.embedding"
-);
+} = require("../ragPipeline/embeddings/bidderEmbeddings/bidder.embedding");
+
+const {
+  storeBidderEmbeddings
+} = require("../ragPipeline/vectorStore/bidder.embeddingStore");
+
 
 async function processBidderController(req, res) {
+    console.log("🔥 NEW BIDDER CONTROLLER LOADED");
+
   try {
 
-    // 1. Receive data from Spring Boot
     const {
-      bidderId,
       tenderId,
-      bidId,
+      bidderId,
       documentId,
       documentType,
-      title,
-      pdfUrl,
+    //   pdfUrl,
       publicId
     } = req.body;
 
 
-    // 2. Validate required fields
-
-    if (!bidderId) {
-      return res.status(400).json({
-        success: false,
-        message: "bidderId is required"
-      });
-    }
+    // Validate required fields
 
     if (!tenderId) {
       return res.status(400).json({
@@ -38,10 +34,10 @@ async function processBidderController(req, res) {
       });
     }
 
-    if (!bidId) {
+    if (!bidderId) {
       return res.status(400).json({
         success: false,
-        message: "bidId is required"
+        message: "bidderId is required"
       });
     }
 
@@ -59,35 +55,38 @@ async function processBidderController(req, res) {
       });
     }
 
-    if (!pdfUrl) {
-      return res.status(400).json({
-        success: false,
-        message: "pdfUrl is required"
-      });
-    }
+    // if (!pdfUrl) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "pdfUrl is required"
+    //   });
+    // }
 
 
-    // 3. Download PDF from Cloudinary
+    // Download PDF from Cloudinary
 
-    console.log(
-      `Downloading bidder document: ${documentId}`
-    );
+    // const filePath = await downloadPdf(
+    //   pdfUrl,
+    //   documentId
+    // );
 
-    const filePath = await downloadPdf(
-      pdfUrl,
-      `${bidderId}-${documentId}`
-    );
-
-    console.log(
-      `PDF downloaded: ${filePath}`
-    );
+    // console.log(
+    //   `Using bidder PDF: ${filePath}`
+    // );
 
 
-    // 4. Send PDF to RAG pipeline
+    const filePath = path.join(
+        __dirname,
+         "../test-data/test-bidder.pdf"
+      );
+  
+      console.log(
+        `Using local tender PDF: ${filePath}`
+      );
+  
 
-    console.log(
-      `Processing bidder document: ${documentId}`
-    );
+
+    // PDF → Text → Chunks → Embeddings
 
     const result = await processBidderDocument({
       tenderId,
@@ -97,22 +96,34 @@ async function processBidderController(req, res) {
       filePath
     });
 
+    console.log(
+      `Generated ${result.totalChunks} chunks`
+    );
 
-    // 5. Send response to Spring Boot
+
+    // Save embeddings to PostgreSQL / pgvector
+
+    const saved = await storeBidderEmbeddings(
+      result
+    );
+
+    console.log(
+      `Saved ${saved.insertedChunks} chunks`
+    );
+
 
     return res.status(200).json({
       success: true,
       message: "Bidder document processed successfully",
 
       data: {
-        bidderId,
         tenderId,
-        bidId,
+        bidderId,
         documentId,
         documentType,
-        title,
         publicId,
-        totalChunks: result.totalChunks
+        totalChunks: result.totalChunks,
+        savedChunks: saved.insertedChunks
       }
     });
 
@@ -130,6 +141,7 @@ async function processBidderController(req, res) {
     });
   }
 }
+
 
 module.exports = {
   processBidderController
