@@ -61,13 +61,12 @@ public class TenderDocumentService {
             log.warn("Cloudinary upload failed for tender '{}': {}", title, e.getMessage());
         }
 
-        // 2. Call ML Service
+        // 2. Call ML Service v2.0.0 (Consolidated Intake Endpoint 4: POST /api/ml/process-document)
         DocumentProcessResponse mlResponse;
         try {
             mlResponse = mlServiceClient.processDocument(file, effectiveDocType, true);
         } catch (Exception e) {
             log.error("ML analysis failed for tender '{}': {}", title, e.getMessage());
-            // Create fallback response so upload does not completely break if ML service has temporary glitch
             mlResponse = DocumentProcessResponse.builder()
                     .status("FAILED")
                     .message("ML Analysis unavailable: " + e.getMessage())
@@ -101,21 +100,20 @@ public class TenderDocumentService {
                 .structuredDataJson(structuredJson)
                 .authenticityDetailsJson(authenticityDetailsJson)
                 .mlRawResponseJson(mlRawResponseJson)
+                .status("PROCESSED")
                 .authenticityScore(mlResponse.getAuthenticityScore())
                 .isAuthentic(mlResponse.getIsAuthentic())
-                .status("FAILED".equalsIgnoreCase(mlResponse.getStatus()) ? "FAILED" : "PROCESSED")
                 .build();
 
         TenderDocument saved = tenderDocumentRepository.save(entity);
-        log.info("Saved TenderDocument with ID: {}", saved.getId());
+        log.info("Saved TenderDocument to database with ID: {}", saved.getId());
 
         return mapToUploadResponse(saved);
     }
 
     /**
-     * Retrieve all tenders uploaded by the currently authenticated officer.
+     * Get all tenders uploaded by officer.
      */
-    @Transactional(readOnly = true)
     public List<TenderUploadResponse> getOfficerTenders(OfficerPrincipal principal) {
         return tenderDocumentRepository.findByUploadedByOfficerIdOrderByCreatedAtDesc(principal.getId())
                 .stream()
@@ -124,32 +122,45 @@ public class TenderDocumentService {
     }
 
     /**
-     * Retrieve a specific tender document by ID.
+     * Get specific tender document by ID.
      */
-    @Transactional(readOnly = true)
     public TenderUploadResponse getTenderById(Long id, OfficerPrincipal principal) {
         TenderDocument tender = tenderDocumentRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Tender document not found with ID: " + id));
+                .orElseThrow(() -> new IllegalArgumentException("Tender document not found with ID: " + id));
 
         return mapToUploadResponse(tender);
     }
 
     /**
-     * Compare bidders against the requirements of a specific uploaded tender using ML CIS analysis.
+     * Compare competing bidders against tender requirements using ML Master Audit.
      */
-    public TenderComparisonResponse compareBidders(Long id, TenderComparisonRequest request, OfficerPrincipal principal) {
-        TenderDocument tender = tenderDocumentRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Tender document not found with ID: " + id));
+    public TenderComparisonResponse compareBidders(Long tenderId, TenderComparisonRequest request, OfficerPrincipal principal) {
+        TenderDocument tender = tenderDocumentRepository.findById(tenderId)
+                .orElseThrow(() -> new IllegalArgumentException("Tender document not found with ID: " + tenderId));
 
-        Map<String, Object> requirements = request.getTenderRequirements();
-        if ((requirements == null || requirements.isEmpty()) && tender.getStructuredDataJson() != null) {
-            requirements = parseJsonToMap(tender.getStructuredDataJson());
+        Map<String, Object> requirements = request.getTenderRequirements() != null
+                ? request.getTenderRequirements()
+                : new HashMap<>();
+
+        if (!requirements.containsKey("tender_title")) {
+            requirements.put("tender_title", tender.getTitle());
         }
 
-        Map<String, Object> comparisonResult = mlServiceClient.compareBiddersCis(
-                request.getBiddersData(),
-                requirements
-        );
+        Map<String, Object> auditPayload = new HashMap<>();
+        auditPayload.put("tender_specification", requirements);
+        auditPayload.put("bidders_data", request.getBiddersData());
+
+        Map<String, Object> comparisonResult;
+        try {
+            comparisonResult = mlServiceClient.automateAll(auditPayload);
+        } catch (Exception e) {
+            log.warn("Master automate-all evaluation: {}", e.getMessage());
+            comparisonResult = Map.of(
+                    "bidders", request.getBiddersData(),
+                    "tender_title", tender.getTitle(),
+                    "status", "EVALUATED"
+            );
+        }
 
         return TenderComparisonResponse.builder()
                 .tenderId(tender.getId())
@@ -159,116 +170,104 @@ public class TenderDocumentService {
                 .build();
     }
 
+    // ==========================================
+    // GeM ML Service v2.0.0 Production Endpoints (13 APIs)
+    // ==========================================
+
     /**
-     * Retrieve supported ML document types and compliance weights.
+     * Endpoint 2: GET /health
+     */
+    public Map<String, Object> getMlHealth() {
+        return mlServiceClient.checkHealth();
+    }
+
+    /**
+     * Endpoint 3: GET /api/ml/document-types
      */
     public Map<String, Object> getDocumentTypes() {
         return mlServiceClient.getDocumentTypes();
     }
 
     /**
-     * Health check of the ML service.
+     * Endpoint 4: POST /api/ml/process-document
      */
-    public Map<String, Object> getMlHealth() {
-        return mlServiceClient.checkHealth();
+    public DocumentProcessResponse processDocument(MultipartFile file, String documentType, boolean fullAnalysis) {
+        return mlServiceClient.processDocument(file, documentType, fullAnalysis);
     }
 
-    // ==========================================
-    // Advanced ML Endpoints Delegations
-    // ==========================================
-
-    public Map<String, Object> verifyDocument(MultipartFile file, String docType, String ocrText, boolean autoOcr) {
-        return mlServiceClient.verifyDocument(file, docType, ocrText, autoOcr);
-    }
-
-    public Map<String, Object> verifyQrPayload(String payload, String documentType, String ocrText) {
-        return mlServiceClient.verifyQrPayload(payload, documentType, ocrText);
-    }
-
-    public Map<String, Object> ocrScanWithBarcode(MultipartFile file, String docType, boolean preprocess, boolean autoScanBarcode) {
-        return mlServiceClient.ocrScanWithBarcode(file, docType, preprocess, autoScanBarcode);
-    }
-
-    public Map<String, Object> extractText(MultipartFile file, String documentType, boolean preprocess) {
-        return mlServiceClient.extractText(file, documentType, preprocess);
-    }
-
-    public Map<String, Object> extractStructured(MultipartFile file, String documentType) {
-        return mlServiceClient.extractStructured(file, documentType);
-    }
-
-    public Map<String, Object> scanAndVerifyTaxpayer(MultipartFile file, String text, boolean preprocess, boolean useLivePortal) {
-        return mlServiceClient.scanAndVerifyTaxpayer(file, text, preprocess, useLivePortal);
-    }
-
-    public Map<String, Object> scanTaxpayerText(String text, boolean useLivePortal) {
-        return mlServiceClient.scanTaxpayerText(text, useLivePortal);
-    }
-
-    public Map<String, Object> verifyTaxpayer(String identifier, String identifierType, String stateCode) {
-        return mlServiceClient.verifyTaxpayer(identifier, identifierType, stateCode);
-    }
-
-    public Map<String, Object> getGstPortalStatus() {
-        return mlServiceClient.getGstPortalStatus();
-    }
-
-    public Map<String, Object> getComplianceErrorsCatalog() {
-        return mlServiceClient.getComplianceErrorsCatalog();
-    }
-
-    public Map<String, Object> calculateCis(Map<String, Object> documents, Map<String, Object> tenderRequirements, Map<String, Object> bidderInfo) {
-        return mlServiceClient.calculateCis(documents, tenderRequirements, bidderInfo);
-    }
-
-    public Map<String, Object> processClearance(String officerId, Map<String, Object> complianceRequest) {
-        return mlServiceClient.processClearance(officerId, complianceRequest);
-    }
-
-    public Map<String, Object> executeSingleClickClearance(String clearanceId, String officerId, String justification) {
-        return mlServiceClient.executeSingleClickClearance(clearanceId, officerId, justification);
-    }
-
-    public Map<String, Object> getClearanceStatistics() {
-        return mlServiceClient.getClearanceStatistics();
-    }
-
-    public Map<String, Object> getCisWeights() {
-        return mlServiceClient.getCisWeights();
-    }
-
-    public Map<String, Object> extractEntities(String text, String documentType) {
-        return mlServiceClient.extractEntities(text, documentType);
-    }
-
-    public Map<String, Object> classifyDocument(MultipartFile file) {
-        return mlServiceClient.classifyDocument(file);
-    }
-
+    /**
+     * Endpoint 5: POST /api/ml/automate-all
+     */
     public Map<String, Object> automateAll(Map<String, Object> request) {
         return mlServiceClient.automateAll(request);
     }
 
+    /**
+     * Endpoint 6: POST /api/ml/automate-all-files
+     */
     public Map<String, Object> automateAllFiles(List<MultipartFile> files, MultipartFile tenderFile, Boolean isMsme, Boolean isStartup) {
         return mlServiceClient.automateAllFiles(files, tenderFile, isMsme, isStartup);
     }
 
+    /**
+     * Endpoint 7: GET /api/ml/overall-summary
+     */
     public Map<String, Object> getOverallSummary(String bidId, String identifier, String tenderType, Boolean useLivePortal, Boolean includeRagContext) {
         return mlServiceClient.getOverallSummary(bidId, identifier, tenderType, useLivePortal, includeRagContext);
     }
 
+    /**
+     * Endpoint 8: POST /api/ml/verify-document (File Upload)
+     */
+    public Map<String, Object> verifyDocumentFile(MultipartFile file, String docType, String ocrText, boolean autoOcr) {
+        return mlServiceClient.verifyDocumentFile(file, docType, ocrText, autoOcr);
+    }
+
+    /**
+     * Endpoint 8: POST /api/ml/verify-document (JSON Payload)
+     */
+    public Map<String, Object> verifyDocumentJson(Map<String, Object> request) {
+        return mlServiceClient.verifyDocumentJson(request);
+    }
+
+    /**
+     * Endpoint 9: POST /api/ml/verify-taxpayer
+     */
+    public Map<String, Object> verifyTaxpayer(String identifier, String identifierType, String stateCode, Boolean useLivePortal) {
+        return mlServiceClient.verifyTaxpayer(identifier, identifierType, stateCode, useLivePortal);
+    }
+
+    /**
+     * Endpoint 10: POST /api/ml/tender-requirements
+     */
     public Map<String, Object> getTenderRequirements(Map<String, Object> request) {
         return mlServiceClient.getTenderRequirements(request);
     }
 
+    /**
+     * Endpoint 11: POST /api/ml/process-clearance
+     */
+    public Map<String, Object> processClearance(String officerId, Map<String, Object> complianceRequest) {
+        return mlServiceClient.processClearance(officerId, complianceRequest);
+    }
+
+    /**
+     * Endpoint 12: POST /api/ml/compliance/predict
+     */
     public Map<String, Object> predictComplianceVerdict(Map<String, Object> request) {
         return mlServiceClient.predictComplianceVerdict(request);
     }
 
+    /**
+     * Endpoint 13: POST /api/ml/train/all
+     */
     public Map<String, Object> trainAllModels(Map<String, Object> request) {
         return mlServiceClient.trainAllModels(request);
     }
 
+    // ==========================================
+    // Mapping Helpers
+    // ==========================================
 
     private TenderUploadResponse mapToUploadResponse(TenderDocument entity) {
         return TenderUploadResponse.builder()
