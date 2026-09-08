@@ -1,7 +1,13 @@
-require("dotenv").config();
+require("dotenv").config({ path: ".env.ai-rag" });
 
-const { processTenderDocument } = require("./ragPipeline/embeddings/tendorEmbeddings/tender.embedding.js");
-const { retrieveRelevantChunks } = require("./ragPipeline/retrieval");
+const { processTenderDocument } = require(
+  "./ragPipeline/embeddings/tendorEmbeddings/tender.embedding.js"
+);
+
+const { retrieveRelevantChunks } = require(
+  "./ragPipeline/vectorStore/tender.embeddingSearch.js"
+);
+
 const { generateAnswer } = require("./ragPipeline/generation");
 
 async function testRAG() {

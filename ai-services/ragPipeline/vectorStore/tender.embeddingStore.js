@@ -37,23 +37,23 @@ async function saveTenderEmbeddings(tenderId, chunks) {
 
     for (const chunk of chunks) {
       await client.query(
-        `
-        INSERT INTO tender_embeddings
-          (tender_id, content, embedding, metadata)
-        VALUES
-          ($1, $2, $3::vector, $4)
-        `,
-        [
-          tenderId,
-          chunk.text,
-          JSON.stringify(chunk.embedding),
-          JSON.stringify({
-            tenderId: tenderId,
-            chunkIndex: chunk.chunkIndex,
-            documentType: chunk.documentType,
-          })
-        ]
-      );
+  `
+  INSERT INTO tender_embeddings
+    (tender_id, content, embedding, metadata)
+  VALUES
+    ($1, $2, $3::vector, $4)
+  `,
+  [
+    tenderId,
+    chunk.text,
+    JSON.stringify(chunk.embedding),
+    JSON.stringify({
+      tenderId: tenderId,
+      chunkIndex: chunk.chunkIndex,
+      documentType: chunk.documentType,
+    })
+  ]
+);
     }
 
     await client.query("COMMIT");
