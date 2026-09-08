@@ -1,4 +1,4 @@
-const { generateEmbedding } = require("../embedding.service");
+const { generateEmbedding } = require("../embeddings/embedding.service");
 const { pool } = require("./bidder.embeddingStore");
 
 async function searchBidderEmbeddings(

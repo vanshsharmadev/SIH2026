@@ -84,6 +84,7 @@ async function saveSummaryEmbeddings(
 }
 
 module.exports = {
+  pool,
   saveSummaryEmbeddings,
   getSummaryVectorStore,
 };
