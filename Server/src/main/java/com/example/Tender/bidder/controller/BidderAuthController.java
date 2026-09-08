@@ -12,13 +12,28 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+import com.example.Tender.bidder.dto.ml.BidderTaxpayerVerifyRequest;
+import com.example.Tender.bidder.dto.ml.BidderTaxpayerVerifyResponse;
+import com.example.Tender.bidder.provider.MlBusinessVerificationProvider;
+
 @RestController
 @RequestMapping("/api/bidder/auth")
-@RequiredArgsConstructor
 @CrossOrigin(origins = "*", maxAge = 3600)
 public class BidderAuthController {
 
     private final BidderAuthService bidderAuthService;
+    private final MlBusinessVerificationProvider mlBusinessVerificationProvider;
+
+    public BidderAuthController(BidderAuthService bidderAuthService) {
+        this.bidderAuthService = bidderAuthService;
+        this.mlBusinessVerificationProvider = null;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public BidderAuthController(BidderAuthService bidderAuthService, MlBusinessVerificationProvider mlBusinessVerificationProvider) {
+        this.bidderAuthService = bidderAuthService;
+        this.mlBusinessVerificationProvider = mlBusinessVerificationProvider;
+    }
 
     /**
      * STEP 1: Initiate signup, creates pending registration, returns temporary token.
@@ -118,5 +133,22 @@ public class BidderAuthController {
             @Valid @RequestBody ResetPasswordRequest request) {
         String message = bidderAuthService.resetPassword(request);
         return ResponseEntity.ok(Map.of("message", message));
+    }
+
+    /**
+     * Public Taxpayer Intelligence Pre-Verification:
+     * Verifies GSTIN or PAN against ML engine & live portal before registration.
+     */
+    @PostMapping("/verify-taxpayer-ml")
+    public ResponseEntity<BidderTaxpayerVerifyResponse> verifyTaxpayerMl(
+            @Valid @RequestBody BidderTaxpayerVerifyRequest request) {
+        BidderTaxpayerVerifyResponse response = mlBusinessVerificationProvider.verifyTaxpayer(
+                request.getIdentifier(),
+                request.getIdentifierType(),
+                request.getExpectedLegalName(),
+                request.getStateCode(),
+                request.getUseLivePortal()
+        );
+        return ResponseEntity.ok(response);
     }
 }

@@ -1,0 +1,1920 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "🏛️ Tender Verification Platform - Bidder REST & ML AI API Documentation",
+    "description": "Comprehensive REST API specification for the **Bidder Module** of the Tender Management & Verification Platform (SIH 2026). Covers Bidder Authentication (Government Records Verification, Brevo Email OTP, JWT Bearer Tokens, Password Recovery), Profile Management, Cloudinary Compliance Document Uploads, ML Anti-Forgery Inspections (pyHanko Digital Signatures, pyzbar QR verification, Tesseract OCR), Live GST Portal Taxpayer Verification, Pre-Submission CIS Scoring, GFR Rule 173(i) MSE/Startup Waivers, Batch Audits, and RAG Markdown Dossiers.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "SIH 2026 Development Team",
+      "email": "support@tender-platform.gov.in"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local Spring Boot Server"
+    },
+    {
+      "url": "http://20.40.44.184",
+      "description": "Production Python ML Microservice Backend"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Bidder Auth & Lifecycle",
+      "description": "Bidder Signup with Government Verification, Brevo Email OTP, JWT Bearer Token Login, Session Verification, and Secure Password Reset."
+    },
+    {
+      "name": "Bidder Profile Management",
+      "description": "CRUD operations on registered bidder profile data (GSTIN, PAN, Udyam Number, Address, and Metadata)."
+    },
+    {
+      "name": "Bidder Compliance Documents",
+      "description": "Cloudinary Document Intake, Secure PDF/Image Storage, Forensic Metadata Extraction, and Document Lifecycle Management."
+    },
+    {
+      "name": "ML Pre-Submission Audit & Taxpayer Intelligence",
+      "description": "Pre-Submission CIS Scoring, pyHanko Cryptographic Signature Checks, Live GST Portal Inquiries, Autonomous GFR 173(i) MSE Waivers, Batch Audits, and RAG Dossiers."
+    }
+  ],
+  "paths": {
+    "/api/bidder/auth/signup": {
+      "post": {
+        "tags": ["Bidder Auth & Lifecycle"],
+        "summary": "1. Initiate Bidder Signup & Government Database Verification",
+        "description": "Initiates bidder registration by cross-validating `legalName`, `email`, and `gstNumber` against official government records (`bidder_verification` database table). Upon match, creates a temporary pending session and dispatches a 6-digit verification OTP via Brevo Email Service.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BidderSignupRequest"
+              },
+              "example": {
+                "legalName": "Arnav Tyagi",
+                "email": "arnav24169006@gmail.com",
+                "password": "Password@123",
+                "gstNumber": "09ARNAV9012H3Z7",
+                "phone": "9876500103"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Signup initiated successfully - temporary registration token created and OTP sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderInitiateResponse"
+                },
+                "example": {
+                  "tempToken": "93162d76aa9141d8950d9e7905ab3d5c",
+                  "email": "arnav24169006@gmail.com",
+                  "legalName": "Arnav Tyagi",
+                  "gstNumber": "09ARNAV9012H3Z7",
+                  "message": "Bidder verified successfully against government records! Verification OTP sent to arnav24169006@gmail.com"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failure or mismatch with official government records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderErrorResponse"
+                },
+                "example": {
+                  "status": 400,
+                  "error": "Bad Request",
+                  "message": "Bidder verification failed: Legal name or GST number does not match official government records.",
+                  "timestamp": "2026-09-08T20:15:00.000",
+                  "path": "/api/bidder/auth/signup"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Email or GST number already registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderErrorResponse"
+                },
+                "example": {
+                  "status": 409,
+                  "error": "Conflict",
+                  "message": "A bidder with this email or GST number is already registered.",
+                  "timestamp": "2026-09-08T20:15:00.000",
+                  "path": "/api/bidder/auth/signup"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/auth/verify-otp": {
+      "post": {
+        "tags": ["Bidder Auth & Lifecycle"],
+        "summary": "2. Verify Registration OTP & Finalize Permanent Account",
+        "description": "Validates the 6-digit OTP sent to the bidder's email (using either email or tempToken). On successful verification, activates the permanent bidder database record and returns a 24-hour valid JWT Bearer authentication token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BidderVerifyOtpRequest"
+              },
+              "examples": {
+                "usingEmail": {
+                  "summary": "Verify using Email",
+                  "value": {
+                    "email": "arnav24169006@gmail.com",
+                    "otp": "123456"
+                  }
+                },
+                "usingTempToken": {
+                  "summary": "Verify using Temp Token",
+                  "value": {
+                    "tempToken": "93162d76aa9141d8950d9e7905ab3d5c",
+                    "otp": "123456"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Registration completed successfully - Permanent account active and JWT token issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderAuthResponse"
+                },
+                "example": {
+                  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcm5hdjI0MTY5MDA2QGdtYWlsLmNvbSIsImlkIjoxLCJpYXQiOjE3NTczNDQ4MDAsImV4cCI6MTc1NzQzMTIwMH0.s8hF_sample_jwt_signature",
+                  "type": "Bearer",
+                  "bidderId": 1,
+                  "email": "arnav24169006@gmail.com",
+                  "legalName": "Arnav Tyagi",
+                  "phone": "9876500103",
+                  "gstNumber": "09ARNAV9012H3Z7",
+                  "isVerified": true,
+                  "message": "Registration completed successfully! Bidder account created and verified."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or expired OTP",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderErrorResponse"
+                },
+                "example": {
+                  "status": 400,
+                  "error": "Bad Request",
+                  "message": "Invalid or expired OTP. Please enter the latest OTP received.",
+                  "timestamp": "2026-09-08T20:16:00.000",
+                  "path": "/api/bidder/auth/verify-otp"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/auth/resend-otp": {
+      "post": {
+        "tags": ["Bidder Auth & Lifecycle"],
+        "summary": "3. Resend Registration Verification OTP",
+        "description": "Generates and dispatches a fresh 6-digit OTP to the registered bidder email address.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BidderResendOtpRequest"
+              },
+              "example": {
+                "email": "arnav24169006@gmail.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Fresh OTP dispatched successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "A fresh OTP has been sent to arnav24169006@gmail.com"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pending registration not found for email",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/auth/login": {
+      "post": {
+        "tags": ["Bidder Auth & Lifecycle"],
+        "summary": "4. Bidder Authentication & JWT Login",
+        "description": "Authenticates an existing verified bidder with registered email and password, issuing a JWT Bearer token valid for 24 hours.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BidderLoginRequest"
+              },
+              "example": {
+                "email": "arnav24169006@gmail.com",
+                "password": "Password@123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful - JWT Token issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderAuthResponse"
+                },
+                "example": {
+                  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcm5hdjI0MTY5MDA2QGdtYWlsLmNvbSIsImlkIjoxLCJpYXQiOjE3NTczNDQ4MDAsImV4cCI6MTc1NzQzMTIwMH0.sample_login_token",
+                  "type": "Bearer",
+                  "bidderId": 1,
+                  "email": "arnav24169006@gmail.com",
+                  "legalName": "Arnav Tyagi",
+                  "phone": "9876500103",
+                  "gstNumber": "09ARNAV9012H3Z7",
+                  "isVerified": true,
+                  "message": "Bidder logged in successfully!"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderErrorResponse"
+                },
+                "example": {
+                  "status": 401,
+                  "error": "Unauthorized",
+                  "message": "Bad credentials: Invalid email or password.",
+                  "timestamp": "2026-09-08T20:17:00.000",
+                  "path": "/api/bidder/auth/login"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/auth/verify-token": {
+      "post": {
+        "tags": ["Bidder Auth & Lifecycle"],
+        "summary": "5. Validate Token Session (POST)",
+        "description": "Validates whether a given token (`JWT Bearer Token` or `tempToken`) is active and valid, returning bidder session details. Accepts token via Authorization header (`Bearer <token>`), request body (`token` or `tempToken`), or query parameter (`?token=...`).",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "description": "Bearer JWT Token (e.g. Bearer eyJhbGci...)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "description": "Token passed as query parameter",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BidderTokenVerifyRequest"
+              },
+              "examples": {
+                "jwtVerification": {
+                  "summary": "Validate JWT Token",
+                  "value": {
+                    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  }
+                },
+                "tempTokenVerification": {
+                  "summary": "Validate Temp Token",
+                  "value": {
+                    "tempToken": "93162d76aa9141d8950d9e7905ab3d5c"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token verification result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderTokenVerifyResponse"
+                },
+                "examples": {
+                  "jwtValid": {
+                    "summary": "Valid JWT Token",
+                    "value": {
+                      "valid": true,
+                      "tokenType": "JWT",
+                      "bidderId": 1,
+                      "email": "arnav24169006@gmail.com",
+                      "legalName": "Arnav Tyagi",
+                      "gstNumber": "09ARNAV9012H3Z7",
+                      "phone": "9876500103",
+                      "isVerified": true,
+                      "message": "JWT token is valid and active."
+                    }
+                  },
+                  "tempTokenValid": {
+                    "summary": "Valid Temporary Token",
+                    "value": {
+                      "valid": true,
+                      "tokenType": "TEMP_TOKEN",
+                      "email": "arnav24169006@gmail.com",
+                      "legalName": "Arnav Tyagi",
+                      "gstNumber": "09ARNAV9012H3Z7",
+                      "phone": "9876500103",
+                      "isVerified": false,
+                      "message": "Temporary registration token is valid and active."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token invalid or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderTokenVerifyResponse"
+                },
+                "example": {
+                  "valid": false,
+                  "message": "Invalid or expired token."
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Bidder Auth & Lifecycle"],
+        "summary": "6. Validate Token Session (GET)",
+        "description": "Validates token passed via Authorization header or query parameter (`?token=...` or `?tempToken=...`).",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "description": "Bearer JWT Token",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "description": "JWT or Temp token string",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "tempToken",
+            "in": "query",
+            "required": false,
+            "description": "Temporary signup token string",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Token verification result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderTokenVerifyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/auth/me": {
+      "get": {
+        "tags": ["Bidder Auth & Lifecycle"],
+        "summary": "7. Get Current Authenticated Bidder Profile",
+        "description": "Fetches profile details and verification status of the currently authenticated bidder using the Bearer JWT token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current authenticated bidder profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderTokenVerifyResponse"
+                },
+                "example": {
+                  "valid": true,
+                  "tokenType": "JWT",
+                  "bidderId": 1,
+                  "email": "arnav24169006@gmail.com",
+                  "legalName": "Arnav Tyagi",
+                  "gstNumber": "09ARNAV9012H3Z7",
+                  "phone": "9876500103",
+                  "isVerified": true,
+                  "message": "Current authenticated bidder profile"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Bearer JWT token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/auth/forgot-password": {
+      "post": {
+        "tags": ["Bidder Auth & Lifecycle"],
+        "summary": "8. Request Password Reset OTP",
+        "description": "Verifies that the bidder exists and dispatches a 6-digit password reset OTP to their registered email address.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordRequest"
+              },
+              "example": {
+                "email": "arnav24169006@gmail.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset OTP dispatched",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Password reset OTP sent to your registered email."
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No registered bidder found with provided email",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/auth/verify-forgot-password-otp": {
+      "post": {
+        "tags": ["Bidder Auth & Lifecycle"],
+        "summary": "9. Verify Password Reset OTP",
+        "description": "Validates the 6-digit OTP sent for password reset and issues a secure single-use reset token (`resetToken`).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyForgotPasswordOtpRequest"
+              },
+              "example": {
+                "email": "arnav24169006@gmail.com",
+                "otp": "123456"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP verified successfully - Reset token issued",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "OTP verified successfully.",
+                  "resetToken": "4b68e9f546bb4c87893c834bc7721867"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or expired OTP",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/auth/reset-password": {
+      "post": {
+        "tags": ["Bidder Auth & Lifecycle"],
+        "summary": "10. Reset Password with Reset Token",
+        "description": "Updates the bidder account password using the verified `resetToken`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordRequest"
+              },
+              "example": {
+                "resetToken": "4b68e9f546bb4c87893c834bc7721867",
+                "newPassword": "NewPassword@123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset completed successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "message": "Password reset successfully. You can now login with your new password."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or expired reset token, or password requirements not met",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/auth/verify-taxpayer-ml": {
+      "post": {
+        "tags": ["Bidder Auth & Lifecycle"],
+        "summary": "11. Public Taxpayer ML Pre-Verification",
+        "description": "Pre-verifies GSTIN or PAN against ML Taxpayer Intelligence models and live GST portal before registration. Returns filing compliance score, active taxpayer status, and name match check.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BidderTaxpayerVerifyRequest"
+              },
+              "example": {
+                "identifier": "09ARNAV9012H3Z7",
+                "identifierType": "gstin",
+                "expectedLegalName": "Arnav Tyagi",
+                "stateCode": "09",
+                "useLivePortal": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Taxpayer verification result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderTaxpayerVerifyResponse"
+                },
+                "example": {
+                  "valid": true,
+                  "identifier": "09ARNAV9012H3Z7",
+                  "identifierType": "gstin",
+                  "legalName": "Arnav Tyagi",
+                  "tradeName": "Tyagi Enterprises",
+                  "nameMatched": true,
+                  "status": "Active",
+                  "state": "Uttar Pradesh",
+                  "complianceScore": 96.5,
+                  "riskLevel": "LOW",
+                  "filingRatePercent": 100.0,
+                  "gstr3bFilingStatus": "REGULAR",
+                  "message": "Taxpayer active and in good standing.",
+                  "isMlVerified": true,
+                  "verificationSource": "ML_MICROSERVICE_LIVE"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder": {
+      "get": {
+        "tags": ["Bidder Profile Management"],
+        "summary": "12. List All Registered Bidders",
+        "description": "Fetches a complete list of all registered bidders. Protected endpoint requiring Bearer JWT token.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of registered bidders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BidderResponse"
+                  }
+                },
+                "example": [
+                  {
+                    "id": 1,
+                    "legalName": "Arnav Tyagi",
+                    "panNumber": "ARNAV9012H",
+                    "gstNumber": "09ARNAV9012H3Z7",
+                    "udyamNumber": "UDYAM-UP-28-0012345",
+                    "registrationNumber": "REG-2026-001",
+                    "email": "arnav24169006@gmail.com",
+                    "phone": "9876500103",
+                    "address": "Sector 62, Noida, Uttar Pradesh 201309",
+                    "profileMetadata": "{\"msme_category\": \"MICRO\", \"sector\": \"IT & Consulting\"}",
+                    "createdAt": "2026-09-08T18:00:00.000",
+                    "updatedAt": "2026-09-08T19:30:00.000"
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bidder/{id}": {
+      "get": {
+        "tags": ["Bidder Profile Management"],
+        "summary": "13. Get Bidder Profile by ID",
+        "description": "Retrieves the full profile details of a specific bidder by their numeric ID.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Numeric bidder ID",
+            "schema": { "type": "integer", "format": "int64", "example": 1 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bidder profile details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bidder not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Bidder Profile Management"],
+        "summary": "14. Update Bidder Profile",
+        "description": "Updates profile information (phone, address, Udyam number, PAN, metadata) for a registered bidder.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Numeric bidder ID",
+            "schema": { "type": "integer", "format": "int64", "example": 1 }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBidderRequest"
+              },
+              "example": {
+                "legalName": "Arnav Tyagi",
+                "phone": "+919876500103",
+                "panNumber": "ARNAV9012H",
+                "udyamNumber": "UDYAM-UP-28-0012345",
+                "address": "B-44, Tech Zone 4, Greater Noida, UP 201306",
+                "profileMetadata": "{\"msme_category\": \"SMALL\", \"annual_turnover\": 25000000}"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bidder profile updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bidder not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Bidder Profile Management"],
+        "summary": "15. Delete Bidder Account",
+        "description": "Deletes the bidder account profile from the database.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Numeric bidder ID",
+            "schema": { "type": "integer", "format": "int64", "example": 1 }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Bidder successfully deleted (No Content)"
+          },
+          "404": {
+            "description": "Bidder not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bidder/documents/upload": {
+      "post": {
+        "tags": ["Bidder Compliance Documents"],
+        "summary": "16. Upload Compliance Document (Cloudinary + ML Forensic Intake)",
+        "description": "Uploads a compliance certificate (PDF, JPG, PNG) to Cloudinary and performs instant ML anti-forgery analysis. Executes Tesseract OCR, pyHanko cryptographic digital signature verification, pyzbar QR scanning, and NER entity extraction.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Certificate file (PDF, PNG, JPG) up to 10MB"
+                  },
+                  "documentType": {
+                    "type": "string",
+                    "default": "generic",
+                    "enum": ["pan_card", "gst_certificate", "udyam_registration", "balance_sheet", "itr", "experience_cert", "generic"],
+                    "description": "Standardized compliance document category"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Document uploaded, processed, and forensic report persisted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderDocumentResponse"
+                },
+                "example": {
+                  "id": 101,
+                  "bidderId": 1,
+                  "fileName": "gst_registration_certificate.pdf",
+                  "documentType": "gst_certificate",
+                  "fileUrl": "https://res.cloudinary.com/tender-platform/image/upload/v1725800000/bidders/gst_reg_001.pdf",
+                  "cloudinaryPublicId": "bidders/gst_reg_001",
+                  "fileSize": 245102,
+                  "contentType": "application/pdf",
+                  "ocrConfidence": 94.2,
+                  "authenticityScore": 98.0,
+                  "isAuthentic": true,
+                  "authenticityVerdict": "AUTHENTIC",
+                  "verificationFlags": ["DIGITAL_SIGNATURE_VALID", "QR_CODE_MATCHED_PORTAL"],
+                  "rawOcrText": "GOVERNMENT OF INDIA - CERTIFICATE OF REGISTRATION UNDER GST ... Legal Name: Arnav Tyagi ... GSTIN: 09ARNAV9012H3Z7 ...",
+                  "digitalSignatureReport": {
+                    "has_signature": true,
+                    "signature_valid": true,
+                    "signer_common_name": "Government of India GST Authority CA",
+                    "signing_time": "2024-01-15T10:30:00Z"
+                  },
+                  "qrVerificationReport": {
+                    "qr_codes": [
+                      {
+                        "data": "GSTIN:09ARNAV9012H3Z7;LEGAL:Arnav Tyagi;ARN:AA0901240019283",
+                        "matches_ocr": true
+                      }
+                    ]
+                  },
+                  "extractedEntities": {
+                    "gstin": "09ARNAV9012H3Z7",
+                    "legal_name": "Arnav Tyagi",
+                    "registration_date": "2024-01-10",
+                    "constitution": "Proprietorship"
+                  },
+                  "status": "VERIFIED",
+                  "createdAt": "2026-09-08T20:20:00.000",
+                  "updatedAt": "2026-09-08T20:20:05.000"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid file format or empty file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bidder/documents": {
+      "get": {
+        "tags": ["Bidder Compliance Documents"],
+        "summary": "17. List Authenticated Bidder Documents",
+        "description": "Retrieves all compliance certificates uploaded by the currently authenticated bidder, ordered by most recent upload date.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of uploaded documents and analysis findings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BidderDocumentResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bidder/documents/{id}": {
+      "get": {
+        "tags": ["Bidder Compliance Documents"],
+        "summary": "18. Get Document Forensic Details by ID",
+        "description": "Retrieves complete forensic metadata, OCR transcript, digital signature audit, and authenticity verdict for a specific uploaded document.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Numeric document ID",
+            "schema": { "type": "integer", "format": "int64", "example": 101 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document analysis details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderDocumentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found or does not belong to authenticated bidder"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Bidder Compliance Documents"],
+        "summary": "19. Delete Compliance Document",
+        "description": "Deletes the compliance document record from the database and permanently removes the asset from Cloudinary storage.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Numeric document ID",
+            "schema": { "type": "integer", "format": "int64", "example": 101 }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Document successfully purged from database and Cloudinary (No Content)"
+          },
+          "404": {
+            "description": "Document not found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bidder/documents/check-cis": {
+      "post": {
+        "tags": ["ML Pre-Submission Audit & Taxpayer Intelligence"],
+        "summary": "20. Pre-Submission CIS Compliance Self-Check",
+        "description": "Runs the Python ML Composite Compliance Index (CIS) engine on the bidder's uploaded documents against required tender criteria. Computes score (0.0 to 1.0), detects missing mandatory documents, highlights deficiencies, and forecasts clearance eligibility (`ELIGIBLE_SINGLE_CLICK`, `CONDITIONAL_REVIEW`, `DISQUALIFIED`).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BidderCisCheckRequest"
+              },
+              "example": {
+                "tenderId": 501,
+                "documentIds": [101, 102, 103],
+                "requiredDocuments": ["pan_card", "gst_certificate", "udyam_registration"],
+                "tenderType": "goods"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "CIS Compliance Self-Check Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderCisCheckResponse"
+                },
+                "example": {
+                  "success": true,
+                  "cisScore": 0.94,
+                  "riskClassification": "low_risk",
+                  "componentScores": {
+                    "mandatory_coverage": 1.0,
+                    "field_validity": 0.95,
+                    "authenticity_index": 0.98,
+                    "gst_compliance": 0.96
+                  },
+                  "documentsAnalyzed": 3,
+                  "missingDocuments": [],
+                  "recommendations": [
+                    "All criteria validated. High probability of Single-Click Automated Tender Clearance!"
+                  ],
+                  "clearanceEligibility": "ELIGIBLE_SINGLE_CLICK",
+                  "summary": "Calculated via ML Composite Compliance Index Engine (v2.0.0)."
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bidder/documents/scan-taxpayer": {
+      "post": {
+        "tags": ["ML Pre-Submission Audit & Taxpayer Intelligence"],
+        "summary": "21. Instant Taxpayer Document Scanner (OCR & Live Portal)",
+        "description": "Public forensic scanner. Uploads a PAN card or GST certificate image/PDF, executes high-resolution OCR, repairs optical distortion, extracts identifiers, and executes optional real-time live queries on the GSTN portal.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Taxpayer certificate file (PDF, JPG, PNG)"
+                  },
+                  "useLivePortal": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether to perform a live network query to the official GST taxpayer search endpoint"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Taxpayer scan and extraction results",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "identifier": "09ARNAV9012H3Z7",
+                  "identifier_type": "gstin",
+                  "legal_name": "Arnav Tyagi",
+                  "trade_name": "Tyagi Enterprises",
+                  "status": "Active",
+                  "state_code": "09",
+                  "state_name": "Uttar Pradesh",
+                  "ocr_confidence": 93.8,
+                  "live_portal_verified": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Document scan failed or file empty"
+          }
+        }
+      }
+    },
+    "/api/bidder/documents/verify-taxpayer": {
+      "post": {
+        "tags": ["ML Pre-Submission Audit & Taxpayer Intelligence"],
+        "summary": "22. Live Taxpayer Identifier Verification (GSTIN or PAN)",
+        "description": "Public direct validation endpoint. Queries the ML taxpayer engine and official live records for a given GSTIN or PAN to confirm active legal status, return filing regularities, and business risk score.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BidderTaxpayerVerifyRequest"
+              },
+              "example": {
+                "identifier": "09ARNAV9012H3Z7",
+                "identifierType": "gstin",
+                "expectedLegalName": "Arnav Tyagi",
+                "stateCode": "09",
+                "useLivePortal": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Taxpayer validation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderTaxpayerVerifyResponse"
+                },
+                "example": {
+                  "valid": true,
+                  "identifier": "09ARNAV9012H3Z7",
+                  "identifierType": "gstin",
+                  "legalName": "Arnav Tyagi",
+                  "tradeName": "Tyagi Enterprises",
+                  "nameMatched": true,
+                  "status": "Active",
+                  "state": "Uttar Pradesh",
+                  "complianceScore": 98.0,
+                  "riskLevel": "LOW",
+                  "filingRatePercent": 100.0,
+                  "gstr3bFilingStatus": "REGULAR",
+                  "message": "Taxpayer verified successfully with high filing integrity.",
+                  "isMlVerified": true,
+                  "verificationSource": "ML_MICROSERVICE_LIVE"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request"
+          }
+        }
+      }
+    },
+    "/api/bidder/documents/audit-submission": {
+      "post": {
+        "tags": ["ML Pre-Submission Audit & Taxpayer Intelligence"],
+        "summary": "23. Master Autonomous Audit (GFR 173(i) MSE Waivers & ML Verdict)",
+        "description": "Audits all uploaded compliance certificates against tender specifications before official bid submission. Applies General Financial Rules (GFR) Rule 173(i) MSE & Startup exemptions (prior turnover and prior experience waivers), runs Random Forest qualification prediction, and generates an audit report.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "example": {
+                "tender_notice": "Tender No. PWD/2026/089: Mandatory PAN, GST, and Udyam MSME Registration required.",
+                "is_msme": true,
+                "is_startup": false,
+                "turnover": 35000000,
+                "bidder_profile": {
+                  "udyam_number": "UDYAM-UP-28-0012345"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Comprehensive autonomous audit report",
+            "content": {
+              "application/json": {
+                "example": {
+                  "master_verdict": "SINGLE_CLICK_APPROVED",
+                  "cis_score": 0.95,
+                  "clearance_action": "APPROVE",
+                  "qualification_verdict": "QUALIFIED",
+                  "qualification_probability": 0.96,
+                  "mse_waivers_applied": {
+                    "prior_turnover_waived": true,
+                    "prior_experience_waived": true,
+                    "governing_statute": "GFR Rule 173(i) & Public Procurement Policy for MSEs Order 2012"
+                  },
+                  "documents_analyzed": 3,
+                  "critical_flags": []
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bidder/documents/batch-audit-files": {
+      "post": {
+        "tags": ["ML Pre-Submission Audit & Taxpayer Intelligence"],
+        "summary": "24. Batch Upload Autonomous Audit",
+        "description": "Public multi-file audit tool. Uploads multiple compliance certificates simultaneously alongside tender notice PDF for instant end-to-end ML forensic validation, pyHanko check, OCR entity extraction, and GFR 173(i) MSE eligibility assessment.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["files"],
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "binary" },
+                    "description": "List of compliance files (PAN, GST, Balance Sheet, etc.)"
+                  },
+                  "tender_file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Official Tender Specification / RFP Notice PDF"
+                  },
+                  "is_msme": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Apply GFR Rule 173(i) Micro & Small Enterprise waivers"
+                  },
+                  "is_startup": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Apply DPIIT recognized startup waivers"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Consolidated batch audit findings",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "COMPLETED",
+                  "files_processed": 3,
+                  "master_verdict": "SINGLE_CLICK_APPROVED",
+                  "cis_score": 0.93,
+                  "rf_prediction": {
+                    "verdict": "QUALIFIED",
+                    "confidence": 0.95
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/documents/overall-summary": {
+      "get": {
+        "tags": ["ML Pre-Submission Audit & Taxpayer Intelligence"],
+        "summary": "25. Bidder Dossier & Pre-Chunked RAG Markdown",
+        "description": "Generates a structured compliance dossier and pre-chunked markdown text for the authenticated bidder, formatted for immediate indexing by RAG LLM evaluation assistants.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tender_type",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "default": "goods" },
+            "description": "Tender procurement category (goods, works, services)"
+          },
+          {
+            "name": "use_live_portal",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "boolean", "default": false },
+            "description": "Query live GST portal for dossier status"
+          },
+          {
+            "name": "include_rag_context",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "boolean", "default": true },
+            "description": "Include pre-chunked Markdown text for RAG indexing"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bidder dossier and RAG context",
+            "content": {
+              "application/json": {
+                "example": {
+                  "bid_id": "BIDDER-1",
+                  "identifier": "09ARNAV9012H3Z7",
+                  "overall_score": 0.94,
+                  "rag_markdown": "## Bidder Compliance Dossier: Arnav Tyagi\n- **GSTIN**: `09ARNAV9012H3Z7` (Verified Active)\n- **PAN**: `ARNAV9012H`\n- **CIS Score**: 0.94 / 1.00\n- **Verification Status**: Valid Digital Signatures on all certificates."
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/bidder/documents/tender-requirements": {
+      "post": {
+        "tags": ["ML Pre-Submission Audit & Taxpayer Intelligence"],
+        "summary": "26. Dynamic Tender Requirements & 6-Pillar Checklist",
+        "description": "Parses tender document text and returns a 6-pillar compliance checklist distinguishing mandatory tender criteria from GFR Rule 173(i) MSE/Startup exemptions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "tender_text": "Supply and Installation of IT Hardware. Bidder must submit PAN card, valid GST registration, and audited balance sheets for last 3 financial years. MSMEs are exempted from turnover criteria as per GFR 173(i).",
+                "tender_type": "goods"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "6-Pillar Tender Requirements Checklist",
+            "content": {
+              "application/json": {
+                "example": {
+                  "pillars": {
+                    "statutory_compliance": ["pan_card", "gst_certificate"],
+                    "financial_standing": ["balance_sheet_3yrs"],
+                    "technical_capability": ["oem_authorization"],
+                    "mse_startup_exemptions": {
+                      "turnover_exempted_for_msme": true,
+                      "experience_exempted_for_startup": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/documents/predict-compliance": {
+      "post": {
+        "tags": ["ML Pre-Submission Audit & Taxpayer Intelligence"],
+        "summary": "27. Random Forest Compliance Verdict Predictor",
+        "description": "Evaluates 9-dimensional compliance feature vector using a pre-trained Random Forest ML model to forecast tender qualification verdict.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "authenticity_score": 98.0,
+                "taxpayer_compliance_score": 96.0,
+                "filing_rate_percent": 100.0,
+                "mandatory_coverage": 1.0,
+                "ocr_confidence": 94.0,
+                "has_digital_signature": 1.0,
+                "is_msme": 1.0,
+                "turnover_ratio": 1.2,
+                "blacklist_flag": 0.0
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Predicted compliance qualification verdict",
+            "content": {
+              "application/json": {
+                "example": {
+                  "verdict": "QUALIFIED",
+                  "confidence": 0.965,
+                  "probabilities": {
+                    "QUALIFIED": 0.965,
+                    "DISQUALIFIED": 0.035
+                  },
+                  "primary_factors": [
+                    "Full mandatory coverage (1.0)",
+                    "High authenticity score (98.0)",
+                    "Valid digital signatures present"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Enter your JWT Bearer token obtained from `/api/bidder/auth/login` or `/api/bidder/auth/verify-otp`."
+      }
+    },
+    "schemas": {
+      "BidderSignupRequest": {
+        "type": "object",
+        "required": ["legalName", "email", "password", "gstNumber"],
+        "properties": {
+          "legalName": {
+            "type": "string",
+            "description": "Official registered legal business name or proprietor name matching government records",
+            "example": "Arnav Tyagi"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Official company or personal email address for receiving verification OTPs",
+            "example": "arnav24169006@gmail.com"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 40,
+            "description": "Account password (must be between 8 and 40 characters)",
+            "example": "Password@123"
+          },
+          "gstNumber": {
+            "type": "string",
+            "description": "15-character Goods and Services Tax Identification Number (GSTIN)",
+            "example": "09ARNAV9012H3Z7"
+          },
+          "phone": {
+            "type": "string",
+            "description": "Contact mobile number",
+            "example": "9876500103"
+          }
+        }
+      },
+      "BidderInitiateResponse": {
+        "type": "object",
+        "properties": {
+          "tempToken": {
+            "type": "string",
+            "description": "Single-use UUID temporary session token",
+            "example": "93162d76aa9141d8950d9e7905ab3d5c"
+          },
+          "email": {
+            "type": "string",
+            "example": "arnav24169006@gmail.com"
+          },
+          "legalName": {
+            "type": "string",
+            "example": "Arnav Tyagi"
+          },
+          "gstNumber": {
+            "type": "string",
+            "example": "09ARNAV9012H3Z7"
+          },
+          "message": {
+            "type": "string",
+            "example": "Bidder verified successfully against government records! Verification OTP sent to arnav24169006@gmail.com"
+          }
+        }
+      },
+      "BidderVerifyOtpRequest": {
+        "type": "object",
+        "required": ["otp"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Bidder email address (required if tempToken is not provided)",
+            "example": "arnav24169006@gmail.com"
+          },
+          "tempToken": {
+            "type": "string",
+            "description": "Temporary session token returned from signup (alternative to email)",
+            "example": "93162d76aa9141d8950d9e7905ab3d5c"
+          },
+          "otp": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$",
+            "description": "6-digit numeric OTP received via Brevo Email",
+            "example": "123456"
+          }
+        }
+      },
+      "BidderResendOtpRequest": {
+        "type": "object",
+        "required": ["email"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "arnav24169006@gmail.com"
+          }
+        }
+      },
+      "BidderLoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "arnav24169006@gmail.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "Password@123"
+          }
+        }
+      },
+      "BidderAuthResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Signed JWT authentication token",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "type": {
+            "type": "string",
+            "example": "Bearer"
+          },
+          "bidderId": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "email": {
+            "type": "string",
+            "example": "arnav24169006@gmail.com"
+          },
+          "legalName": {
+            "type": "string",
+            "example": "Arnav Tyagi"
+          },
+          "phone": {
+            "type": "string",
+            "example": "9876500103"
+          },
+          "gstNumber": {
+            "type": "string",
+            "example": "09ARNAV9012H3Z7"
+          },
+          "isVerified": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Bidder logged in successfully!"
+          }
+        }
+      },
+      "BidderTokenVerifyRequest": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "JWT authentication token",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "tempToken": {
+            "type": "string",
+            "description": "Temporary session token",
+            "example": "93162d76aa9141d8950d9e7905ab3d5c"
+          }
+        }
+      },
+      "BidderTokenVerifyResponse": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "example": true
+          },
+          "tokenType": {
+            "type": "string",
+            "example": "JWT"
+          },
+          "bidderId": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "email": {
+            "type": "string",
+            "example": "arnav24169006@gmail.com"
+          },
+          "legalName": {
+            "type": "string",
+            "example": "Arnav Tyagi"
+          },
+          "gstNumber": {
+            "type": "string",
+            "example": "09ARNAV9012H3Z7"
+          },
+          "phone": {
+            "type": "string",
+            "example": "9876500103"
+          },
+          "isVerified": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "JWT token is valid and active."
+          }
+        }
+      },
+      "ForgotPasswordRequest": {
+        "type": "object",
+        "required": ["email"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "arnav24169006@gmail.com"
+          }
+        }
+      },
+      "VerifyForgotPasswordOtpRequest": {
+        "type": "object",
+        "required": ["email", "otp"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "arnav24169006@gmail.com"
+          },
+          "otp": {
+            "type": "string",
+            "example": "123456"
+          }
+        }
+      },
+      "ResetPasswordRequest": {
+        "type": "object",
+        "required": ["resetToken", "newPassword"],
+        "properties": {
+          "resetToken": {
+            "type": "string",
+            "example": "4b68e9f546bb4c87893c834bc7721867"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 40,
+            "example": "NewPassword@123"
+          }
+        }
+      },
+      "BidderResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "legalName": {
+            "type": "string",
+            "example": "Arnav Tyagi"
+          },
+          "panNumber": {
+            "type": "string",
+            "example": "ARNAV9012H"
+          },
+          "gstNumber": {
+            "type": "string",
+            "example": "09ARNAV9012H3Z7"
+          },
+          "udyamNumber": {
+            "type": "string",
+            "example": "UDYAM-UP-28-0012345"
+          },
+          "registrationNumber": {
+            "type": "string",
+            "example": "REG-2026-001"
+          },
+          "email": {
+            "type": "string",
+            "example": "arnav24169006@gmail.com"
+          },
+          "phone": {
+            "type": "string",
+            "example": "9876500103"
+          },
+          "address": {
+            "type": "string",
+            "example": "Sector 62, Noida, Uttar Pradesh 201309"
+          },
+          "profileMetadata": {
+            "type": "string",
+            "example": "{\"msme_category\": \"MICRO\"}"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UpdateBidderRequest": {
+        "type": "object",
+        "properties": {
+          "legalName": { "type": "string", "example": "Arnav Tyagi" },
+          "panNumber": { "type": "string", "example": "ARNAV9012H" },
+          "gstNumber": { "type": "string", "example": "09ARNAV9012H3Z7" },
+          "udyamNumber": { "type": "string", "example": "UDYAM-UP-28-0012345" },
+          "registrationNumber": { "type": "string", "example": "REG-2026-001" },
+          "email": { "type": "string", "format": "email", "example": "arnav24169006@gmail.com" },
+          "phone": { "type": "string", "example": "9876500103" },
+          "address": { "type": "string", "example": "Sector 62, Noida, Uttar Pradesh" },
+          "profileMetadata": { "type": "string", "example": "{\"msme\": true}" }
+        }
+      },
+      "BidderDocumentResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64", "example": 101 },
+          "bidderId": { "type": "integer", "format": "int64", "example": 1 },
+          "fileName": { "type": "string", "example": "gst_registration.pdf" },
+          "documentType": { "type": "string", "example": "gst_certificate" },
+          "fileUrl": { "type": "string", "example": "https://res.cloudinary.com/.../document.pdf" },
+          "cloudinaryPublicId": { "type": "string", "example": "bidders/gst_reg_001" },
+          "fileSize": { "type": "integer", "format": "int64", "example": 245102 },
+          "contentType": { "type": "string", "example": "application/pdf" },
+          "ocrConfidence": { "type": "number", "format": "double", "example": 94.2 },
+          "authenticityScore": { "type": "number", "format": "double", "example": 98.0 },
+          "isAuthentic": { "type": "boolean", "example": true },
+          "authenticityVerdict": { "type": "string", "example": "AUTHENTIC" },
+          "verificationFlags": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["DIGITAL_SIGNATURE_VALID", "QR_CODE_MATCHED_PORTAL"]
+          },
+          "rawOcrText": { "type": "string" },
+          "digitalSignatureReport": { "type": "object" },
+          "qrVerificationReport": { "type": "object" },
+          "extractedEntities": { "type": "object" },
+          "taxpayerValidation": { "type": "object" },
+          "status": { "type": "string", "example": "VERIFIED" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "BidderCisCheckRequest": {
+        "type": "object",
+        "properties": {
+          "tenderId": { "type": "integer", "format": "int64", "example": 501 },
+          "documentIds": {
+            "type": "array",
+            "items": { "type": "integer", "format": "int64" },
+            "example": [101, 102, 103]
+          },
+          "requiredDocuments": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["pan_card", "gst_certificate", "udyam_registration"]
+          },
+          "tenderType": {
+            "type": "string",
+            "default": "general",
+            "example": "goods"
+          }
+        }
+      },
+      "BidderCisCheckResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "cisScore": { "type": "number", "format": "double", "example": 0.94 },
+          "riskClassification": { "type": "string", "example": "low_risk" },
+          "componentScores": { "type": "object" },
+          "documentsAnalyzed": { "type": "integer", "example": 3 },
+          "missingDocuments": { "type": "array", "items": { "type": "string" } },
+          "recommendations": { "type": "array", "items": { "type": "string" } },
+          "clearanceEligibility": {
+            "type": "string",
+            "enum": ["ELIGIBLE_SINGLE_CLICK", "CONDITIONAL_REVIEW", "DISQUALIFIED"],
+            "example": "ELIGIBLE_SINGLE_CLICK"
+          },
+          "summary": { "type": "string", "example": "Calculated via ML Composite Compliance Index Engine." }
+        }
+      },
+      "BidderTaxpayerVerifyRequest": {
+        "type": "object",
+        "required": ["identifier"],
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "description": "GSTIN (15 chars) or PAN (10 chars)",
+            "example": "09ARNAV9012H3Z7"
+          },
+          "identifierType": {
+            "type": "string",
+            "default": "gstin",
+            "enum": ["gstin", "pan"],
+            "example": "gstin"
+          },
+          "expectedLegalName": {
+            "type": "string",
+            "example": "Arnav Tyagi"
+          },
+          "stateCode": {
+            "type": "string",
+            "example": "09"
+          },
+          "useLivePortal": {
+            "type": "boolean",
+            "default": false,
+            "example": false
+          }
+        }
+      },
+      "BidderTaxpayerVerifyResponse": {
+        "type": "object",
+        "properties": {
+          "valid": { "type": "boolean", "example": true },
+          "identifier": { "type": "string", "example": "09ARNAV9012H3Z7" },
+          "identifierType": { "type": "string", "example": "gstin" },
+          "legalName": { "type": "string", "example": "Arnav Tyagi" },
+          "tradeName": { "type": "string", "example": "Tyagi Enterprises" },
+          "nameMatched": { "type": "boolean", "example": true },
+          "status": { "type": "string", "example": "Active" },
+          "state": { "type": "string", "example": "Uttar Pradesh" },
+          "complianceScore": { "type": "number", "format": "double", "example": 98.0 },
+          "riskLevel": { "type": "string", "example": "LOW" },
+          "filingRatePercent": { "type": "number", "format": "double", "example": 100.0 },
+          "gstr3bFilingStatus": { "type": "string", "example": "REGULAR" },
+          "errorsDetected": { "type": "array", "items": { "type": "object" } },
+          "message": { "type": "string", "example": "Taxpayer active and verified." },
+          "isMlVerified": { "type": "boolean", "example": true },
+          "verificationSource": { "type": "string", "example": "ML_MICROSERVICE_LIVE" }
+        }
+      },
+      "BidderErrorResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "integer", "example": 400 },
+          "error": { "type": "string", "example": "Bad Request" },
+          "message": { "type": "string", "example": "Validation failed" },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "path": { "type": "string", "example": "/api/bidder/auth/signup" },
+          "validationErrors": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}
