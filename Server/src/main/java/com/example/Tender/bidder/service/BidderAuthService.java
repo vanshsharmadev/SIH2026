@@ -62,7 +62,15 @@ public class BidderAuthService {
         String normalizedName = request.getLegalName().trim();
         String derivedPan = (normalizedGst.length() >= 12) ? normalizedGst.substring(2, 12) : normalizedGst;
 
-        // 1. Verify against pre-verified government bidder_verification table
+        // 1. Check if user/bidder is already registered in the permanent database
+        if (bidderRepository.existsByEmail(normalizedEmail)) {
+            throw new BidderAlreadyExistsException("User with email '" + normalizedEmail + "' is already registered! Please log in instead.");
+        }
+        if (bidderRepository.existsByGstNumber(normalizedGst)) {
+            throw new BidderAlreadyExistsException("A bidder with GSTIN '" + normalizedGst + "' is already registered! Please log in instead.");
+        }
+
+        // 2. Verify against pre-verified government bidder_verification table
         Optional<BidderVerification> verificationRecord = bidderVerificationRepository.findByNameAndEmailAndGstNumberIgnoreCase(
                 normalizedName,
                 normalizedEmail,
@@ -80,14 +88,6 @@ public class BidderAuthService {
             } else {
                 throw new BidderVerificationException("Invalid credentials: Legal name '" + normalizedName + "' does not match the registered bidder name for this GST/Email.");
             }
-        }
-
-        // 2. Check for duplicates in permanent repository
-        if (bidderRepository.existsByEmail(normalizedEmail)) {
-            throw new BidderAlreadyExistsException("Error: Email is already registered and verified!");
-        }
-        if (bidderRepository.existsByGstNumber(normalizedGst)) {
-            throw new BidderAlreadyExistsException("Error: GSTIN is already registered!");
         }
 
         // 3. Clear any previous unverified temp registration for this email
