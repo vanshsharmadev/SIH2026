@@ -1,5 +1,5 @@
 const fs = require("fs");
-const pdfParse = require("pdf-parse");
+const { PDFParse } = require("pdf-parse");
 
 async function extractTenderText(filePath) {
   if (!filePath) {
@@ -8,7 +8,13 @@ async function extractTenderText(filePath) {
 
   const pdfBuffer = fs.readFileSync(filePath);
 
-  const pdfData = await pdfParse(pdfBuffer);
+  const parser = new PDFParse({
+    data: pdfBuffer,
+  });
+
+  const pdfData = await parser.getText();
+
+  await parser.destroy();
 
   if (!pdfData.text || !pdfData.text.trim()) {
     throw new Error("No text could be extracted from the PDF");

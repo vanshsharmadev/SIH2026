@@ -1,22 +1,28 @@
 const fs = require("fs");
-const pdfParse = require("pdf-parse");
+const { PDFParse } = require("pdf-parse");
 
-async function extractBidderText(filePath) {
+async function extractTenderText(filePath) {
   if (!filePath) {
-    throw new Error("Bidder PDF file path is required");
+    throw new Error("PDF file path is required");
   }
 
   const pdfBuffer = fs.readFileSync(filePath);
 
-  const pdfData = await pdfParse(pdfBuffer);
+  const parser = new PDFParse({
+    data: pdfBuffer,
+  });
+
+  const pdfData = await parser.getText();
+
+  await parser.destroy();
 
   if (!pdfData.text || !pdfData.text.trim()) {
-    throw new Error(`No text could be extracted from ${filePath}`);
+    throw new Error("No text could be extracted from the PDF");
   }
 
   return pdfData.text.trim();
 }
 
 module.exports = {
-  extractBidderText,
+  extractTenderText,
 };
