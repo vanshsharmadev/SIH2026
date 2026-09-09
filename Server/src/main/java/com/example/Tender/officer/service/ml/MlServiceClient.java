@@ -20,6 +20,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * GeM ML Microservice Client (API Version 2.0.0)
+ * Base URL: http://20.40.44.184
+ * Total Consolidated Production Endpoints: 13
+ */
 @Service
 @Slf4j
 public class MlServiceClient {
@@ -36,16 +41,67 @@ public class MlServiceClient {
         this.restClient = RestClient.builder()
                 .baseUrl(mlBaseUrl)
                 .build();
-        log.info("Initialized MlServiceClient with Base URL: {}", mlBaseUrl);
+        log.info("Initialized MlServiceClient (v2.0.0) with Base URL: {}", mlBaseUrl);
     }
 
     // ==========================================
-    // 1. Unified Processing & Pipeline
+    // 1. System & Health Endpoints
     // ==========================================
 
     /**
-     * Complete Document Processing Pipeline:
-     * Extracts OCR text, structured entities, authenticity scores, and compliance metrics.
+     * Endpoint 1: Base URL for web dashboard.
+     */
+    public String getDashboardUrl() {
+        return baseUrl + "/";
+    }
+
+    /**
+     * Endpoint 2: GET /health
+     * Returns operational health of the microservice and live latency check against Government GST Portal.
+     */
+    public Map<String, Object> checkHealth() {
+        try {
+            return restClient.get()
+                    .uri("/health")
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.warn("ML Service health check failed: {}", ex.getMessage());
+            Map<String, Object> health = new HashMap<>();
+            health.put("status", "unhealthy");
+            health.put("error", ex.getMessage());
+            health.put("url", baseUrl);
+            return health;
+        }
+    }
+
+    // ==========================================
+    // 2. Taxonomy & Document Schema
+    // ==========================================
+
+    /**
+     * Endpoint 3: GET /api/ml/document-types
+     * Master taxonomy of all 18 Indian procurement document categories and dynamic CIS scoring weights.
+     */
+    public Map<String, Object> getDocumentTypes() {
+        try {
+            return restClient.get()
+                    .uri("/api/ml/document-types")
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+        } catch (Exception ex) {
+            log.error("Failed to retrieve document types: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Could not retrieve document types: " + ex.getMessage(), ex);
+        }
+    }
+
+    // ==========================================
+    // 3. Document Processing & Intake
+    // ==========================================
+
+    /**
+     * Endpoint 4: POST /api/ml/process-document
+     * Consolidated single-call intake (OCR + Layout + Classification + NER + Forgery).
      */
     public DocumentProcessResponse processDocument(MultipartFile file, String documentType, boolean fullAnalysis) {
         log.info("Sending document to ML Service (/api/ml/process-document): fileName={}, size={}, documentType={}, fullAnalysis={}",
@@ -74,9 +130,8 @@ public class MlServiceClient {
         }
     }
 
-
     // ==========================================
-    // 2. Master Autonomous Tender Audits (Endpoints 5 & 6)
+    // 4. Master Autonomous Tender Audits (Endpoints 5 & 6)
     // ==========================================
 
     /**
@@ -140,7 +195,7 @@ public class MlServiceClient {
     }
 
     // ==========================================
-    // 3. Comprehensive Dossier & RAG Synthesis (Endpoint 7)
+    // 5. Comprehensive Dossier & RAG Synthesis (Endpoint 7)
     // ==========================================
 
     /**
@@ -157,13 +212,26 @@ public class MlServiceClient {
             Boolean includeRagContext) {
         try {
             StringBuilder uriBuilder = new StringBuilder("/api/ml/overall-summary?");
-            if (bidId != null && !bidId.isBlank()) uriBuilder.append("bid_id=").append(bidId).append("&");
-            if (identifier != null && !identifier.isBlank()) uriBuilder.append("identifier=").append(identifier).append("&");
-            if (tenderType != null && !tenderType.isBlank()) uriBuilder.append("tender_type=").append(tenderType).append("&");
-            uriBuilder.append("use_live_portal=").append(Boolean.TRUE.equals(useLivePortal)).append("&");
-            uriBuilder.append("include_rag_context=").append(includeRagContext == null || includeRagContext);
+            if (bidId != null && !bidId.isBlank()) {
+                uriBuilder.append("bid_id=").append(bidId).append("&");
+            }
+            if (identifier != null && !identifier.isBlank()) {
+                uriBuilder.append("identifier=").append(identifier).append("&");
+            }
+            if (tenderType != null && !tenderType.isBlank()) {
+                uriBuilder.append("tender_type=").append(tenderType).append("&");
+            }
+            if (useLivePortal != null) {
+                uriBuilder.append("use_live_portal=").append(useLivePortal).append("&");
+            }
+            if (includeRagContext != null) {
+                uriBuilder.append("include_rag_context=").append(includeRagContext).append("&");
+            }
 
             String uri = uriBuilder.toString();
+            if (uri.endsWith("&") || uri.endsWith("?")) {
+                uri = uri.substring(0, uri.length() - 1);
+            }
             log.info("Fetching comprehensive dossier & RAG context: {}", uri);
 
             return restClient.get()
@@ -177,7 +245,7 @@ public class MlServiceClient {
     }
 
     // ==========================================
-    // 4. Forensics & Anti-Tampering (Endpoint 8)
+    // 6. Forensics & Anti-Forgery / Anti-Tampering (Endpoint 8)
     // ==========================================
 
     /**
@@ -208,6 +276,13 @@ public class MlServiceClient {
     }
 
     /**
+     * Alias for verifyDocument for compatibility with main branch references.
+     */
+    public Map<String, Object> verifyDocumentFile(MultipartFile file, String docType, String ocrText, boolean autoOcr) {
+        return verifyDocument(file, docType, ocrText, autoOcr);
+    }
+
+    /**
      * Endpoint 8 (Mode B): POST /api/ml/verify-document (JSON)
      * Card Tampering & Payload Verification. Validates visual text against signed QR payload.
      */
@@ -216,7 +291,7 @@ public class MlServiceClient {
             return restClient.post()
                     .uri("/api/ml/verify-document")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(payload)
+                    .body(payload != null ? payload : Collections.emptyMap())
                     .retrieve()
                     .body(new ParameterizedTypeReference<Map<String, Object>>() {});
         } catch (Exception ex) {
@@ -226,7 +301,7 @@ public class MlServiceClient {
     }
 
     // ==========================================
-    // 5. Statutory Taxpayer Verification (Endpoint 9)
+    // 7. Statutory Taxpayer Verification (Endpoint 9)
     // ==========================================
 
     /**
@@ -261,7 +336,7 @@ public class MlServiceClient {
     }
 
     // ==========================================
-    // 6. Tender Requirements Engine (Endpoint 10)
+    // 8. Dynamic Tender Requirements Engine (Endpoint 10)
     // ==========================================
 
     /**
@@ -284,7 +359,7 @@ public class MlServiceClient {
     }
 
     // ==========================================
-    // 7. Clearance Decision Engine (Endpoint 11)
+    // 9. Clearance Decision Engine (Endpoint 11)
     // ==========================================
 
     /**
@@ -315,7 +390,7 @@ public class MlServiceClient {
     }
 
     // ==========================================
-    // 8. ML Model Direct Inference (Endpoint 12)
+    // 10. ML Model Direct Inference (Endpoint 12)
     // ==========================================
 
     /**
@@ -340,8 +415,15 @@ public class MlServiceClient {
         }
     }
 
+    /**
+     * Direct compatibility wrapper for predictCompliance.
+     */
+    public Map<String, Object> predictComplianceVerdict(Map<String, Object> request) {
+        return predictCompliance(request);
+    }
+
     // ==========================================
-    // 9. Retraining Pipeline (Endpoint 13)
+    // 11. Retraining Pipeline (Endpoint 13)
     // ==========================================
 
     /**
@@ -368,50 +450,17 @@ public class MlServiceClient {
         }
     }
 
-    // ==========================================
-    // 10. Taxonomy, System & Health (Endpoints 1, 2, 3)
-    // ==========================================
-
-    /**
-     * Endpoint 1: Base URL for web dashboard.
-     */
-    public String getDashboardUrl() {
-        return baseUrl + "/";
-    }
-
-    /**
-     * Endpoint 2: GET /health
-     * Unified Health Check + Live GST Portal Latency & Status.
-     */
-    public Map<String, Object> checkHealth() {
+    public Map<String, Object> trainAllModels(Map<String, Object> request) {
         try {
-            return restClient.get()
-                    .uri("/health")
+            return restClient.post()
+                    .uri("/api/ml/train/all")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request != null ? request : Collections.emptyMap())
                     .retrieve()
                     .body(new ParameterizedTypeReference<Map<String, Object>>() {});
         } catch (Exception ex) {
-            log.warn("ML Service health check failed: {}", ex.getMessage());
-            Map<String, Object> health = new HashMap<>();
-            health.put("status", "unhealthy");
-            health.put("error", ex.getMessage());
-            health.put("url", baseUrl);
-            return health;
-        }
-    }
-
-    /**
-     * Endpoint 3: GET /api/ml/document-types
-     * 18 GeM document categories, extraction schemas, and compliance weights.
-     */
-    public Map<String, Object> getDocumentTypes() {
-        try {
-            return restClient.get()
-                    .uri("/api/ml/document-types")
-                    .retrieve()
-                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
-        } catch (Exception ex) {
-            log.error("Failed to retrieve document types: {}", ex.getMessage(), ex);
-            throw new RuntimeException("Could not retrieve document types: " + ex.getMessage(), ex);
+            log.error("Failed to trigger ML retraining (/api/ml/train/all): {}", ex.getMessage(), ex);
+            throw new RuntimeException("ML retraining failed: " + ex.getMessage(), ex);
         }
     }
 
