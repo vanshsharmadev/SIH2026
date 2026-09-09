@@ -18,7 +18,12 @@ import com.example.Tender.bidder.provider.MlBusinessVerificationProvider;
 
 @RestController
 @RequestMapping("/api/bidder/auth")
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(
+        originPatterns = {"https://gem-compliflix.vercel.app", "https://*.vercel.app", "http://localhost:[*]", "http://127.0.0.1:[*]", "*"},
+        allowedHeaders = "*",
+        allowCredentials = "true",
+        maxAge = 3600
+)
 public class BidderAuthController {
 
     private final BidderAuthService bidderAuthService;

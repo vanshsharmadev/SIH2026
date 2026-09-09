@@ -79,6 +79,7 @@ public class OfficerSecurityConfig {
                 )
 
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/officer/auth/**").permitAll()
                         .requestMatchers("/api/officer/identity/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
@@ -126,7 +127,13 @@ public class OfficerSecurityConfig {
 
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedOriginPatterns(List.of(
+                "https://gem-compliflix.vercel.app",
+                "https://*.vercel.app",
+                "http://localhost:[*]",
+                "http://127.0.0.1:[*]",
+                "*"
+        ));
 
         configuration.setAllowedMethods(
                 List.of(
@@ -135,12 +142,21 @@ public class OfficerSecurityConfig {
                         "PUT",
                         "DELETE",
                         "OPTIONS",
-                        "PATCH"
+                        "PATCH",
+                        "HEAD"
                 )
         );
 
         configuration.setAllowedHeaders(List.of("*"));
+        configuration.setExposedHeaders(List.of(
+                "Authorization",
+                "Content-Disposition",
+                "Content-Type",
+                "Access-Control-Allow-Origin",
+                "Access-Control-Allow-Credentials"
+        ));
         configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
