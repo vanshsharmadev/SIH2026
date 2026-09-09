@@ -86,6 +86,7 @@ public class OfficerSecurityConfig {
                         .requestMatchers("/api/officer/tenders/document-types").permitAll()
                         .requestMatchers("/api/officer/tenders/ml-health").permitAll()
                         .requestMatchers("/api/officer/tenders/rag-health").permitAll()
+                        .requestMatchers("/api/officer/tenders/chat/health").permitAll()
                         .requestMatchers("/api/officer/tenders/ml/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()

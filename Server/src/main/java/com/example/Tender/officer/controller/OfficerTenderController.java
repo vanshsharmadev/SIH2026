@@ -168,9 +168,9 @@ public class OfficerTenderController {
     }
 
     /**
-     * Check Node AI RAG Service Health (GET /api/officer/tenders/rag-health)
+     * Check Node AI RAG Service Health (GET /api/officer/tenders/rag-health or /api/officer/tenders/chat/health)
      */
-    @GetMapping("/rag-health")
+    @GetMapping({"/rag-health", "/chat/health"})
     public ResponseEntity<OfficerApiResponse<Map<String, Object>>> getRagHealth() {
         Map<String, Object> health = tenderDocumentService.getRagHealth();
         return ResponseEntity.ok(
