@@ -1,52 +1,31 @@
 {
 	"info": {
 		"_postman_id": "d93a17e2-5b91-4c18-912a-48bf6a003e19",
-		"name": "Node AI RAG Service & Gemini Chatbot",
-		"description": "# 🤖 Node AI RAG Microservice & Gemini Chatbot\n\nOfficial Postman Collection for the **Node AI RAG Microservice** (`https://sih2026-86kl.onrender.com`) and Spring Boot Gateway endpoints.\n\n### 🚀 Base URLs:\n- **Direct Node AI RAG Service**: `https://sih2026-86kl.onrender.com`\n- **Spring Boot Gateway (Local)**: `http://localhost:8080/api/officer/tenders`\n- **Spring Boot Gateway (Production)**: `https://sih2026-83r4.onrender.com/api/officer/tenders`\n\n### 🧠 Vector & AI Stack:\n- **Vector Database**: PostgreSQL with `pgvector` (Neon DB)\n- **Embeddings**: Google Gemini `text-embedding-004` (768 dimensions)\n- **LLM Reasoning**: Google Gemini 1.5 Pro / Flash with source citations",
+		"name": "AI RAG Service (Node.js & Gemini)",
+		"description": "## AI RAG Service API Contract\n\n**Base URL:** `https://sih2026-86kl.onrender.com`\n\n* **GET `/health`** — Check whether AI service is running.\n* **POST `/api/ai/tender/process`** — Process tender PDF → extract text → chunk → generate embeddings → store in pgvector.\n* **POST `/api/ai/bidder/process`** — Process bidder PDF → extract text → chunk → generate embeddings → store in pgvector.\n* **POST `/api/ai/bidder-tender-chat/ask`** ⭐ — Main chatbot API. Spring Boot sends the officer's question; Node retrieves **tender + bidder + ML summary** context and generates the Gemini response.\n\n### Flow\n`Spring Boot → Node AI Service → RAG (Tender + Bidder + ML Summary) → Gemini → Node → Spring Boot → React`\n\n**Note:** The final qualification/disqualification decision remains with the Procurement Officer.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
 		{
-			"name": "01. RAG Health Check (Direct Node)",
+			"name": "1. Health Check",
 			"request": {
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "{{ragBaseUrl}}/health",
+					"raw": "{{baseUrl}}/health",
 					"host": [
-						"{{ragBaseUrl}}"
+						"{{baseUrl}}"
 					],
 					"path": [
 						"health"
 					]
 				},
-				"description": "Direct health check for Node AI RAG service and PostgreSQL pgvector connection."
+				"description": "Check whether AI service is running."
 			},
 			"response": []
 		},
 		{
-			"name": "02. RAG Health Check (Spring Boot Gateway)",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "{{springBaseUrl}}/api/officer/tenders/rag-health",
-					"host": [
-						"{{springBaseUrl}}"
-					],
-					"path": [
-						"api",
-						"officer",
-						"tenders",
-						"rag-health"
-					]
-				},
-				"description": "Health check for RAG service proxied through Spring Boot backend."
-			},
-			"response": []
-		},
-		{
-			"name": "03. Process Tender Document (Chunking & Embeddings)",
+			"name": "2. Process Tender Document",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -60,9 +39,9 @@
 					"raw": "{\n  \"tenderId\": \"TND-001\"\n}"
 				},
 				"url": {
-					"raw": "{{ragBaseUrl}}/api/ai/tender/process",
+					"raw": "{{baseUrl}}/api/ai/tender/process",
 					"host": [
-						"{{ragBaseUrl}}"
+						"{{baseUrl}}"
 					],
 					"path": [
 						"api",
@@ -71,12 +50,12 @@
 						"process"
 					]
 				},
-				"description": "Extracts text from Tender PDF, generates Gemini embeddings, and stores dense vectors into PostgreSQL pgvector."
+				"description": "Process tender PDF → extract text → chunk → generate embeddings → store in pgvector."
 			},
 			"response": []
 		},
 		{
-			"name": "04. Process Bidder Document (Chunking & Embeddings)",
+			"name": "3. Process Bidder Document",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -90,9 +69,9 @@
 					"raw": "{\n  \"tenderId\": \"TND-001\",\n  \"bidderId\": \"BID-007\",\n  \"documentId\": \"DOC-001\",\n  \"documentType\": \"GST_CERTIFICATE\"\n}"
 				},
 				"url": {
-					"raw": "{{ragBaseUrl}}/api/ai/bidder/process",
+					"raw": "{{baseUrl}}/api/ai/bidder/process",
 					"host": [
-						"{{ragBaseUrl}}"
+						"{{baseUrl}}"
 					],
 					"path": [
 						"api",
@@ -101,81 +80,12 @@
 						"process"
 					]
 				},
-				"description": "Extracts text from Bidder PDF (GST certificate, balance sheet, experience doc) and stores vectors into pgvector."
+				"description": "Process bidder PDF → extract text → chunk → generate embeddings → store in pgvector."
 			},
 			"response": []
 		},
 		{
-			"name": "05. Ask Chatbot (Spring Boot Gateway Proxy)",
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Authorization",
-						"value": "Bearer {{officer_token}}"
-					},
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"tenderId\": \"1\",\n  \"bidderId\": \"BID-007\",\n  \"query\": \"Does this bidder meet the minimum turnover requirement of INR 10 Crores and what are the financial risks?\"\n}"
-				},
-				"url": {
-					"raw": "{{springBaseUrl}}/api/officer/tenders/chat",
-					"host": [
-						"{{springBaseUrl}}"
-					],
-					"path": [
-						"api",
-						"officer",
-						"tenders",
-						"chat"
-					]
-				},
-				"description": "Calls Chatbot through Spring Boot backend proxy with JWT officer verification."
-			},
-			"response": []
-		},
-		{
-			"name": "06. Ask Chatbot for Tender by Path ID (Spring Boot)",
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Authorization",
-						"value": "Bearer {{officer_token}}"
-					},
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"bidderId\": \"BID-007\",\n  \"query\": \"Provide a complete compliance evaluation and risk summary for this bidder.\"\n}"
-				},
-				"url": {
-					"raw": "{{springBaseUrl}}/api/officer/tenders/1/chat",
-					"host": [
-						"{{springBaseUrl}}"
-					],
-					"path": [
-						"api",
-						"officer",
-						"tenders",
-						"1",
-						"chat"
-					]
-				},
-				"description": "Calls Chatbot for a specific tender ID via Spring Boot backend proxy."
-			},
-			"response": []
-		},
-		{
-			"name": "07. Ask Chatbot (Direct Node AI RAG)",
+			"name": "4. Ask Bidder-Tender Chatbot",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -186,12 +96,12 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n  \"tenderId\": \"TND-001\",\n  \"bidderId\": \"BID-007\",\n  \"query\": \"Does this bidder meet the minimum turnover requirement of INR 10 Crores?\"\n}"
+					"raw": "{\n  \"tenderId\": \"TND-001\",\n  \"bidderId\": \"BID-007\",\n  \"query\": \"Does this bidder meet the minimum turnover requirement?\"\n}"
 				},
 				"url": {
-					"raw": "{{ragBaseUrl}}/api/ai/bidder-tender-chat/ask",
+					"raw": "{{baseUrl}}/api/ai/bidder-tender-chat/ask",
 					"host": [
-						"{{ragBaseUrl}}"
+						"{{baseUrl}}"
 					],
 					"path": [
 						"api",
@@ -200,25 +110,15 @@
 						"ask"
 					]
 				},
-				"description": "Retrieves Tender + Bidder + ML summary context from pgvector and generates grounded response via Gemini LLM."
+				"description": "Main chatbot API. Node retrieves tender + bidder + ML summary context from pgvector and generates the Gemini response with citations."
 			},
 			"response": []
 		}
 	],
 	"variable": [
 		{
-			"key": "ragBaseUrl",
+			"key": "baseUrl",
 			"value": "https://sih2026-86kl.onrender.com",
-			"type": "string"
-		},
-		{
-			"key": "springBaseUrl",
-			"value": "http://localhost:8080",
-			"type": "string"
-		},
-		{
-			"key": "officer_token",
-			"value": "",
 			"type": "string"
 		}
 	]
