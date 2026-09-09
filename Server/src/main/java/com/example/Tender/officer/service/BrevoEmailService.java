@@ -30,23 +30,39 @@ public class BrevoEmailService {
     private static final String BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
     public boolean sendOtpEmail(String recipientEmail, String recipientName, String otp, int validityMinutes) {
+        return sendOtpEmail(recipientEmail, recipientName, otp, validityMinutes, "Officer");
+    }
+
+    public boolean sendBidderOtpEmail(String recipientEmail, String recipientName, String otp, int validityMinutes) {
+        return sendOtpEmail(recipientEmail, recipientName, otp, validityMinutes, "Bidder");
+    }
+
+    public boolean sendOtpEmail(String recipientEmail, String recipientName, String otp, int validityMinutes, String accountType) {
         try {
             RestClient restClient = RestClient.builder().build();
 
+            // Safe fallback to verified sender if sender is missing or unauthenticated default domain
+            String effectiveSender = (senderEmail != null && !senderEmail.trim().isEmpty() && !senderEmail.contains("noreply@tenderportal.gov.in"))
+                    ? senderEmail.trim()
+                    : "arnavtyagi96@gmail.com";
+
+            String roleLabel = "Bidder".equalsIgnoreCase(accountType) ? "Bidder" : "Officer";
+            String defaultName = "Bidder".equalsIgnoreCase(accountType) ? "Bidder" : "Officer";
+
             Map<String, String> sender = new HashMap<>();
-            sender.put("name", senderName);
-            sender.put("email", senderEmail);
+            sender.put("name", senderName != null ? senderName : "Tender Portal");
+            sender.put("email", effectiveSender);
 
             Map<String, String> recipient = new HashMap<>();
-            recipient.put("name", recipientName != null ? recipientName : "Officer");
+            recipient.put("name", recipientName != null ? recipientName : defaultName);
             recipient.put("email", recipientEmail);
 
-            String htmlBody = buildOtpHtmlContent(recipientName, otp, validityMinutes);
+            String htmlBody = buildOtpHtmlContent(recipientName, otp, validityMinutes, roleLabel);
 
             Map<String, Object> payload = new HashMap<>();
             payload.put("sender", sender);
             payload.put("to", Collections.singletonList(recipient));
-            payload.put("subject", "Verify Your Officer Account - OTP Verification");
+            payload.put("subject", "Verify Your " + roleLabel + " Account - OTP Verification");
             payload.put("htmlContent", htmlBody);
 
             restClient.post()
@@ -58,15 +74,17 @@ public class BrevoEmailService {
                     .retrieve()
                     .toBodilessEntity();
 
-            log.info("OTP verification email successfully sent to {}", recipientEmail);
+            log.info("{} OTP verification email successfully sent to {}", roleLabel, recipientEmail);
             return true;
         } catch (Exception e) {
-            log.error("Failed to send OTP email via Brevo to {}: {}", recipientEmail, e.getMessage());
+            log.error("Failed to send {} OTP email via Brevo to {}: {}", accountType, recipientEmail, e.getMessage());
             return false;
         }
     }
 
-    private String buildOtpHtmlContent(String recipientName, String otp, int validityMinutes) {
+    private String buildOtpHtmlContent(String recipientName, String otp, int validityMinutes, String roleLabel) {
+        String greetingName = recipientName != null ? recipientName : roleLabel;
+        String lowercaseRole = roleLabel.toLowerCase();
         return "<!DOCTYPE html>"
                 + "<html>"
                 + "<head>"
@@ -86,17 +104,17 @@ public class BrevoEmailService {
                 + "<body>"
                 + "<div class='card'>"
                 + "  <div class='header'>"
-                + "    <h2 class='title'>Tender Portal - Officer Verification</h2>"
+                + "    <h2 class='title'>Tender Portal - " + roleLabel + " Verification</h2>"
                 + "  </div>"
-                + "  <p class='greeting'>Hello <strong>" + (recipientName != null ? recipientName : "Officer") + "</strong>,</p>"
-                + "  <p style='color: #475569; font-size: 14px;'>Use the one-time password (OTP) below to verify your email address and activate your officer account:</p>"
+                + "  <p class='greeting'>Hello <strong>" + greetingName + "</strong>,</p>"
+                + "  <p style='color: #475569; font-size: 14px;'>Use the one-time password (OTP) below to verify your email address and activate your " + lowercaseRole + " account:</p>"
                 + "  <div class='otp-box'>"
                 + "    <div class='otp-code'>" + otp + "</div>"
                 + "    <div class='validity'>Valid for " + validityMinutes + " minutes</div>"
                 + "  </div>"
                 + "  <p style='color: #64748b; font-size: 13px;'>If you did not request this verification, please disregard this email.</p>"
                 + "  <div class='footer'>"
-                + "    © Tender Portal • Secure Officer Verification"
+                + "    © Tender Portal • Secure " + roleLabel + " Verification"
                 + "  </div>"
                 + "</div>"
                 + "</body>"

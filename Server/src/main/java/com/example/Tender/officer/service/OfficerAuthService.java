@@ -358,6 +358,10 @@ public class OfficerAuthService {
 
         otpRepository.save(emailOtp);
 
+        log.info("=================================================================");
+        log.info("[OFFICER OTP] Verification OTP generated for {}: {}", email, otp);
+        log.info("=================================================================");
+
         brevoEmailService.sendOtpEmail(email, name, otp, otpExpirationMinutes);
     }
 }
