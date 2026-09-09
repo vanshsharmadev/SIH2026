@@ -6,7 +6,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
 import java.util.Map;
 
 @Data
@@ -18,7 +17,7 @@ public class TenderChatResponse {
 
     private String answer;
 
-    private List<Object> sources;
+    private Object sources;
 
     private String tenderId;
 
