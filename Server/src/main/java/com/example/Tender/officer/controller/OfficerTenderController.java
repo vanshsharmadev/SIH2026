@@ -136,11 +136,6 @@ public class OfficerTenderController {
             @Valid @RequestBody com.example.Tender.officer.dto.rag.TenderChatRequest request,
             @AuthenticationPrincipal OfficerPrincipal principal) {
 
-        if (principal == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(OfficerApiResponse.error("Authentication required"));
-        }
-
         request.setTenderId(String.valueOf(id));
         com.example.Tender.officer.dto.rag.TenderChatResponse response = tenderDocumentService.askTenderChatbot(request, principal);
         return ResponseEntity.ok(
@@ -155,11 +150,6 @@ public class OfficerTenderController {
     public ResponseEntity<OfficerApiResponse<com.example.Tender.officer.dto.rag.TenderChatResponse>> askGeneralChat(
             @Valid @RequestBody com.example.Tender.officer.dto.rag.TenderChatRequest request,
             @AuthenticationPrincipal OfficerPrincipal principal) {
-
-        if (principal == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(OfficerApiResponse.error("Authentication required"));
-        }
 
         com.example.Tender.officer.dto.rag.TenderChatResponse response = tenderDocumentService.askTenderChatbot(request, principal);
         return ResponseEntity.ok(
