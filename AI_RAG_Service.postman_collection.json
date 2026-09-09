@@ -7,7 +7,7 @@
 	},
 	"item": [
 		{
-			"name": "1. Health Check",
+			"name": "01. RAG Health Check (Direct Node)",
 			"request": {
 				"method": "GET",
 				"header": [],
@@ -20,12 +20,33 @@
 						"health"
 					]
 				},
-				"description": "Check whether Node AI RAG service is active and connected to PostgreSQL pgvector."
+				"description": "Direct health check for Node AI RAG service and PostgreSQL pgvector connection."
 			},
 			"response": []
 		},
 		{
-			"name": "2. Process Tender Document (Chunking & Embeddings)",
+			"name": "02. RAG Health Check (Spring Boot Gateway)",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{springBaseUrl}}/api/officer/tenders/rag-health",
+					"host": [
+						"{{springBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"officer",
+						"tenders",
+						"rag-health"
+					]
+				},
+				"description": "Health check for RAG service proxied through Spring Boot backend."
+			},
+			"response": []
+		},
+		{
+			"name": "03. Process Tender Document (Chunking & Embeddings)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -55,7 +76,7 @@
 			"response": []
 		},
 		{
-			"name": "3. Process Bidder Document (Chunking & Embeddings)",
+			"name": "04. Process Bidder Document (Chunking & Embeddings)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -85,7 +106,76 @@
 			"response": []
 		},
 		{
-			"name": "4. Ask Bidder-Tender Chatbot (Main Chat API)",
+			"name": "05. Ask Chatbot (Spring Boot Gateway Proxy)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{officer_token}}"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"tenderId\": \"1\",\n  \"bidderId\": \"BID-007\",\n  \"query\": \"Does this bidder meet the minimum turnover requirement of INR 10 Crores and what are the financial risks?\"\n}"
+				},
+				"url": {
+					"raw": "{{springBaseUrl}}/api/officer/tenders/chat",
+					"host": [
+						"{{springBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"officer",
+						"tenders",
+						"chat"
+					]
+				},
+				"description": "Calls Chatbot through Spring Boot backend proxy with JWT officer verification."
+			},
+			"response": []
+		},
+		{
+			"name": "06. Ask Chatbot for Tender by Path ID (Spring Boot)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{officer_token}}"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"bidderId\": \"BID-007\",\n  \"query\": \"Provide a complete compliance evaluation and risk summary for this bidder.\"\n}"
+				},
+				"url": {
+					"raw": "{{springBaseUrl}}/api/officer/tenders/1/chat",
+					"host": [
+						"{{springBaseUrl}}"
+					],
+					"path": [
+						"api",
+						"officer",
+						"tenders",
+						"1",
+						"chat"
+					]
+				},
+				"description": "Calls Chatbot for a specific tender ID via Spring Boot backend proxy."
+			},
+			"response": []
+		},
+		{
+			"name": "07. Ask Chatbot (Direct Node AI RAG)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -111,40 +201,6 @@
 					]
 				},
 				"description": "Retrieves Tender + Bidder + ML summary context from pgvector and generates grounded response via Gemini LLM."
-			},
-			"response": []
-		},
-		{
-			"name": "5. Spring Boot Gateway Chatbot Proxy",
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Authorization",
-						"value": "Bearer {{officer_token}}"
-					},
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"tenderId\": \"1\",\n  \"bidderId\": \"BID-007\",\n  \"query\": \"Provide a complete compliance evaluation and risk summary for this bidder.\"\n}"
-				},
-				"url": {
-					"raw": "{{springBaseUrl}}/api/officer/tenders/chat",
-					"host": [
-						"{{springBaseUrl}}"
-					],
-					"path": [
-						"api",
-						"officer",
-						"tenders",
-						"chat"
-					]
-				},
-				"description": "Calls Chatbot through Spring Boot backend proxy with JWT officer verification."
 			},
 			"response": []
 		}
