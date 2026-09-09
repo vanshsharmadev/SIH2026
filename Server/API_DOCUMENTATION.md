@@ -388,3 +388,105 @@ All endpoints can be called directly on Python ML Service (`http://20.40.44.184`
   "classifier_epochs": 10
 }
 ```
+
+---
+
+## 6. Node AI RAG Service & Gemini Chatbot APIs
+
+**Node AI RAG Base URL**: `https://sih2026-86kl.onrender.com`  
+**Embedding Model**: Google Gemini `text-embedding-004` (stored in `pgvector`)  
+**LLM Generator**: Google Gemini 1.5 Pro / Flash with factual source citations.
+
+---
+
+### 6.1 Ask Bidder-Tender Chatbot (Specific Tender ID in Path)
+Sends the procurement officer's query to the RAG pipeline. The backend retrieves the tender specifications, the bidder's submitted documents, and ML compliance audit summaries, then formats a factual answer via Gemini.
+* **Method**: `POST`
+* **Route**: `/api/officer/tenders/{tenderId}/chat`
+* **Headers**: `Authorization: Bearer <OFFICER_JWT_TOKEN>`, `Content-Type: application/json`
+* **Request Body**:
+```json
+{
+  "bidderId": "BID-007",
+  "query": "Does this bidder meet the minimum annual turnover requirement of INR 10 Crores?"
+}
+```
+* **Response (`200 OK`)**:
+```json
+{
+  "success": true,
+  "message": "Chatbot response generated successfully",
+  "data": {
+    "answer": "Yes, bidder BID-007 satisfies the minimum turnover criteria. As per the uploaded FY2024-25 Financial Audit Statement (Page 3), the verified average annual turnover is INR 14.5 Crores, exceeding the required threshold of INR 10 Crores.",
+    "sources": [
+      {
+        "documentType": "FINANCIAL_STATEMENT",
+        "fileName": "financial_audit_fy2425.pdf",
+        "pageNumber": 3,
+        "matchedSnippet": "Annual Turnover FY2024-25: INR 14,50,00,000"
+      },
+      {
+        "documentType": "TENDER_SPEC",
+        "section": "Clause 4.2 - Financial Eligibility",
+        "matchedSnippet": "Minimum Average Annual Turnover: INR 10,00,00,000"
+      }
+    ],
+    "tenderId": "1",
+    "bidderId": "BID-007",
+    "query": "Does this bidder meet the minimum annual turnover requirement of INR 10 Crores?"
+  }
+}
+```
+
+---
+
+### 6.2 Ask Bidder-Tender Chatbot (General Endpoint)
+General chatbot query accepting both `tenderId` and `bidderId` inside the request payload.
+* **Method**: `POST`
+* **Route**: `/api/officer/tenders/chat`
+* **Headers**: `Authorization: Bearer <OFFICER_JWT_TOKEN>`, `Content-Type: application/json`
+* **Request Body**:
+```json
+{
+  "tenderId": "1",
+  "bidderId": "BID-007",
+  "query": "Provide a complete compliance summary and risk evaluation for this bidder."
+}
+```
+* **Response (`200 OK`)**:
+```json
+{
+  "success": true,
+  "message": "Chatbot response generated successfully",
+  "data": {
+    "answer": "Bidder BID-007 is FULLY COMPLIANT across all 6 statutory pillars. GSTIN is Active with regular filing, net worth exceeds INR 5 Crores, and no tampering or blacklisting flags were detected.",
+    "sources": [
+      { "type": "ML_SUMMARY", "cisScore": 0.94, "forgeryRisk": "LOW" }
+    ],
+    "tenderId": "1",
+    "bidderId": "BID-007",
+    "query": "Provide a complete compliance summary and risk evaluation for this bidder."
+  }
+}
+```
+
+---
+
+### 6.3 Node AI RAG Service Health Check
+* **Method**: `GET`
+* **Route**: `/api/officer/tenders/rag-health`
+* **Response (`200 OK`)**:
+```json
+{
+  "success": true,
+  "message": "Node AI RAG Service health status",
+  "data": {
+    "status": "UP",
+    "service": "node-ai-rag-service",
+    "vectorDatabase": "pgvector (Neon DB)",
+    "embeddingModel": "text-embedding-004",
+    "llmModel": "gemini-1.5-pro"
+  }
+}
+```
+

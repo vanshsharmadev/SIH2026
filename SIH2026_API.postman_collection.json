@@ -1256,6 +1256,102 @@
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "5. Node AI RAG Chatbot & Embeddings",
+			"description": "Node AI RAG Microservice (https://sih2026-86kl.onrender.com) for text chunking, pgvector embeddings, and Gemini-powered Bidder-Tender evaluation chatbot.",
+			"item": [
+				{
+					"name": "5.1 Ask Bidder-Tender Chatbot (Specific Tender)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{officer_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"bidderId\": \"BID-007\",\n  \"query\": \"Does this bidder meet the minimum turnover requirement?\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/{{tender_id}}/chat",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"{{tender_id}}",
+								"chat"
+							]
+						},
+						"description": "Sends officer question to Node AI RAG service; retrieves tender + bidder + ML summary context and generates Gemini response with citations."
+					},
+					"response": []
+				},
+				{
+					"name": "5.2 Ask Bidder-Tender Chatbot (General)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{officer_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tenderId\": \"{{tender_id}}\",\n  \"bidderId\": \"BID-007\",\n  \"query\": \"Provide a comprehensive compliance summary for this bidder.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/chat",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"chat"
+							]
+						},
+						"description": "General Chatbot endpoint accepting tenderId and bidderId in request body."
+					},
+					"response": []
+				},
+				{
+					"name": "5.3 Node AI RAG Service Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/officer/tenders/rag-health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"officer",
+								"tenders",
+								"rag-health"
+							]
+						},
+						"description": "Checks connectivity with live Node AI RAG service at https://sih2026-86kl.onrender.com."
+					},
+					"response": []
+				}
+			]
 		}
 	],
 	"variable": [

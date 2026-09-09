@@ -123,7 +123,53 @@ public class OfficerTenderController {
     }
 
     // ==========================================
-    // 2. GeM ML Microservice v2.0.0 Consolidated Endpoints (13 APIs)
+    // 2. Node AI RAG Chatbot & Embeddings Endpoints
+    // ==========================================
+
+    /**
+     * Ask Bidder-Tender Chatbot (POST /api/officer/tenders/{id}/chat)
+     * Retrieves tender + bidder context and generates response via Gemini LLM.
+     */
+    @PostMapping("/{id}/chat")
+    public ResponseEntity<OfficerApiResponse<com.example.Tender.officer.dto.rag.TenderChatResponse>> askTenderChat(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody com.example.Tender.officer.dto.rag.TenderChatRequest request,
+            @AuthenticationPrincipal OfficerPrincipal principal) {
+
+        request.setTenderId(String.valueOf(id));
+        com.example.Tender.officer.dto.rag.TenderChatResponse response = tenderDocumentService.askTenderChatbot(request, principal);
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("Chatbot response generated successfully", response)
+        );
+    }
+
+    /**
+     * Ask Bidder-Tender Chatbot General Endpoint (POST /api/officer/tenders/chat)
+     */
+    @PostMapping("/chat")
+    public ResponseEntity<OfficerApiResponse<com.example.Tender.officer.dto.rag.TenderChatResponse>> askGeneralChat(
+            @Valid @RequestBody com.example.Tender.officer.dto.rag.TenderChatRequest request,
+            @AuthenticationPrincipal OfficerPrincipal principal) {
+
+        com.example.Tender.officer.dto.rag.TenderChatResponse response = tenderDocumentService.askTenderChatbot(request, principal);
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("Chatbot response generated successfully", response)
+        );
+    }
+
+    /**
+     * Check Node AI RAG Service Health (GET /api/officer/tenders/rag-health or /api/officer/tenders/chat/health)
+     */
+    @GetMapping({"/rag-health", "/chat/health"})
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> getRagHealth() {
+        Map<String, Object> health = tenderDocumentService.getRagHealth();
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("Node AI RAG Service health status", health)
+        );
+    }
+
+    // ==========================================
+    // 3. GeM ML Microservice v2.0.0 Consolidated Endpoints (13 APIs)
     // ==========================================
 
     /**

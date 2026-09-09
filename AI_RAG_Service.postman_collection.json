@@ -1,0 +1,125 @@
+{
+	"info": {
+		"_postman_id": "d93a17e2-5b91-4c18-912a-48bf6a003e19",
+		"name": "AI RAG Service (Node.js & Gemini)",
+		"description": "## AI RAG Service API Contract\n\n**Base URL:** `https://sih2026-86kl.onrender.com`\n\n* **GET `/health`** — Check whether AI service is running.\n* **POST `/api/ai/tender/process`** — Process tender PDF via Cloudinary URL → extract text → chunk → generate embeddings → store in pgvector.\n* **POST `/api/ai/bidder/process`** — Process bidder PDF via Cloudinary URL → extract text → chunk → generate embeddings → store in pgvector.\n* **POST `/api/ai/bidder-tender-chat/ask`** ⭐ — Main chatbot API. Spring Boot sends the officer's question; Node retrieves **tender + bidder + ML summary** context and generates the Gemini response.\n\n### Flow\n`Spring Boot → Node AI Service → RAG (Tender + Bidder + ML Summary) → Gemini → Node → Spring Boot → React`\n\n**Note:** The final qualification/disqualification decision remains with the Procurement Officer.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/health",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"health"
+					]
+				},
+				"description": "Check whether AI service is running."
+			},
+			"response": []
+		},
+		{
+			"name": "2. Process Tender Document (Cloudinary URL)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"tenderId\": \"TND-001\",\n  \"title\": \"Procurement of High-Performance Computing Cluster\",\n  \"pdfUrl\": \"https://res.cloudinary.com/demo/image/upload/v1/tenders/tender.pdf\",\n  \"publicId\": \"tenders/TND-001\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/ai/tender/process",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"ai",
+						"tender",
+						"process"
+					]
+				},
+				"description": "Sends Cloudinary PDF URL. Node service downloads PDF, chunks text, generates embeddings, and stores vectors into pgvector."
+			},
+			"response": []
+		},
+		{
+			"name": "3. Process Bidder Document (Cloudinary URL)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"tenderId\": \"TND-001\",\n  \"bidderId\": \"BID-007\",\n  \"documentId\": \"DOC-001\",\n  \"documentType\": \"GST_CERTIFICATE\",\n  \"pdfUrl\": \"https://res.cloudinary.com/demo/image/upload/v1/bidders/gst-certificate.pdf\",\n  \"publicId\": \"bidders/BID-007/gst-certificate\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/ai/bidder/process",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"ai",
+						"bidder",
+						"process"
+					]
+				},
+				"description": "Sends Cloudinary PDF URL for bidder documents. Node service downloads, chunks, and indexes vectors into pgvector."
+			},
+			"response": []
+		},
+		{
+			"name": "4. Ask Bidder-Tender Chatbot",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"tenderId\": \"TND-001\",\n  \"bidderId\": \"BID-007\",\n  \"query\": \"Does this bidder meet the minimum turnover requirement?\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/ai/bidder-tender-chat/ask",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"ai",
+						"bidder-tender-chat",
+						"ask"
+					]
+				},
+				"description": "Main chatbot API. Node retrieves tender + bidder + ML summary context from pgvector and generates the Gemini response with citations."
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "https://sih2026-86kl.onrender.com",
+			"type": "string"
+		}
+	]
+}
