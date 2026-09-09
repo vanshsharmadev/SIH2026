@@ -1,6 +1,7 @@
 package com.example.Tender.officer.controller;
 
 import com.example.Tender.officer.dto.OfficerApiResponse;
+import com.example.Tender.officer.dto.ml.DocumentProcessResponse;
 import com.example.Tender.officer.dto.ml.TenderComparisonRequest;
 import com.example.Tender.officer.dto.ml.TenderComparisonResponse;
 import com.example.Tender.officer.dto.ml.TenderUploadResponse;
@@ -19,6 +20,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Officer Tender Controller & GeM ML Service v2.0.0 Endpoints
+ * Base URI: /api/officer/tenders
+ */
 @RestController
 @RequestMapping("/api/officer/tenders")
 @RequiredArgsConstructor
@@ -103,7 +108,7 @@ public class OfficerTenderController {
     }
 
     /**
-     * Compare multiple bidder proposals against the requirements of an uploaded tender using ML CIS analysis.
+     * Compare multiple bidder proposals against the requirements of an uploaded tender using ML analysis.
      */
     @PostMapping("/{id}/compare-bidders")
     public ResponseEntity<OfficerApiResponse<TenderComparisonResponse>> compareBidders(
@@ -122,8 +127,69 @@ public class OfficerTenderController {
         );
     }
 
+    // ==========================================
+    // 2. Node AI RAG Chatbot & Embeddings Endpoints
+    // ==========================================
+
     /**
-     * Get list of supported ML document types and compliance weights.
+     * Ask Bidder-Tender Chatbot (POST /api/officer/tenders/{id}/chat)
+     * Retrieves tender + bidder context and generates response via Gemini LLM.
+     */
+    @PostMapping("/{id}/chat")
+    public ResponseEntity<OfficerApiResponse<com.example.Tender.officer.dto.rag.TenderChatResponse>> askTenderChat(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody com.example.Tender.officer.dto.rag.TenderChatRequest request,
+            @AuthenticationPrincipal OfficerPrincipal principal) {
+
+        request.setTenderId(String.valueOf(id));
+        com.example.Tender.officer.dto.rag.TenderChatResponse response = tenderDocumentService.askTenderChatbot(request, principal);
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("Chatbot response generated successfully", response)
+        );
+    }
+
+    /**
+     * Ask Bidder-Tender Chatbot General Endpoint (POST /api/officer/tenders/chat)
+     */
+    @PostMapping("/chat")
+    public ResponseEntity<OfficerApiResponse<com.example.Tender.officer.dto.rag.TenderChatResponse>> askGeneralChat(
+            @Valid @RequestBody com.example.Tender.officer.dto.rag.TenderChatRequest request,
+            @AuthenticationPrincipal OfficerPrincipal principal) {
+
+        com.example.Tender.officer.dto.rag.TenderChatResponse response = tenderDocumentService.askTenderChatbot(request, principal);
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("Chatbot response generated successfully", response)
+        );
+    }
+
+    /**
+     * Check Node AI RAG Service Health (GET /api/officer/tenders/rag-health or /api/officer/tenders/chat/health)
+     */
+    @GetMapping({"/rag-health", "/chat/health"})
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> getRagHealth() {
+        Map<String, Object> health = tenderDocumentService.getRagHealth();
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("Node AI RAG Service health status", health)
+        );
+    }
+
+    // ==========================================
+    // 3. GeM ML Microservice v2.0.0 Consolidated Endpoints (13 APIs)
+    // ==========================================
+
+    /**
+     * Endpoint 2: Unified Health & Statutory Connectivity Check (GET /health)
+     */
+    @GetMapping("/ml-health")
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> getMlHealth() {
+        Map<String, Object> health = tenderDocumentService.getMlHealth();
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("ML Service health status", health)
+        );
+    }
+
+    /**
+     * Endpoint 3: Procurement Document Taxonomy & Compliance Weights (GET /api/ml/document-types)
      */
     @GetMapping("/document-types")
     public ResponseEntity<OfficerApiResponse<Map<String, Object>>> getDocumentTypes() {
@@ -134,159 +200,104 @@ public class OfficerTenderController {
     }
 
     /**
-     * Health check endpoint for ML Service connectivity.
+     * Endpoint 4: Single-File Consolidated Document Intake (POST /api/ml/process-document)
      */
-    @GetMapping("/ml-health")
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> getMlHealth() {
-        Map<String, Object> health = tenderDocumentService.getMlHealth();
-        return ResponseEntity.ok(
-                OfficerApiResponse.success("ML Service health status", health)
-        );
+    @PostMapping(value = "/ml/process-document", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<OfficerApiResponse<DocumentProcessResponse>> processDocument(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "document_type", required = false) String documentType,
+            @RequestParam(value = "full_analysis", required = false, defaultValue = "true") boolean fullAnalysis) {
+
+        DocumentProcessResponse result = tenderDocumentService.processDocument(file, documentType, fullAnalysis);
+        return ResponseEntity.ok(OfficerApiResponse.success("Document processed successfully", result));
     }
 
-    // ==========================================
-    // 2. Specialized ML Endpoints
-    // ==========================================
+    /**
+     * Endpoint 5: Master Autonomous Tender Audit - JSON Intake (POST /api/ml/automate-all)
+     */
+    @PostMapping("/ml/automate-all")
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> automateAll(@RequestBody Map<String, Object> req) {
+        Map<String, Object> result = tenderDocumentService.automateAll(req);
+        return ResponseEntity.ok(OfficerApiResponse.success("Master autonomous audit complete", result));
+    }
 
     /**
-     * Group A: Verify Document Authenticity (pyHanko digital signature, pyzbar QR, OpenCV visual stamp).
+     * Endpoint 6: Master Multipart Batch File Upload Autonomous Audit (POST /api/ml/automate-all-files)
+     */
+    @PostMapping(value = "/ml/automate-all-files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> automateAllFiles(
+            @RequestParam("files") List<MultipartFile> files,
+            @RequestParam(value = "tender_file", required = false) MultipartFile tenderFile,
+            @RequestParam(value = "is_msme", required = false, defaultValue = "false") Boolean isMsme,
+            @RequestParam(value = "is_startup", required = false, defaultValue = "false") Boolean isStartup) {
+
+        Map<String, Object> result = tenderDocumentService.automateAllFiles(files, tenderFile, isMsme, isStartup);
+        return ResponseEntity.ok(OfficerApiResponse.success("Batch file audit complete", result));
+    }
+
+    /**
+     * Endpoint 7: Consolidated Single-GET Comprehensive Dossier & RAG Synthesis (GET /api/ml/overall-summary)
+     */
+    @GetMapping("/ml/overall-summary")
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> getOverallSummary(
+            @RequestParam(value = "bid_id", required = false) String bidId,
+            @RequestParam(value = "identifier", required = false) String identifier,
+            @RequestParam(value = "tender_type", required = false, defaultValue = "goods") String tenderType,
+            @RequestParam(value = "use_live_portal", required = false, defaultValue = "false") Boolean useLivePortal,
+            @RequestParam(value = "include_rag_context", required = false, defaultValue = "true") Boolean includeRagContext) {
+
+        Map<String, Object> result = tenderDocumentService.getOverallSummary(bidId, identifier, tenderType, useLivePortal, includeRagContext);
+        return ResponseEntity.ok(OfficerApiResponse.success("Overall summary dossier retrieved", result));
+    }
+
+    /**
+     * Endpoint 8: Unified Forensic Verification & Anti-Tampering - File Mode (POST /api/ml/verify-document)
      */
     @PostMapping(value = "/ml/verify-document", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> verifyDocument(
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> verifyDocumentFile(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "doc_type", required = false, defaultValue = "generic") String docType,
             @RequestParam(value = "ocr_text", required = false) String ocrText,
             @RequestParam(value = "auto_ocr", required = false, defaultValue = "true") boolean autoOcr) {
 
-        Map<String, Object> result = tenderDocumentService.verifyDocument(file, docType, ocrText, autoOcr);
-        return ResponseEntity.ok(OfficerApiResponse.success("Document verified successfully", result));
+        Map<String, Object> result = tenderDocumentService.verifyDocumentFile(file, docType, ocrText, autoOcr);
+        return ResponseEntity.ok(OfficerApiResponse.success("Document forensic verification complete", result));
     }
 
     /**
-     * Group A: Verify Raw QR Payload against document type and OCR text.
+     * Endpoint 8: Unified Forensic Verification & Anti-Tampering - JSON Mode (POST /api/ml/verify-document)
      */
-    @PostMapping("/ml/verify-qr-payload")
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> verifyQrPayload(@RequestBody Map<String, Object> req) {
-        String payload = String.valueOf(req.get("payload"));
-        String documentType = req.get("document_type") != null ? String.valueOf(req.get("document_type")) : "generic";
-        String ocrText = req.get("ocr_text") != null ? String.valueOf(req.get("ocr_text")) : null;
-
-        Map<String, Object> result = tenderDocumentService.verifyQrPayload(payload, documentType, ocrText);
-        return ResponseEntity.ok(OfficerApiResponse.success("QR payload verified", result));
+    @PostMapping(value = "/ml/verify-document", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> verifyDocumentJson(@RequestBody Map<String, Object> req) {
+        Map<String, Object> result = tenderDocumentService.verifyDocumentJson(req);
+        return ResponseEntity.ok(OfficerApiResponse.success("Document tampering check complete", result));
     }
 
     /**
-     * Group B: Automated OCR Scan with Barcode Trigger.
-     */
-    @PostMapping(value = "/ml/ocr-scan-with-barcode", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> ocrScanWithBarcode(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "doc_type", required = false, defaultValue = "auto") String docType,
-            @RequestParam(value = "preprocess", required = false, defaultValue = "true") boolean preprocess,
-            @RequestParam(value = "auto_scan_barcode", required = false, defaultValue = "true") boolean autoScanBarcode) {
-
-        Map<String, Object> result = tenderDocumentService.ocrScanWithBarcode(file, docType, preprocess, autoScanBarcode);
-        return ResponseEntity.ok(OfficerApiResponse.success("OCR and barcode scan complete", result));
-    }
-
-    /**
-     * Group B: Extract Raw Text from file.
-     */
-    @PostMapping(value = "/ml/extract-text", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> extractText(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "document_type", required = false) String documentType,
-            @RequestParam(value = "preprocess", required = false, defaultValue = "true") boolean preprocess) {
-
-        Map<String, Object> result = tenderDocumentService.extractText(file, documentType, preprocess);
-        return ResponseEntity.ok(OfficerApiResponse.success("Text extracted successfully", result));
-    }
-
-    /**
-     * Group B: Extract Structured Layout (tables, form fields, grids).
-     */
-    @PostMapping(value = "/ml/extract-structured", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> extractStructured(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "document_type", required = false) String documentType) {
-
-        Map<String, Object> result = tenderDocumentService.extractStructured(file, documentType);
-        return ResponseEntity.ok(OfficerApiResponse.success("Structured layout extracted", result));
-    }
-
-    /**
-     * Group C: End-to-End Taxpayer Scanning & Live GST Validation.
-     */
-    @PostMapping(value = "/ml/scan-and-verify-taxpayer", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> scanAndVerifyTaxpayer(
-            @RequestParam(value = "file", required = false) MultipartFile file,
-            @RequestParam(value = "text", required = false) String text,
-            @RequestParam(value = "preprocess", required = false, defaultValue = "true") boolean preprocess,
-            @RequestParam(value = "use_live_portal", required = false, defaultValue = "false") boolean useLivePortal) {
-
-        Map<String, Object> result = tenderDocumentService.scanAndVerifyTaxpayer(file, text, preprocess, useLivePortal);
-        return ResponseEntity.ok(OfficerApiResponse.success("Taxpayer scan and validation complete", result));
-    }
-
-    /**
-     * Group C: Scan Taxpayer from Plain Text JSON payload.
-     */
-    @PostMapping("/ml/scan-taxpayer-text")
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> scanTaxpayerText(@RequestBody Map<String, Object> req) {
-        String text = String.valueOf(req.get("text"));
-        boolean useLivePortal = req.containsKey("use_live_portal") && Boolean.parseBoolean(String.valueOf(req.get("use_live_portal")));
-
-        Map<String, Object> result = tenderDocumentService.scanTaxpayerText(text, useLivePortal);
-        return ResponseEntity.ok(OfficerApiResponse.success("Taxpayer text scan complete", result));
-    }
-
-    /**
-     * Group C: Verify Specific Taxpayer Identifier (GSTIN, PAN, or UIN).
+     * Endpoint 9: Unified Statutory Taxpayer Verification - GSTIN, PAN, UIN (POST /api/ml/verify-taxpayer)
      */
     @PostMapping("/ml/verify-taxpayer")
     public ResponseEntity<OfficerApiResponse<Map<String, Object>>> verifyTaxpayer(@RequestBody Map<String, Object> req) {
         String identifier = String.valueOf(req.get("identifier"));
         String identifierType = req.get("identifier_type") != null ? String.valueOf(req.get("identifier_type")) : "auto";
         String stateCode = req.get("state_code") != null ? String.valueOf(req.get("state_code")) : null;
+        Boolean useLivePortal = req.get("use_live_portal") != null ? Boolean.parseBoolean(String.valueOf(req.get("use_live_portal"))) : false;
 
-        Map<String, Object> result = tenderDocumentService.verifyTaxpayer(identifier, identifierType, stateCode);
-        return ResponseEntity.ok(OfficerApiResponse.success("Taxpayer verified", result));
+        Map<String, Object> result = tenderDocumentService.verifyTaxpayer(identifier, identifierType, stateCode, useLivePortal);
+        return ResponseEntity.ok(OfficerApiResponse.success("Taxpayer verified successfully", result));
     }
 
     /**
-     * Group C: GST Portal Connectivity Status.
+     * Endpoint 10: Dynamic Tender Requirements Parsing & 6-Pillar Checklist (POST /api/ml/tender-requirements)
      */
-    @GetMapping("/ml/gst-portal-status")
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> getGstPortalStatus() {
-        Map<String, Object> status = tenderDocumentService.getGstPortalStatus();
-        return ResponseEntity.ok(OfficerApiResponse.success("GST Portal status", status));
+    @PostMapping("/ml/tender-requirements")
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> getTenderRequirements(@RequestBody Map<String, Object> req) {
+        Map<String, Object> result = tenderDocumentService.getTenderRequirements(req);
+        return ResponseEntity.ok(OfficerApiResponse.success("Tender requirements parsed", result));
     }
 
     /**
-     * Group C: Compliance Errors & Calibrated Penalty Catalog.
-     */
-    @GetMapping("/ml/compliance-errors-catalog")
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> getComplianceErrorsCatalog() {
-        Map<String, Object> catalog = tenderDocumentService.getComplianceErrorsCatalog();
-        return ResponseEntity.ok(OfficerApiResponse.success("Compliance errors catalog", catalog));
-    }
-
-    /**
-     * Group D: Calculate Composite Compliance Index (CIS).
-     */
-    @PostMapping("/ml/calculate-cis")
-    @SuppressWarnings("unchecked")
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> calculateCis(@RequestBody Map<String, Object> req) {
-        Map<String, Object> documents = (Map<String, Object>) req.get("documents");
-        Map<String, Object> tenderRequirements = (Map<String, Object>) req.get("tender_requirements");
-        Map<String, Object> bidderInfo = (Map<String, Object>) req.get("bidder_info");
-
-        Map<String, Object> result = tenderDocumentService.calculateCis(documents, tenderRequirements, bidderInfo);
-        return ResponseEntity.ok(OfficerApiResponse.success("CIS calculated successfully", result));
-    }
-
-    /**
-     * Group D: Process Clearance Decision (Single-Click vs Conditional Review).
+     * Endpoint 11: Procurement Clearance Decision Engine (POST /api/ml/process-clearance)
      */
     @PostMapping("/ml/process-clearance")
     public ResponseEntity<OfficerApiResponse<Map<String, Object>>> processClearance(
@@ -298,54 +309,20 @@ public class OfficerTenderController {
     }
 
     /**
-     * Group D: Execute Single-Click Clearance.
+     * Endpoint 12: Direct ML Compliance Verdict & Score Predictor (POST /api/ml/compliance/predict)
      */
-    @PostMapping("/ml/execute-single-click-clearance")
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> executeSingleClickClearance(@RequestBody Map<String, Object> req) {
-        String clearanceId = String.valueOf(req.get("clearance_id"));
-        String officerId = req.get("officer_id") != null ? String.valueOf(req.get("officer_id")) : null;
-        String justification = req.get("justification") != null ? String.valueOf(req.get("justification")) : null;
-
-        Map<String, Object> result = tenderDocumentService.executeSingleClickClearance(clearanceId, officerId, justification);
-        return ResponseEntity.ok(OfficerApiResponse.success("Single-click clearance executed", result));
+    @PostMapping("/ml/compliance-predict")
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> predictComplianceVerdict(@RequestBody Map<String, Object> req) {
+        Map<String, Object> result = tenderDocumentService.predictComplianceVerdict(req);
+        return ResponseEntity.ok(OfficerApiResponse.success("Compliance prediction completed", result));
     }
 
     /**
-     * Group D: Clearance Statistics.
+     * Endpoint 13: Unified Machine Learning Retraining Pipeline (POST /api/ml/train/all)
      */
-    @GetMapping("/ml/clearance-statistics")
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> getClearanceStatistics() {
-        Map<String, Object> stats = tenderDocumentService.getClearanceStatistics();
-        return ResponseEntity.ok(OfficerApiResponse.success("Clearance statistics", stats));
-    }
-
-    /**
-     * Group D: CIS Weight Distribution System.
-     */
-    @GetMapping("/ml/cis-weights")
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> getCisWeights() {
-        Map<String, Object> weights = tenderDocumentService.getCisWeights();
-        return ResponseEntity.ok(OfficerApiResponse.success("CIS weights retrieved", weights));
-    }
-
-    /**
-     * Group E: Extract Named Entities from text.
-     */
-    @PostMapping("/ml/extract-entities")
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> extractEntities(@RequestBody Map<String, Object> req) {
-        String text = String.valueOf(req.get("text"));
-        String documentType = req.get("document_type") != null ? String.valueOf(req.get("document_type")) : null;
-
-        Map<String, Object> result = tenderDocumentService.extractEntities(text, documentType);
-        return ResponseEntity.ok(OfficerApiResponse.success("Entities extracted successfully", result));
-    }
-
-    /**
-     * Group E: Classify Document Type.
-     */
-    @PostMapping(value = "/ml/classify-document", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> classifyDocument(@RequestParam("file") MultipartFile file) {
-        Map<String, Object> result = tenderDocumentService.classifyDocument(file);
-        return ResponseEntity.ok(OfficerApiResponse.success("Document classified successfully", result));
+    @PostMapping("/ml/train-all")
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> trainAllModels(@RequestBody(required = false) Map<String, Object> req) {
+        Map<String, Object> result = tenderDocumentService.trainAllModels(req);
+        return ResponseEntity.ok(OfficerApiResponse.success("ML model retraining triggered", result));
     }
 }

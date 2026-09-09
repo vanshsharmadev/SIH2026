@@ -1,0 +1,258 @@
+{
+  "service": "GeM ML Microservice",
+  "version": "2.0.0",
+  "baseUrls": {
+    "directMlProduction": "http://20.40.44.184",
+    "directMlLocal": "http://localhost:8000",
+    "springBootGateway": "http://localhost:8080/api/officer/tenders",
+    "springBootProduction": "https://sih2026-83r4.onrender.com/api/officer/tenders"
+  },
+  "interactiveInterfaces": {
+    "swaggerUi": "http://20.40.44.184/docs",
+    "redoc": "http://20.40.44.184/redoc",
+    "webDashboard": "http://20.40.44.184/ui"
+  },
+  "totalConsolidatedEndpoints": 13,
+  "endpoints": [
+    {
+      "id": 1,
+      "name": "Interactive Swagger UI & Web Dashboard",
+      "method": "GET",
+      "routes": {
+        "directMl": "/docs",
+        "webUi": "/ui"
+      },
+      "description": "Interactive visual dashboard and OpenAPI explorer with live document processing."
+    },
+    {
+      "id": 2,
+      "name": "Unified Health & Statutory Connectivity Check",
+      "method": "GET",
+      "routes": {
+        "directMl": "/health",
+        "springBootGateway": "/api/officer/tenders/ml-health"
+      },
+      "description": "Returns operational health of the microservice and latency checks against Government GST Portal.",
+      "responses": {
+        "200_OK": {
+          "status": "HEALTHY",
+          "version": "2.0.0",
+          "service": "gem-ml-service",
+          "statutory_connectivity": {
+            "gstn_portal": "CONNECTED",
+            "income_tax_portal": "CONNECTED"
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "name": "Procurement Document Taxonomy & Compliance Weights",
+      "method": "GET",
+      "routes": {
+        "directMl": "/api/ml/document-types",
+        "springBootGateway": "/api/officer/tenders/document-types"
+      },
+      "description": "Retrieves supported procurement document types, field extraction schemas, and compliance scoring weights.",
+      "responses": {
+        "200_OK": {
+          "document_types": [
+            "gst_certificate",
+            "pan_card",
+            "financial_statement",
+            "income_tax_return",
+            "tender_document",
+            "past_experience",
+            "msme_certificate",
+            "affidavit_declaration",
+            "power_of_attorney"
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "Single-File Consolidated Intake (OCR + Classification + Verification)",
+      "method": "POST",
+      "contentType": "multipart/form-data",
+      "routes": {
+        "directMl": "/api/ml/process-document",
+        "springBootGateway": "/api/officer/tenders/ml/process-document"
+      },
+      "formFields": {
+        "file": { "type": "Binary / MultipartFile", "required": true },
+        "document_type": { "type": "String", "required": false, "example": "gst_certificate" },
+        "full_analysis": { "type": "Boolean", "required": false, "default": true }
+      },
+      "description": "Performs OCR text extraction, document classification, statutory entity extraction, QR code decoding, pyHanko signature validation, and OpenCV stamp tampering check."
+    },
+    {
+      "id": 5,
+      "name": "Master Autonomous Tender Audit (JSON Intake)",
+      "method": "POST",
+      "contentType": "application/json",
+      "routes": {
+        "directMl": "/api/ml/automate-all",
+        "springBootGateway": "/api/officer/tenders/ml/automate-all"
+      },
+      "requestBody": {
+        "bidder_id": "BID-2026-001",
+        "gstin": "07AAAAA0000A1Z5",
+        "pan": "AAAAA0000A",
+        "tender_id": "GEM/2026/B/987654",
+        "documents": [
+          {
+            "doc_type": "gst_certificate",
+            "ocr_text": "GSTIN: 07AAAAA0000A1Z5 Legal Name: ABC INFRA TECH LIMITED"
+          },
+          {
+            "doc_type": "financial_statement",
+            "ocr_text": "Annual Turnover FY2024-25: INR 45,00,00,000 Net Worth: INR 18,00,00,000"
+          }
+        ],
+        "tender_requirements": {
+          "min_turnover": 100000000,
+          "min_experience_years": 3,
+          "mandatory_docs": ["gst_certificate", "financial_statement", "pan_card"]
+        }
+      },
+      "description": "Executes complete audit pipeline: forensic verification, statutory registry check, 6-pillar compliance scoring, and clear/reject verdict."
+    },
+    {
+      "id": 6,
+      "name": "Master Multipart Batch File Upload Autonomous Audit",
+      "method": "POST",
+      "contentType": "multipart/form-data",
+      "routes": {
+        "directMl": "/api/ml/automate-all-files",
+        "springBootGateway": "/api/officer/tenders/ml/automate-all-files"
+      },
+      "formFields": {
+        "files": { "type": "Array of Binary Files", "required": true },
+        "tender_file": { "type": "Binary File (Tender NIT)", "required": false },
+        "is_msme": { "type": "Boolean", "default": false },
+        "is_startup": { "type": "Boolean", "default": false }
+      },
+      "description": "Classifies all uploaded PDFs, cross-verifies statutory registries, parses tender requirements, and computes composite CIS ranking."
+    },
+    {
+      "id": 7,
+      "name": "Consolidated Comprehensive Dossier & RAG Synthesis",
+      "method": "GET",
+      "routes": {
+        "directMl": "/api/ml/overall-summary",
+        "springBootGateway": "/api/officer/tenders/ml/overall-summary"
+      },
+      "queryParams": {
+        "identifier": { "type": "String", "required": false, "example": "07AAAAA0000A1Z5" },
+        "bid_id": { "type": "String", "required": false, "example": "BID-2026-001" },
+        "tender_type": { "type": "String", "default": "goods" },
+        "use_live_portal": { "type": "Boolean", "default": false },
+        "include_rag_context": { "type": "Boolean", "default": true }
+      },
+      "description": "Single-GET endpoint returning unified 360-degree bidder dossier, statutory risk indicators, GFR compliance report, and RAG knowledge retrieval context."
+    },
+    {
+      "id": 8,
+      "name": "Unified Forensic Verification & Anti-Tampering",
+      "method": "POST",
+      "contentType": "multipart/form-data OR application/json",
+      "routes": {
+        "directMl": "/api/ml/verify-document",
+        "springBootGateway": "/api/officer/tenders/ml/verify-document"
+      },
+      "description": "Multi-layer forgery detection: ELA analysis, pyHanko digital signature validation, QR code payload validation, and OpenCV official stamp verification."
+    },
+    {
+      "id": 9,
+      "name": "Unified Statutory Taxpayer Verification (GSTIN, PAN, UIN)",
+      "method": "POST",
+      "contentType": "application/json",
+      "routes": {
+        "directMl": "/api/ml/verify-taxpayer",
+        "springBootGateway": "/api/officer/tenders/ml/verify-taxpayer"
+      },
+      "requestBody": {
+        "identifier": "07AAAAA0000A1Z5",
+        "identifier_type": "gstin",
+        "use_live_portal": false
+      },
+      "description": "Statutory taxpayer validation checking checksum algorithms, active status, filing track record, and risk flag computation."
+    },
+    {
+      "id": 10,
+      "name": "Dynamic Tender Requirements & Checklist",
+      "method": "POST",
+      "contentType": "application/json",
+      "routes": {
+        "directMl": "/api/ml/tender-requirements",
+        "springBootGateway": "/api/officer/tenders/ml/tender-requirements"
+      },
+      "requestBody": {
+        "tender_text": "Tender GEM/2026/B/987654 requires minimum annual turnover of INR 10 Crores and 3 years experience. Mandatory docs: GST Certificate, PAN Card, Financial Audit Report.",
+        "tender_type": "goods",
+        "estimated_value": 150000000
+      },
+      "description": "Parses NIT and BQC clauses with GFR 173(i) MSME waivers and 6-pillar cover checklist."
+    },
+    {
+      "id": 11,
+      "name": "Procurement Clearance Decision Engine",
+      "method": "POST",
+      "contentType": "application/json",
+      "routes": {
+        "directMl": "/api/ml/process-clearance",
+        "springBootGateway": "/api/officer/tenders/ml/process-clearance"
+      },
+      "requestBody": {
+        "bidder_id": "BID-2026-001",
+        "composite_cis_score": 92.4,
+        "forensic_authenticity_score": 96.0,
+        "taxpayer_verification": {
+          "status": "ACTIVE",
+          "filing_compliance": 100.0
+        },
+        "tender_requirements": {
+          "min_cis_score": 75.0
+        }
+      },
+      "description": "Automated final procurement verdict (CLEARED, CONDITIONALLY_CLEARED, REJECTED, ESCALATED_FOR_MANUAL_AUDIT) with immutable audit hash."
+    },
+    {
+      "id": 12,
+      "name": "Direct ML Compliance Verdict & Score Predictor",
+      "method": "POST",
+      "contentType": "application/json",
+      "routes": {
+        "directMl": "/api/ml/compliance/predict",
+        "springBootGateway": "/api/officer/tenders/ml/compliance-predict"
+      },
+      "requestBody": {
+        "features": {
+          "document_completeness": 1.0,
+          "tax_compliance_rate": 0.98,
+          "experience_ratio": 1.2,
+          "turnover_ratio": 1.5,
+          "authenticity_score": 0.95,
+          "tamper_risk": 0.02
+        }
+      },
+      "description": "Direct inference using trained AutomatedComplianceScorer (Random Forest Classifier + Regressor)."
+    },
+    {
+      "id": 13,
+      "name": "Unified Machine Learning Retraining Pipeline",
+      "method": "POST",
+      "contentType": "application/json",
+      "routes": {
+        "directMl": "/api/ml/train/all",
+        "springBootGateway": "/api/officer/tenders/ml/train-all"
+      },
+      "requestBody": {
+        "retrain_models": ["classification", "compliance_predictor"],
+        "epochs": 50
+      },
+      "description": "Retrains Document Classifier, Forgery Detector, and Compliance Scorer with hot reloading."
+    }
+  ]
+}
