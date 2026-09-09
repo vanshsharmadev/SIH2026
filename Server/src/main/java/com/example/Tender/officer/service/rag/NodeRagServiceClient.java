@@ -65,10 +65,14 @@ public class NodeRagServiceClient {
     /**
      * Process Tender PDF into text chunks & generate pgvector embeddings (POST /api/ai/tender/process)
      */
-    public Map<String, Object> processTender(String tenderId) {
+    public Map<String, Object> processTender(String tenderId, String title, String pdfUrl, String publicId) {
         try {
-            log.info("Sending tenderId='{}' to Node AI RAG service for chunking & embeddings", tenderId);
-            Map<String, Object> payload = Map.of("tenderId", tenderId);
+            log.info("Sending tenderId='{}' to Node AI RAG service (pdfUrl={}, publicId={})", tenderId, pdfUrl, publicId);
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("tenderId", tenderId);
+            if (title != null) payload.put("title", title);
+            if (pdfUrl != null) payload.put("pdfUrl", pdfUrl);
+            if (publicId != null) payload.put("publicId", publicId);
 
             return restClient.post()
                     .uri("/api/ai/tender/process")
@@ -86,19 +90,25 @@ public class NodeRagServiceClient {
         }
     }
 
+    public Map<String, Object> processTender(String tenderId) {
+        return processTender(tenderId, null, null, null);
+    }
+
     /**
      * Process Bidder PDF into text chunks & generate pgvector embeddings (POST /api/ai/bidder/process)
      */
-    public Map<String, Object> processBidderDocument(String tenderId, String bidderId, String documentId, String documentType) {
+    public Map<String, Object> processBidderDocument(String tenderId, String bidderId, String documentId, String documentType, String pdfUrl, String publicId) {
         try {
-            log.info("Sending bidder doc to Node AI RAG: tenderId='{}', bidderId='{}', docId='{}', type='{}'",
-                    tenderId, bidderId, documentId, documentType);
+            log.info("Sending bidder doc to Node AI RAG: tenderId='{}', bidderId='{}', docId='{}', type='{}', pdfUrl={}",
+                    tenderId, bidderId, documentId, documentType, pdfUrl);
 
             Map<String, Object> payload = new HashMap<>();
             payload.put("tenderId", tenderId);
             payload.put("bidderId", bidderId);
             payload.put("documentId", documentId);
             payload.put("documentType", documentType != null ? documentType : "OTHER");
+            if (pdfUrl != null) payload.put("pdfUrl", pdfUrl);
+            if (publicId != null) payload.put("publicId", publicId);
 
             return restClient.post()
                     .uri("/api/ai/bidder/process")
@@ -115,6 +125,10 @@ public class NodeRagServiceClient {
                     "error", e.getMessage()
             );
         }
+    }
+
+    public Map<String, Object> processBidderDocument(String tenderId, String bidderId, String documentId, String documentType) {
+        return processBidderDocument(tenderId, bidderId, documentId, documentType, null, null);
     }
 
     /**

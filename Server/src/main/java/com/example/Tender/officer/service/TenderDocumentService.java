@@ -123,10 +123,14 @@ public class TenderDocumentService {
             }
         }, documentProcessingExecutor);
 
+        final String pdfUrl = cloudinaryResult != null ? cloudinaryResult.getSecureUrl() : null;
+        final String publicId = cloudinaryResult != null ? cloudinaryResult.getPublicId() : null;
+        final String tenderTitle = title;
+
         CompletableFuture<Map<String, Object>> ragFuture = CompletableFuture.supplyAsync(() -> {
-            log.info("[Thread B] Dispatching tenderId={} to Node AI RAG Service (pgvector embeddings)...", tenderId);
+            log.info("[Thread B] Dispatching tenderId={} (pdfUrl={}) to Node AI RAG Service...", tenderId, pdfUrl);
             try {
-                return nodeRagServiceClient.processTender(String.valueOf(tenderId));
+                return nodeRagServiceClient.processTender(String.valueOf(tenderId), tenderTitle, pdfUrl, publicId);
             } catch (Exception e) {
                 log.error("[Thread B] Node AI RAG vectorization failed for tenderId={}: {}", tenderId, e.getMessage());
                 return Map.of("status", "ERROR", "error", e.getMessage());

@@ -1,29 +1,17 @@
 {
-  "service": "Node AI RAG Service & Gemini Chatbot",
-  "version": "1.0.0",
-  "baseUrls": {
-    "directNodeRagService": "https://sih2026-86kl.onrender.com",
-    "springBootGatewayLocal": "http://localhost:8080/api/officer/tenders",
-    "springBootGatewayProduction": "https://sih2026-83r4.onrender.com/api/officer/tenders"
-  },
-  "architectureStack": {
-    "runtime": "Node.js / Express",
-    "vectorDatabase": "PostgreSQL with pgvector extension (Neon DB / Supabase)",
-    "embeddingsModel": "Google Gemini text-embedding-004 (768 dimensions)",
-    "reasoningModel": "Google Gemini 1.5 Pro / Flash with multi-doc retrieval",
-    "pipelineIntegration": "Spring Boot CompletableFuture parallel ingestion pipeline"
-  },
+  "service": "AI RAG Service (Node.js & Gemini)",
+  "version": "1.1.0",
+  "baseUrl": "https://sih2026-86kl.onrender.com",
+  "architectureFlow": "Spring Boot (Cloudinary Upload) -> Node AI Service (Download & Chunk) -> RAG (Tender + Bidder + ML Summary) -> Gemini LLM -> Node -> Spring Boot -> React",
+  "note": "The final qualification/disqualification decision remains with the Procurement Officer.",
   "endpoints": [
     {
       "id": 1,
       "name": "Health Check",
       "method": "GET",
-      "routes": {
-        "directRag": "https://sih2026-86kl.onrender.com/health",
-        "springBootGateway": "http://localhost:8080/api/officer/tenders/rag-health"
-      },
-      "authentication": "Public (PermitAll)",
-      "description": "Checks the operational status of the Node AI RAG service, database connectivity, and vector extension.",
+      "route": "/health",
+      "fullUrl": "https://sih2026-86kl.onrender.com/health",
+      "description": "Check whether AI RAG service is running.",
       "request": {
         "headers": {},
         "body": null
@@ -39,19 +27,20 @@
     },
     {
       "id": 2,
-      "name": "Process Tender Document (Chunking & Embeddings)",
+      "name": "Process Tender Document",
       "method": "POST",
-      "routes": {
-        "directRag": "https://sih2026-86kl.onrender.com/api/ai/tender/process"
-      },
-      "authentication": "Internal / Pipeline",
-      "description": "Extracts text from Tender PDF specification, splits into semantically coherent chunks, generates 768-dim embeddings via Gemini, and indexes them into PostgreSQL pgvector table.",
+      "route": "/api/ai/tender/process",
+      "fullUrl": "https://sih2026-86kl.onrender.com/api/ai/tender/process",
+      "description": "Node server downloads PDF from Cloudinary URL -> saves to upload/ -> parses text -> chunks -> generates Gemini embeddings -> stores dense vectors in pgvector.",
       "request": {
         "headers": {
           "Content-Type": "application/json"
         },
         "body": {
-          "tenderId": "TND-001"
+          "tenderId": "TND-001",
+          "title": "Tender Title",
+          "pdfUrl": "https://res.cloudinary.com/demo/image/upload/v1/tenders/tender.pdf",
+          "publicId": "tenders/TND-001"
         }
       },
       "responses": {
@@ -60,19 +49,17 @@
           "tenderId": "TND-001",
           "totalChunksCreated": 42,
           "embeddingDimensions": 768,
-          "message": "Tender document vectorized and indexed successfully into pgvector."
+          "message": "Tender document processed, vectorized, and indexed successfully."
         }
       }
     },
     {
       "id": 3,
-      "name": "Process Bidder Document (Chunking & Embeddings)",
+      "name": "Process Bidder Document",
       "method": "POST",
-      "routes": {
-        "directRag": "https://sih2026-86kl.onrender.com/api/ai/bidder/process"
-      },
-      "authentication": "Internal / Pipeline",
-      "description": "Parses bidder submission documents (e.g. GST Certificate, Audited Balance Sheet, Work Experience), generates dense embeddings, and stores them in pgvector tagged with bidderId and documentType.",
+      "route": "/api/ai/bidder/process",
+      "fullUrl": "https://sih2026-86kl.onrender.com/api/ai/bidder/process",
+      "description": "Node server downloads bidder document from Cloudinary URL -> parses text -> chunks -> generates Gemini embeddings -> stores in pgvector tagged with bidderId and documentType.",
       "request": {
         "headers": {
           "Content-Type": "application/json"
@@ -81,7 +68,9 @@
           "tenderId": "TND-001",
           "bidderId": "BID-007",
           "documentId": "DOC-001",
-          "documentType": "GST_CERTIFICATE"
+          "documentType": "GST_CERTIFICATE",
+          "pdfUrl": "https://res.cloudinary.com/demo/image/upload/v1/bidders/gst-certificate.pdf",
+          "publicId": "bidders/BID-007/gst-certificate"
         }
       },
       "responses": {
@@ -92,19 +81,17 @@
           "documentId": "DOC-001",
           "documentType": "GST_CERTIFICATE",
           "totalChunksCreated": 8,
-          "message": "Bidder document vectorized successfully."
+          "message": "Bidder document processed and vectorized successfully."
         }
       }
     },
     {
       "id": 4,
-      "name": "Ask Bidder-Tender Chatbot (Direct Node RAG)",
+      "name": "Ask Bidder-Tender Chatbot",
       "method": "POST",
-      "routes": {
-        "directRag": "https://sih2026-86kl.onrender.com/api/ai/bidder-tender-chat/ask"
-      },
-      "authentication": "API / Internal",
-      "description": "Executes semantic similarity vector search across both Tender specifications and Bidder submissions, retrieves the top matching chunks + ML statutory summary, constructs a prompt with citations, and generates Gemini LLM evaluation.",
+      "route": "/api/ai/bidder-tender-chat/ask",
+      "fullUrl": "https://sih2026-86kl.onrender.com/api/ai/bidder-tender-chat/ask",
+      "description": "Main Chatbot API. Node retrieves Tender + Bidder + ML summary context from pgvector and generates grounded Gemini evaluation response with source citations.",
       "request": {
         "headers": {
           "Content-Type": "application/json"
@@ -112,67 +99,26 @@
         "body": {
           "tenderId": "TND-001",
           "bidderId": "BID-007",
-          "query": "Does this bidder meet the minimum turnover requirement of INR 10 Crores and what are the financial risks?"
+          "query": "Does this bidder meet the minimum turnover requirement?"
         }
       },
       "responses": {
         "200_OK": {
-          "status": "SUCCESS",
-          "tenderId": "TND-001",
-          "bidderId": "BID-007",
-          "answer": "Based on Section 4.2 of the Tender document (TND-001), the minimum required annual turnover is INR 10.0 Crores for the last 3 fiscal years. According to the audited financial statement submitted by Bidder BID-007, their average turnover is INR 14.2 Crores (FY23: 12.5 Cr, FY24: 14.8 Cr, FY25: 15.3 Cr). Therefore, the bidder COMPLIES with the financial eligibility criterion.",
-          "sources": [
-            {
-              "documentType": "TENDER_SPEC",
-              "page": 14,
-              "similarityScore": 0.892,
-              "textSnippet": "Clause 4.2: The bidder must have an average annual financial turnover of at least INR 10 Crores..."
-            },
-            {
-              "documentType": "BALANCE_SHEET",
-              "page": 3,
-              "similarityScore": 0.915,
-              "textSnippet": "Total revenue from operations for FY 2024-25 stands at INR 15,30,00,000..."
+          "success": true,
+          "data": {
+            "answer": "Based on Section 4.2 of the Tender document (TND-001), the minimum required annual turnover is INR 10.0 Crores for the last 3 fiscal years. According to the audited financial statement submitted by Bidder BID-007, their average turnover is INR 14.2 Crores. Therefore, the bidder COMPLIES with the financial eligibility criterion.",
+            "sources": {
+              "tender": [
+                "Clause 4.2: The bidder must have an average annual financial turnover of at least INR 10 Crores..."
+              ],
+              "bidder": [
+                "Total revenue from operations for FY 2024-25 stands at INR 15,30,00,000..."
+              ],
+              "summary": [
+                "GST active: YES, MSME registered: YES"
+              ]
             }
-          ]
-        }
-      }
-    },
-    {
-      "id": 5,
-      "name": "Ask Bidder-Tender Chatbot (Spring Boot Gateway Proxy)",
-      "method": "POST",
-      "routes": {
-        "springBootGateway": "http://localhost:8080/api/officer/tenders/chat",
-        "springBootGatewayByTenderId": "http://localhost:8080/api/officer/tenders/{tenderId}/chat"
-      },
-      "authentication": "Bearer Officer JWT Token (Officer Role)",
-      "description": "Recommended production endpoint used by Frontend. Spring Boot verifies officer authentication, handles tender validation, proxies the question to the Node AI RAG service, and returns structured evaluation results.",
-      "request": {
-        "headers": {
-          "Authorization": "Bearer {{officer_token}}",
-          "Content-Type": "application/json"
-        },
-        "body": {
-          "tenderId": "1",
-          "bidderId": "BID-007",
-          "query": "Evaluate the technical experience and past contract completions for this bidder."
-        }
-      },
-      "responses": {
-        "200_OK": {
-          "status": "SUCCESS",
-          "tenderId": "1",
-          "bidderId": "BID-007",
-          "answer": "Bidder BID-007 has provided documentation for 3 prior government procurement contracts totaling INR 35 Crores, exceeding the mandatory requirement of 2 completed similar works.",
-          "sources": [
-            {
-              "documentType": "EXPERIENCE_CERTIFICATE",
-              "page": 1,
-              "similarityScore": 0.884,
-              "textSnippet": "Completion certificate issued by NHAI for project value 18.5 Cr..."
-            }
-          ]
+          }
         }
       }
     }
