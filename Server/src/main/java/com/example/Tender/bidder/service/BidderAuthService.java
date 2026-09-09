@@ -479,7 +479,14 @@ public class BidderAuthService {
 
         otpRepository.save(emailOtp);
 
-        brevoEmailService.sendOtpEmail(email, legalName, otp, otpExpirationMinutes);
+        log.info("=================================================================");
+        log.info("[BIDDER OTP] Verification OTP generated for {}: {}", email, otp);
+        log.info("=================================================================");
+
+        boolean sent = brevoEmailService.sendBidderOtpEmail(email, legalName, otp, otpExpirationMinutes);
+        if (!sent) {
+            log.warn("Brevo failed to deliver OTP email to {}. Use console OTP above for verification.", email);
+        }
     }
 
     private BidderVerificationStatusResponse buildStatusResponse(BidderTempRegistration temp, String message) {

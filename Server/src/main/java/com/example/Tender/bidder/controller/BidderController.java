@@ -14,6 +14,12 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/bidder")
 @RequiredArgsConstructor
+@CrossOrigin(
+        originPatterns = {"https://gem-compliflix.vercel.app", "https://*.vercel.app", "http://localhost:[*]", "http://127.0.0.1:[*]", "*"},
+        allowedHeaders = "*",
+        allowCredentials = "true",
+        maxAge = 3600
+)
 public class BidderController {
 
     private final BidderService bidderService;

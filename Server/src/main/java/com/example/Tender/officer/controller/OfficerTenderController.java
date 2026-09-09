@@ -28,7 +28,12 @@ import java.util.Map;
 @RequestMapping("/api/officer/tenders")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(
+        originPatterns = {"https://gem-compliflix.vercel.app", "https://*.vercel.app", "http://localhost:[*]", "http://127.0.0.1:[*]", "*"},
+        allowedHeaders = "*",
+        allowCredentials = "true",
+        maxAge = 3600
+)
 public class OfficerTenderController {
 
     private final TenderDocumentService tenderDocumentService;
