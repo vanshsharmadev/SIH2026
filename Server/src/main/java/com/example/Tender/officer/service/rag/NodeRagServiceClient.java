@@ -82,11 +82,11 @@ public class NodeRagServiceClient {
                     .body(new ParameterizedTypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             log.error("Node AI RAG processTender failed for tenderId='{}': {}", tenderId, e.getMessage());
-            return Map.of(
-                    "status", "ERROR",
-                    "tenderId", tenderId,
-                    "error", e.getMessage()
-            );
+            Map<String, Object> err = new HashMap<>();
+            err.put("status", "ERROR");
+            err.put("tenderId", tenderId);
+            err.put("error", e.getMessage() != null ? e.getMessage() : "Unknown error");
+            return err;
         }
     }
 
@@ -118,12 +118,12 @@ public class NodeRagServiceClient {
                     .body(new ParameterizedTypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             log.error("Node AI RAG processBidderDocument failed: {}", e.getMessage());
-            return Map.of(
-                    "status", "ERROR",
-                    "tenderId", tenderId,
-                    "bidderId", bidderId,
-                    "error", e.getMessage()
-            );
+            Map<String, Object> err = new HashMap<>();
+            err.put("status", "ERROR");
+            err.put("tenderId", tenderId);
+            err.put("bidderId", bidderId);
+            err.put("error", e.getMessage() != null ? e.getMessage() : "Unknown error");
+            return err;
         }
     }
 
