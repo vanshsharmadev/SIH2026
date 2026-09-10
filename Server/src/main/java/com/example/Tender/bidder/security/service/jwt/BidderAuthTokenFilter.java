@@ -34,30 +34,37 @@ public class BidderAuthTokenFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         try {
-            String jwt = parseJwt(request);
+            // Only authenticate if not already authenticated by Officer filter
+            if (SecurityContextHolder.getContext().getAuthentication() == null) {
+                String jwt = parseJwt(request);
 
-            if (jwt != null && bidderJwtUtils.validateJwtToken(jwt)) {
+                if (jwt != null && bidderJwtUtils.validateJwtToken(jwt)) {
+                    String role = bidderJwtUtils.getRoleFromJwtToken(jwt);
+                    // If role is explicitly OFFICER or ADMIN, skip bidder filter
+                    if (!"OFFICER".equalsIgnoreCase(role) && !"ADMIN".equalsIgnoreCase(role)) {
+                        String username = bidderJwtUtils.getUsernameFromJwtToken(jwt);
+                        try {
+                            UserDetails userDetails = bidderDetailsService.loadUserByUsername(username);
 
-                String username =
-                        bidderJwtUtils.getUsernameFromJwtToken(jwt);
+                            UsernamePasswordAuthenticationToken authentication =
+                                    new UsernamePasswordAuthenticationToken(
+                                            userDetails,
+                                            null,
+                                            userDetails.getAuthorities()
+                                    );
 
-                UserDetails userDetails =
-                        bidderDetailsService.loadUserByUsername(username);
+                            authentication.setDetails(
+                                    new WebAuthenticationDetailsSource()
+                                            .buildDetails(request)
+                            );
 
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                userDetails.getAuthorities()
-                        );
-
-                authentication.setDetails(
-                        new WebAuthenticationDetailsSource()
-                                .buildDetails(request)
-                );
-
-                SecurityContextHolder.getContext()
-                        .setAuthentication(authentication);
+                            SecurityContextHolder.getContext()
+                                    .setAuthentication(authentication);
+                        } catch (org.springframework.security.core.userdetails.UsernameNotFoundException e) {
+                            log.debug("Bidder not found with username: {}", username);
+                        }
+                    }
+                }
             }
 
         } catch (Exception e) {
@@ -81,12 +88,5 @@ public class BidderAuthTokenFilter extends OncePerRequestFilter {
         }
 
         return null;
-    }
-
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-
-        return !request.getServletPath()
-                .startsWith("/api/bidder");
     }
 }

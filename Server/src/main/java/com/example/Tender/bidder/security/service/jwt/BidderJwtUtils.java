@@ -34,17 +34,64 @@ public class BidderJwtUtils {
     }
 
     public String generateJwtToken(Authentication authentication) {
+        if (authentication.getPrincipal() instanceof com.example.Tender.bidder.security.BidderPrincipal bp) {
+            return generateTokenWithClaims(bp.getUsername(), bp.getId(), "BIDDER", bp.getLegalName());
+        }
         UserDetails bidderPrincipal = (UserDetails) authentication.getPrincipal();
-        return generateTokenFromUsername(bidderPrincipal.getUsername());
+        return generateTokenWithClaims(bidderPrincipal.getUsername(), null, "BIDDER", null);
     }
 
     public String generateTokenFromUsername(String username) {
-        return Jwts.builder()
+        return generateTokenWithClaims(username, null, "BIDDER", null);
+    }
+
+    public String generateTokenWithClaims(String username, Long userId, String role, String name) {
+        var builder = Jwts.builder()
                 .subject(username)
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
-                .signWith(getSigningKey())
-                .compact();
+                .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs));
+
+        if (userId != null) {
+            builder.claim("userId", userId);
+        }
+        if (role != null) {
+            builder.claim("role", role);
+        }
+        if (name != null) {
+            builder.claim("name", name);
+        }
+
+        return builder.signWith(getSigningKey()).compact();
+    }
+
+    public Claims getClaimsFromJwtToken(String token) {
+        return Jwts.parser()
+                .verifyWith(getSigningKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
+    public String getRoleFromJwtToken(String token) {
+        try {
+            Claims claims = getClaimsFromJwtToken(token);
+            return claims.get("role", String.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public Long getUserIdFromJwtToken(String token) {
+        try {
+            Claims claims = getClaimsFromJwtToken(token);
+            Object userId = claims.get("userId");
+            if (userId instanceof Number number) {
+                return number.longValue();
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public String getUsernameFromJwtToken(String token) {

@@ -362,6 +362,9 @@ public class OfficerAuthService {
         log.info("[OFFICER OTP] Verification OTP generated for {}: {}", email, otp);
         log.info("=================================================================");
 
-        brevoEmailService.sendOtpEmail(email, name, otp, otpExpirationMinutes);
+        boolean sent = brevoEmailService.sendOtpEmail(email, name, otp, otpExpirationMinutes);
+        if (!sent) {
+            throw new IllegalStateException("Failed to deliver OTP verification email to " + email + ". Please check email service configuration or try again later.");
+        }
     }
 }
