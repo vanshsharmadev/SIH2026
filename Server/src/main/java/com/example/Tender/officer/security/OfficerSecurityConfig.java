@@ -2,6 +2,7 @@ package com.example.Tender.officer.security;
 
 import com.example.Tender.bidder.security.RateLimiterFilter;
 import com.example.Tender.bidder.security.service.jwt.BidderAuthTokenFilter;
+import com.example.Tender.config.CustomAccessDeniedHandler;
 import com.example.Tender.officer.security.jwt.OfficerAuthEntryPointJwt;
 import com.example.Tender.officer.security.jwt.OfficerAuthTokenFilter;
 import com.example.Tender.officer.security.service.OfficerDetailsServiceImpl;
@@ -35,6 +36,7 @@ public class OfficerSecurityConfig {
 
     private final OfficerDetailsServiceImpl officerDetailsService;
     private final OfficerAuthEntryPointJwt unauthorizedHandler;
+    private final CustomAccessDeniedHandler accessDeniedHandler;
     private final OfficerAuthTokenFilter officerAuthTokenFilter;
     private final BidderAuthTokenFilter bidderAuthTokenFilter;
     private final RateLimiterFilter rateLimitFilter;
@@ -68,8 +70,9 @@ public class OfficerSecurityConfig {
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
 
-                .exceptionHandling(exception ->
-                        exception.authenticationEntryPoint(unauthorizedHandler)
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(unauthorizedHandler)
+                        .accessDeniedHandler(accessDeniedHandler)
                 )
 
                 .sessionManagement(session ->
@@ -80,9 +83,9 @@ public class OfficerSecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/auth/**", "/api/auth/**").permitAll()
                         .requestMatchers("/api/officer/auth/**").permitAll()
                         .requestMatchers("/api/officer/identity/**").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/bidder/auth/**").permitAll()
                         .requestMatchers("/api/bidder/documents/verify-taxpayer").permitAll()
                         .requestMatchers("/api/bidder/documents/scan-taxpayer").permitAll()
@@ -98,6 +101,8 @@ public class OfficerSecurityConfig {
                         .requestMatchers("/api/officer/tenders/ml/**").permitAll()
                         .requestMatchers("/api/ai/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers("/api/officer", "/api/officer/**").hasAnyRole("OFFICER", "ADMIN")
+                        .requestMatchers("/api/bidder", "/api/bidder/**").hasRole("BIDDER")
                         .anyRequest().authenticated()
                 );
 

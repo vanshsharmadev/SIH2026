@@ -46,6 +46,14 @@ public class Bidder {
     private String profileMetadata;
 
     @Builder.Default
+    @Column(name = "role", length = 20, nullable = true)
+    private String role = "BIDDER";
+
+    public String getRole() {
+        return (role != null && !role.trim().isEmpty()) ? role : "BIDDER";
+    }
+
+    @Builder.Default
     private boolean isVerified = false;
 
     @Builder.Default

@@ -110,10 +110,10 @@ public class BidderAuthController {
     public ResponseEntity<BidderTokenVerifyResponse> getCurrentBidder(
             @AuthenticationPrincipal BidderPrincipal bidderPrincipal,
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
-        if (bidderPrincipal != null) {
-            return ResponseEntity.ok(bidderAuthService.verifyToken(null, null, null, bidderPrincipal.getUsername()));
+        if (org.springframework.util.StringUtils.hasText(authHeader)) {
+            return ResponseEntity.ok(bidderAuthService.verifyToken(authHeader, null, null, null));
         }
-        return ResponseEntity.ok(bidderAuthService.verifyToken(authHeader, null, null, null));
+        return ResponseEntity.ok(bidderAuthService.verifyToken(null, null, null, null));
     }
 
     @PostMapping("/forgot-password")

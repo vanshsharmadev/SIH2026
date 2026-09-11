@@ -485,7 +485,7 @@ public class BidderAuthService {
 
         boolean sent = brevoEmailService.sendBidderOtpEmail(email, legalName, otp, otpExpirationMinutes);
         if (!sent) {
-            log.warn("Brevo failed to deliver OTP email to {}. Use console OTP above for verification.", email);
+            throw new IllegalStateException("Failed to deliver OTP verification email to " + email + ". Please check email service configuration or try again later.");
         }
     }
 

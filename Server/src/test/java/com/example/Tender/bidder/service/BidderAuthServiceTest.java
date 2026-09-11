@@ -62,6 +62,7 @@ class BidderAuthServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(bidderAuthService, "otpExpirationMinutes", 10);
+        lenient().when(brevoEmailService.sendBidderOtpEmail(any(), any(), any(), anyInt())).thenReturn(true);
     }
 
     @Test
@@ -161,5 +162,42 @@ class BidderAuthServiceTest {
 
         verify(tempRegistrationRepository).delete(temp);
         verify(otpRepository).deleteByEmail("bidder@acme.com");
+    }
+
+    @Test
+    @DisplayName("4. Signup fails with IllegalStateException when email service fails to send OTP")
+    void testSignup_OtpDeliveryFailure_ThrowsIllegalStateException() {
+        BidderSignupRequest request = BidderSignupRequest.builder()
+                .legalName("ACME INFRASTRUCTURE LTD")
+                .email("bidder@acme.com")
+                .password("Password@123")
+                .phone("9876543210")
+                .gstNumber("27ABCDE1234F1Z5")
+                .build();
+
+        BidderVerification verifiedRecord = BidderVerification.builder()
+                .id(1L)
+                .name("ACME INFRASTRUCTURE LTD")
+                .email("bidder@acme.com")
+                .gstNumber("27ABCDE1234F1Z5")
+                .build();
+
+        when(bidderVerificationRepository.findByNameAndEmailAndGstNumberIgnoreCase(
+                "ACME INFRASTRUCTURE LTD",
+                "bidder@acme.com",
+                "27ABCDE1234F1Z5"
+        )).thenReturn(Optional.of(verifiedRecord));
+
+        when(bidderRepository.existsByEmail("bidder@acme.com")).thenReturn(false);
+        when(bidderRepository.existsByGstNumber("27ABCDE1234F1Z5")).thenReturn(false);
+        when(passwordEncoder.encode("Password@123")).thenReturn("hashedPassword");
+        when(brevoEmailService.sendBidderOtpEmail(eq("bidder@acme.com"), eq("ACME INFRASTRUCTURE LTD"), anyString(), anyInt()))
+                .thenReturn(false);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+                bidderAuthService.signup(request)
+        );
+
+        assertTrue(ex.getMessage().contains("Failed to deliver OTP verification email"));
     }
 }
