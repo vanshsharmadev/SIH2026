@@ -63,6 +63,15 @@ public class OfficerSecurityConfig {
         return authConfig.getAuthenticationManager();
     }
 
+    /**
+     * Configures the main HTTP security filter chain.
+     * Disables CSRF for stateless JWT operations, configures exception handlers,
+     * enforces session policy, and defines public authorization rules for health endpoints.
+     *
+     * @param http HttpSecurity configuration builder
+     * @return Built SecurityFilterChain instance
+     * @throws Exception If any security configuration fails
+     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
