@@ -201,4 +201,23 @@ class CommonAuthControllerTest {
                 .andExpect(jsonPath("$.success", is(false)))
                 .andExpect(jsonPath("$.error", is("Unauthorized")));
     }
+
+    @Test
+    @DisplayName("GET /auth - 200 OK health check for keep-alive")
+    void testAuthHealthCheck() throws Exception {
+        mockMvc.perform(get("/auth"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("UP")))
+                .andExpect(jsonPath("$.service", is("SIH2026 Tender Backend")))
+                .andExpect(jsonPath("$.message", containsString("Auth service is running")));
+    }
+
+    @Test
+    @DisplayName("GET /auth/health - 200 OK health check for keep-alive")
+    void testAuthHealthCheck_Subpath() throws Exception {
+        mockMvc.perform(get("/auth/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("UP")))
+                .andExpect(jsonPath("$.service", is("SIH2026 Tender Backend")));
+    }
 }
