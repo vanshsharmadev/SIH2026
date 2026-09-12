@@ -157,7 +157,7 @@ const Tenders = () => {
 
       {/* 2. Top Metric Counter Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+        <div className="p-4 rounded-xl bg-white dark:bg-[#181818] border border-slate-200/80 dark:border-[#303030] shadow-2xs">
           <span className="text-xs text-slate-500 dark:text-slate-400 font-medium block">
             Total Active Tenders
           </span>
@@ -165,18 +165,18 @@ const Tenders = () => {
             <span className="text-2xl font-black text-slate-900 dark:text-white">
               {tendersList.length}
             </span>
-            <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400">
+            <span className="text-[11px] font-semibold text-blue-600 dark:text-[#4da3ff]">
               Published on GeM
             </span>
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+        <div className="p-4 rounded-xl bg-white dark:bg-[#181818] border border-slate-200/80 dark:border-[#303030] shadow-2xs">
           <span className="text-xs text-slate-500 dark:text-slate-400 font-medium block">
             Cumulative Value
           </span>
           <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+            <span className="text-2xl font-black text-emerald-600 dark:text-[#38d39f]">
               ₹ {totalValue} Cr
             </span>
             <span className="text-[11px] font-semibold text-slate-500">
@@ -185,7 +185,7 @@ const Tenders = () => {
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+        <div className="p-4 rounded-xl bg-white dark:bg-[#181818] border border-slate-200/80 dark:border-[#303030] shadow-2xs">
           <span className="text-xs text-slate-500 dark:text-slate-400 font-medium block">
             Open for Bidding
           </span>
@@ -193,13 +193,13 @@ const Tenders = () => {
             <span className="text-2xl font-black text-slate-900 dark:text-white">
               {openCount}
             </span>
-            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+            <span className="text-[11px] font-bold text-emerald-600 dark:text-[#38d39f]">
               Active Now
             </span>
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+        <div className="p-4 rounded-xl bg-white dark:bg-[#181818] border border-slate-200/80 dark:border-[#303030] shadow-2xs">
           <span className="text-xs text-slate-500 dark:text-slate-400 font-medium block">
             Closing Soon
           </span>
@@ -217,11 +217,11 @@ const Tenders = () => {
       {/* 3. Sticky Search & Filter Bar */}
       <div
         style={{ top: 'var(--navbar-height, 84px)' }}
-        className={`sticky z-30 pt-1 pb-3 -mx-2 px-2 sm:-mx-3 sm:px-3 bg-[#f0f4f9]/95 dark:bg-[#0b1329]/95 backdrop-blur-md transition-all duration-200 ${
-          isStuck ? 'border-b border-slate-200/80 dark:border-slate-800/80 shadow-md dark:shadow-slate-950/50' : ''
+        className={`sticky z-30 pt-1 pb-3 -mx-2 px-2 sm:-mx-3 sm:px-3 bg-[#f8fafc]/95 dark:bg-[#121212]/95 backdrop-blur-md transition-all duration-200 ${
+          isStuck ? 'border-b border-slate-200/80 dark:border-[#282828] shadow-md dark:shadow-black/40' : ''
         }`}
       >
-        <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm space-y-3">
+        <div className="bg-white dark:bg-[#181818] p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 dark:border-[#303030] shadow-sm space-y-3">
           <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 items-stretch sm:items-center">
             {/* Keyword Search */}
             <div className="relative flex-1">
@@ -231,7 +231,7 @@ const Tenders = () => {
                 placeholder="Search tenders by title, GEM ID (e.g. GEM/2026/B/9401), ministry, or keyword..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full text-xs sm:text-sm pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:border-blue-500 transition"
+                className="w-full text-xs sm:text-sm pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#343434] bg-slate-50/70 dark:bg-[#202020] text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:border-blue-500 transition"
               />
               {searchQuery && (
                 <button
@@ -250,7 +250,7 @@ const Tenders = () => {
               className={`flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-semibold transition cursor-pointer shrink-0 ${
                 showFilters || selectedCategory !== 'All' || selectedStatus !== 'All'
                   ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
-                  : 'border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  : 'border-slate-200 dark:border-[#343434] bg-slate-50/70 dark:bg-[#202020] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#282828]'
               }`}
             >
               <Filter className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
@@ -264,7 +264,7 @@ const Tenders = () => {
 
           {/* Expandable Filters (Category, Sort By, Status) */}
           {showFilters && (
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3 animate-in fade-in duration-150">
+            <div className="pt-3 border-t border-slate-100 dark:border-[#282828] space-y-3 animate-in fade-in duration-150">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 {/* Category Dropdown */}
                 <div>
@@ -274,7 +274,7 @@ const Tenders = () => {
                   <select
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="w-full text-xs sm:text-sm px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                    className="w-full text-xs sm:text-sm px-3 py-2.5 rounded-xl border border-slate-200 dark:border-[#343434] bg-slate-50/70 dark:bg-[#202020] text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
                   >
                     {categories.map((cat) => (
                       <option key={cat} value={cat}>
@@ -292,7 +292,7 @@ const Tenders = () => {
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="w-full text-xs sm:text-sm px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                    className="w-full text-xs sm:text-sm px-3 py-2.5 rounded-xl border border-slate-200 dark:border-[#343434] bg-slate-50/70 dark:bg-[#202020] text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
                   >
                     <option value="default">Sort: Default</option>
                     <option value="value-desc">Value: High to Low</option>
@@ -321,8 +321,8 @@ const Tenders = () => {
                     onClick={() => setSelectedStatus(statusTab.label)}
                     className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer shrink-0 ${
                       selectedStatus === statusTab.label
-                        ? 'bg-[#073567] dark:bg-blue-600 text-white shadow-2xs font-bold'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        ? 'bg-[#073567] dark:bg-[#4da3ff] text-white dark:text-slate-950 shadow-2xs font-bold'
+                        : 'bg-slate-100 dark:bg-[#202020] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#282828]'
                     }`}
                   >
                     {statusTab.label} ({statusTab.count})

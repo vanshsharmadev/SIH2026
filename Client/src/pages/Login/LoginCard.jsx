@@ -3,14 +3,36 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Check, KeyRound, Send, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context';
 import TricolorBar from '../../components/common/TricolorBar';
+import NationalEmblem from '../../components/common/NationalEmblem';
 import { authService, recordAuditLog } from '../../services';
 import { isCustomBackendConfigured } from '../../services/api';
+import { isOfficerUser } from '../../utils/roleUtils';
+
+const resolveRoleDestination = (userObj, requestedTarget) => {
+  const role = (userObj?.role || '').toUpperCase();
+  const isOfficer = role === 'OFFICER' || isOfficerUser(userObj);
+
+  if (isOfficer) {
+    if (requestedTarget && (requestedTarget.startsWith('/reports') || requestedTarget.startsWith('/officer'))) {
+      return requestedTarget;
+    }
+    if (requestedTarget && requestedTarget.startsWith('/verification')) {
+      return '/dashboard?tab=compliance';
+    }
+    return '/dashboard';
+  } else {
+    if (requestedTarget && (requestedTarget.startsWith('/my-applications') || requestedTarget.startsWith('/verification') || requestedTarget.startsWith('/bidder'))) {
+      return requestedTarget;
+    }
+    return '/bidder-dashboard';
+  }
+};
 
 const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
-  const targetRedirect = location.state?.redirectTo || searchParams.get('redirect') || '/tenders';
+  const targetRedirect = location.state?.redirectTo || searchParams.get('redirect') || null;
   const { login } = useAuth();
   
   // Auth Mode: 'password' or 'otp'
@@ -46,10 +68,11 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
   // Handle password-based login
   const handlePasswordSignIn = async (e) => {
     e.preventDefault();
-    if (!email || !password) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
       setAuthStatus({
         type: 'error',
-        message: 'Please enter both Email/User ID and Password.',
+        message: 'Please enter both Email address and Password.',
       });
       return;
     }
@@ -57,87 +80,41 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
     setIsLoading(true);
     setAuthStatus(null);
 
-    // If deployed backend is configured, authenticate against real server
-    if (isCustomBackendConfigured()) {
-      try {
-        const authData = await authService.login({ email, emailOrMobile: email, password });
-        if (authData && authData.token) {
-          setIsLoading(false);
-          setAuthStatus({
-            type: 'success',
-            message: 'Authenticated successfully! Redirecting...',
-          });
-          login(authData.user, authData.token);
-          recordAuditLog({
-            activity: 'Login',
-            module: 'Authentication',
-            details: `Officer authenticated via Jan Parichay Gateway (${email})`,
-            status: 'Success',
-            user: {
-              name: authData.user?.name || email,
-              role: authData.user?.designation || authData.user?.role || 'Evaluating Officer',
-            },
-            extra: {
-              authProvider: 'NIC Jan Parichay SSO',
-              mfaVerified: 'Yes (Aadhaar OTP)',
-              ip: '192.168.1.45',
-            },
-          });
-          setTimeout(() => {
-            navigate(targetRedirect);
-          }, 600);
-          return;
-        }
-      } catch (err) {
+    try {
+      const authData = await authService.login({ email: cleanEmail, password });
+      if (authData && authData.token) {
         setIsLoading(false);
         setAuthStatus({
-          type: 'error',
-          message: err.message || 'Authentication failed. Please check credentials.',
+          type: 'success',
+          message: 'Login successful! Redirecting...',
         });
+        login(authData.user, authData.token);
+        recordAuditLog({
+          activity: 'Login',
+          module: 'Authentication',
+          details: `User authenticated via Unified Login (${cleanEmail})`,
+          status: 'Success',
+          user: {
+            name: authData.user?.name || cleanEmail,
+            role: authData.user?.role || 'User',
+          },
+        });
+        const destination = resolveRoleDestination(authData.user, targetRedirect);
+        setTimeout(() => {
+          navigate(destination, { replace: true });
+        }, 500);
         return;
+      } else {
+        throw new Error('No authentication token received from server.');
       }
-    }
-
-    // Local / Demo authentication fallback
-    setTimeout(() => {
+    } catch (err) {
       setIsLoading(false);
       setAuthStatus({
-        type: 'success',
-        message: 'Authenticated successfully! Redirecting...',
+        type: 'error',
+        message: err.message || 'Authentication failed. Please verify your credentials.',
       });
-
-      const isGovt = email.toLowerCase().includes('.gov.in') || email.toLowerCase().includes('.nic.in');
-      const rawName = email.split('@')[0] ? email.split('@')[0].replace(/[._-]/g, ' ').trim() : '';
-      const formattedName = rawName && rawName.length > 2
-        ? rawName.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
-        : 'Pooja Sharma';
-
-      const loggedUser = {
-        name: formattedName,
-        email: email,
-        role: isGovt ? 'Evaluating Officer' : 'Procurement Bidder',
-        designation: isGovt ? 'Evaluating Officer' : 'Registered Vendor',
-      };
-
-      login(loggedUser, 'gem-token-' + Date.now());
-
-      recordAuditLog({
-        activity: 'Login',
-        module: 'Authentication',
-        details: `User authenticated via Jan Parichay SSO Gateway (${email})`,
-        status: 'Success',
-        user: loggedUser,
-        extra: {
-          authProvider: 'NIC Jan Parichay SSO',
-          mfaVerified: 'Yes (Aadhaar OTP)',
-          ip: '192.168.1.45',
-        },
-      });
-
-      setTimeout(() => {
-        navigate(targetRedirect);
-      }, 700);
-    }, 800);
+      // Do not redirect on login failure
+    }
   };
 
   // Handle sending email OTP
@@ -157,8 +134,27 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
     const isGovt = email.toLowerCase().includes('.gov.in') || email.toLowerCase().includes('.nic.in');
     const detectedRole = isGovt ? 'officer' : 'bidder';
 
+    // Dispatch real OTP via backend
+    if (isCustomBackendConfigured()) {
+      try {
+        await authService.resendOtp({ email, role: detectedRole });
+      } catch (err) {
+        console.warn('Backend resend-otp notice:', err.message);
+        // If no pending registration exists on backend, notify user clearly
+        if (String(err.message || '').toLowerCase().includes('no pending signup')) {
+          setIsLoading(false);
+          setAuthStatus({
+            type: 'error',
+            message: 'No pending registration found for this email. Please register first or sign in with Password.',
+          });
+          return;
+        }
+      }
+    }
+
+    setIsLoading(false);
+
     if (onPendingVerification) {
-      setIsLoading(false);
       onPendingVerification({
         email,
         role: detectedRole,
@@ -170,37 +166,12 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
       return;
     }
 
-    if (isCustomBackendConfigured()) {
-      try {
-        await authService.resendOtp({ email, role: detectedRole });
-        setIsLoading(false);
-        setIsOtpSent(true);
-        setCountdown(60);
-        setAuthStatus({
-          type: 'success',
-          message: `6-digit verification code sent to ${email}`,
-        });
-        return;
-      } catch (err) {
-        setIsLoading(false);
-        setAuthStatus({
-          type: 'error',
-          message: err.message || 'Unable to send OTP. Please check email address.',
-        });
-        return;
-      }
-    }
-
-    // Demo fallback
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsOtpSent(true);
-      setCountdown(60);
-      setAuthStatus({
-        type: 'success',
-        message: `OTP dispatched to ${email}. (Demo Code: 123456)`,
-      });
-    }, 600);
+    setIsOtpSent(true);
+    setCountdown(60);
+    setAuthStatus({
+      type: 'success',
+      message: `6-digit verification code sent to ${email}`,
+    });
   };
 
   // Handle email OTP verification and sign in
@@ -225,9 +196,12 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
     setIsLoading(true);
     setAuthStatus(null);
 
+    const isGovt = email.toLowerCase().includes('.gov.in') || email.toLowerCase().includes('.nic.in');
+    const detectedRole = isGovt ? 'officer' : 'bidder';
+
     if (isCustomBackendConfigured()) {
       try {
-        const authData = await authService.verifyOtp({ email, otp });
+        const authData = await authService.verifyOtp({ email, otp, role: detectedRole });
         if (authData && authData.token) {
           setIsLoading(false);
           setAuthStatus({
@@ -236,7 +210,7 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
           });
           login(authData.user, authData.token);
           setTimeout(() => {
-            navigate(targetRedirect);
+            navigate(resolveRoleDestination(authData.user, targetRedirect));
           }, 600);
           return;
         }
@@ -275,7 +249,7 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
       );
 
       setTimeout(() => {
-        navigate(targetRedirect);
+        navigate(resolveRoleDestination({ role: isGovt ? 'Procurement Officer' : 'Procurement Bidder', email }, targetRedirect));
       }, 700);
     }, 700);
   };
@@ -349,21 +323,22 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
         {authMethod === 'password' ? (
           <form onSubmit={handlePasswordSignIn} className="space-y-2">
 
-            {/* Email / User ID Input */}
+            {/* Email Address Input */}
             <div>
               <label className="block text-[11px] font-semibold mb-0.5 text-slate-700 dark:text-slate-300">
-                Email Address / User ID <span className="text-red-500 font-bold ml-0.5">*</span>
+                Email Address <span className="text-red-500 font-bold ml-0.5">*</span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
                   <Mail className="w-3.5 h-3.5" />
                 </div>
                 <input
-                  type="text"
+                  type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your official email or user ID"
+                  placeholder="name@example.com"
                   required
+                  autoComplete="email"
                   className="w-full pl-8 pr-2.5 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:border-blue-600"
                 />
               </div>
@@ -588,7 +563,7 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
           onClick={() => setSsoModalOpen(true)}
           className="w-full py-1.5 px-3 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/80 rounded-md transition text-slate-700 dark:text-slate-200 flex items-center justify-center gap-2 cursor-pointer shadow-2xs hover:border-slate-300 active:scale-[0.99]"
         >
-          <img src="/emblem.svg" alt="Emblem" className="h-7 w-auto" />
+          <NationalEmblem className="h-7 w-auto" />
           <div className="text-left">
             <div className="text-[11px] font-semibold leading-tight text-slate-800 dark:text-slate-100">
               Sign in with MeriPehchaan
@@ -640,7 +615,7 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
 
             {/* Emblem / Portal Icon */}
             <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-900/60 flex items-center justify-center mx-auto mb-3">
-              <img src="/emblem.svg" alt="National Emblem" className="h-7 w-auto object-contain" />
+              <NationalEmblem className="h-7 w-auto" />
             </div>
 
             {/* Header */}

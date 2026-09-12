@@ -27,11 +27,13 @@ import {
   Check,
 } from 'lucide-react';
 import BidderChatBot from '../../components/common/BidderChatBot';
+import MarkdownRenderer from '../../components/common/MarkdownRenderer';
 import { mlService, recordAuditLog } from '../../services';
 
 const INITIAL_SUBMISSIONS = [
   {
     id: 'SUB/2024/000346',
+    bidderId: 'BID-007',
     tenderId: 'GEM/2024/B/5123981',
     tenderTitle: 'Supply of Office Stationery Items',
     department: 'Ministry of Education',
@@ -967,6 +969,17 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                           <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
+                              onClick={() => {
+                                handleSelectRow(sub);
+                                setChatBotOpen(true);
+                              }}
+                              className="p-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 transition cursor-pointer"
+                              title="Ask Tender AI about this Bidder"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => handleSelectRow(sub)}
                               className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
                               title="View Details"
@@ -1206,9 +1219,10 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                     {selectedSubmission.mlDossier.forensicAuthenticity}% Forensic
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                  {selectedSubmission.mlDossier.executiveSummary}
-                </p>
+                <MarkdownRenderer
+                  content={selectedSubmission.mlDossier.executiveSummary}
+                  className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed"
+                />
                 <div className="text-[10.5px] space-y-0.5 pt-1 text-slate-600 dark:text-slate-300">
                   <div className="flex items-center gap-1">
                     <ShieldCheck className="w-3 h-3 text-emerald-500" />
@@ -1373,12 +1387,13 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
         </div>
       </div>
 
-      {/* Bidder Contextual Chatbot */}
+      {/* Bidder Contextual Chatbot — Bound to POST /api/officer/tenders/chat */}
       <BidderChatBot
         isOpen={chatBotOpen}
         onClose={() => setChatBotOpen(false)}
         bidderData={selectedSubmission}
-        apiEndpoint={null} // Will be provided by user later
+        tenderId={selectedSubmission?.tenderId || filterTenderId || '1'}
+        bidderId={selectedSubmission?.bidderId || selectedSubmission?.id || 'BID-007'}
       />
     </div>
   );

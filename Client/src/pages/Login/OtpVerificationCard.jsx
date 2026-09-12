@@ -184,11 +184,13 @@ const OtpVerificationCard = ({
     }
 
     try {
-      await authService.resendOtp({ email, role });
-    } catch (err) {
-      console.warn('Resend OTP notice:', err);
-    } finally {
+      const res = await authService.resendOtp({ email, role });
       setCountdown(60);
+      setErrorMsg(null);
+    } catch (err) {
+      const serverMsg = err.response?.data?.message || err.message;
+      triggerErrorAnimation(serverMsg || 'Unable to resend OTP. Please try again.');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -196,7 +198,7 @@ const OtpVerificationCard = ({
   // Verify OTP and automatically log in
   const handleVerifyOtp = async (e) => {
     if (e) e.preventDefault();
-    const code = otp.join('');
+    const code = otp.join('').trim();
     if (code.length < 6) {
       triggerErrorAnimation('Please enter the complete 6-digit OTP code.');
       return;
@@ -238,7 +240,8 @@ const OtpVerificationCard = ({
       triggerSuccessFlow(userObj, authData?.token || 'gem-token-' + Date.now());
     } catch (err) {
       setIsLoading(false);
-      triggerErrorAnimation('Verification failed. Please try again.');
+      const serverMsg = err.response?.data?.message || err.message || err.data?.message;
+      triggerErrorAnimation(serverMsg || 'Verification failed. Please check the OTP and try again.');
     }
   };
 

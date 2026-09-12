@@ -15,7 +15,8 @@ import {
   Eye,
   EyeOff,
   ShieldCheck,
-  Check
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import TricolorBar from '../../components/common/TricolorBar';
 import OtpVerificationCard from './OtpVerificationCard';
@@ -63,6 +64,13 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
     }
     return () => clearInterval(timer);
   }, [step, otpResendCountdown]);
+
+  // Recalculate Lenis scroll bounds when switching between registration steps
+  useEffect(() => {
+    if (window.lenis) {
+      window.lenis.resize();
+    }
+  }, [step, role]);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -157,6 +165,40 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
       password: formData.password,
     };
 
+    if (isCustomBackendConfigured()) {
+      try {
+        if (role === 'bidder') {
+          const res = await authService.bidderSignup(pendingPayload);
+          // Trigger OTP dispatch for bidder
+          try {
+            await authService.resendOtp({ email: formData.email, role: 'bidder' });
+          } catch (otpErr) {
+            console.warn('Bidder OTP dispatch notice:', otpErr.message);
+          }
+        } else {
+          const res = await authService.officerSignup(pendingPayload);
+          const tempToken =
+            res?.data?.tempToken || res?.tempToken || sessionStorage.getItem('tempToken');
+          if (tempToken) {
+            await authService.verifyDigiLocker(tempToken, { simulatedName: formData.fullName });
+          }
+        }
+      } catch (err) {
+        setIsLoading(false);
+        const isConflict =
+          err.status === 409 ||
+          String(err.message || '').toLowerCase().includes('already registered');
+        const serverMsg = isConflict
+          ? 'An account with this Email, GSTIN, or Identity is already registered. Please sign in.'
+          : (err.response?.data?.message || err.message || 'Registration failed. Please check your credentials and try again.');
+        setErrors((prev) => ({
+          ...prev,
+          form: serverMsg,
+        }));
+        return;
+      }
+    }
+
     setIsLoading(false);
 
     if (onPendingVerification) {
@@ -186,31 +228,6 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
     if (isCustomBackendConfigured()) {
       try {
         await authService.verifyOtp({ email: formData.email, otp: otpCode, role });
-
-        if (role === 'bidder') {
-          const payload = {
-            legalName: formData.organizationName || formData.fullName,
-            panNumber: formData.gstin && formData.gstin.length >= 12 ? formData.gstin.substring(2, 12).toUpperCase() : '',
-            gstNumber: formData.gstin,
-            udyamNumber: '',
-            registrationNumber: 'REG-' + Date.now(),
-            email: formData.email,
-            phone: formData.phone,
-            address: 'India',
-            password: formData.password,
-          };
-          await authService.bidderSignup(payload);
-        } else {
-          await authService.officerSignup({
-            name: formData.fullName,
-            email: formData.email,
-            mobile: formData.phone,
-            officerId: 'GOV-' + Date.now().toString().slice(-6),
-            ministry: formData.ministry || 'Government of India',
-            designation: 'Procurement Officer',
-            password: formData.password,
-          });
-        }
       } catch (err) {
         setIsVerifyingOtp(false);
         setOtpError(err.message || 'Invalid or expired verification code. Please check and try again.');
@@ -248,7 +265,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
     <>
       {/* ----------------- STEP 1: ROLE SELECTION (MATCHES SCREENSHOT) ----------------- */}
       {step === 'select_role' && (
-        <div className="w-full max-w-[590px] mx-auto rounded-2xl transition-all duration-300 p-5 sm:p-7 relative z-20 shadow-xl bg-white border border-slate-100 shadow-slate-200/70">
+        <div className="w-full max-w-[590px] mx-auto rounded-2xl transition-all duration-300 p-5 sm:p-7 relative z-20 bg-white dark:bg-[#181818] border border-slate-100 dark:border-[#303030] shadow-xl text-slate-900 dark:text-slate-100">
           
           {/* Top-Left Tricolor Bar */}
           <div className="mb-3">
@@ -398,7 +415,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
 
       {/* ----------------- STEP 2: REGISTRATION FORM FIELDS ----------------- */}
       {step === 'form' && (
-        <div data-lenis-prevent className="w-full max-w-[560px] mx-auto rounded-2xl transition-all duration-300 p-5 sm:p-6 relative z-20 shadow-xl bg-white border border-slate-100 shadow-slate-200/70 max-h-[88vh] overflow-y-auto">
+        <div className="w-full max-w-[560px] mx-auto rounded-2xl transition-all duration-300 p-5 sm:p-6 relative z-20 bg-white dark:bg-[#181818] border border-slate-100 dark:border-[#303030] shadow-xl text-slate-900 dark:text-slate-100">
           
           {/* Top Header Controls (Back button & Role Switcher) */}
           <div className="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-100">
@@ -491,6 +508,27 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
             /* Registration Form */
             <form onSubmit={handleRegister} className="space-y-2.5">
               
+              {errors.form && (
+                <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-semibold leading-relaxed">{errors.form}</p>
+                    {(errors.form.includes('already registered') ||
+                      errors.form.includes('already exists') ||
+                      errors.form.includes('Please sign in')) && (
+                      <button
+                        type="button"
+                        onClick={onSwitchToSignIn}
+                        className="mt-1.5 text-[11.5px] font-bold text-blue-700 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>Click here to Sign In with this account</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* 2-Column Fields Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 

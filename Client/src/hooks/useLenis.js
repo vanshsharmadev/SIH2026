@@ -35,8 +35,24 @@ export default function useLenis(options = {}) {
 
     rafId = requestAnimationFrame(raf);
 
+    // Keep Lenis dimensions in sync when React components mount or change height dynamically
+    const resizeObserver = new ResizeObserver(() => {
+      lenis.resize();
+    });
+
+    if (document.body) {
+      resizeObserver.observe(document.body);
+    }
+
+    const handleWindowResize = () => {
+      lenis.resize();
+    };
+    window.addEventListener('resize', handleWindowResize);
+
     return () => {
       cancelAnimationFrame(rafId);
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', handleWindowResize);
       lenis.destroy();
       lenisRef.current = null;
       if (window.lenis === lenis) {
