@@ -30,7 +30,7 @@ const Login = () => {
   };
 
   return (
-    <div className="relative w-full flex-1 flex flex-col justify-center min-h-[calc(100vh-140px)]">
+    <div className="relative w-full flex-1 flex flex-col min-h-0 py-6 sm:py-8 lg:py-10">
 
       {/* Background Panorama Image with Rashtrapati Bhavan & Ashoka Chakra (Full Screen Fit) */}
       <div className="fixed inset-0 z-0 w-full h-full pointer-events-none select-none overflow-hidden">
@@ -44,7 +44,7 @@ const Login = () => {
       </div>
 
       {/* Two-Column Main Content (Hero on Left, Form Card on Right) */}
-      <div className="relative z-10 w-full max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-10 pt-10 sm:pt-14 md:pt-16 pb-8 sm:pb-12 my-auto flex-1 flex items-center">
+      <div className="relative z-10 w-full max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-10 my-auto flex-1 flex items-center">
         <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 xl:gap-14 items-center">
           
           {/* Left Column: Hero (Headline, Badges, Quote) - Hidden on mobile view */}

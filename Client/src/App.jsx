@@ -14,7 +14,7 @@ function AppContent({ fontScale, setFontScale }) {
   const isLandingPage = location.pathname === '/';
   const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
   // Dedicated sidebar-based evaluation console is only rendered for officers
-  const isOfficerDashboardPage = isOfficer && (location.pathname === '/dashboard' || location.pathname.startsWith('/dashboard'));
+  const isOfficerDashboardPage = isOfficer && (location.pathname === '/dashboard' || location.pathname.startsWith('/dashboard') || location.pathname.startsWith('/officer'));
   const isWidePage = isLandingPage || isAuthPage || isOfficerDashboardPage || location.pathname === '/my-applications' || location.pathname === '/reports';
 
   // Initialize Lenis smooth scrolling
@@ -27,6 +27,7 @@ function AppContent({ fontScale, setFontScale }) {
       if (target) {
         const timer = setTimeout(() => {
           if (window.lenis) {
+            window.lenis.resize();
             window.lenis.scrollTo(target, { offset: -60 });
           } else {
             target.scrollIntoView({ behavior: 'smooth' });
@@ -36,16 +37,26 @@ function AppContent({ fontScale, setFontScale }) {
       }
     } else {
       if (window.lenis) {
+        window.lenis.resize();
         window.lenis.scrollTo(0, { immediate: true });
       } else {
         window.scrollTo(0, 0);
       }
     }
+
+    // Refresh Lenis boundaries after new page DOM finishes initial mount
+    const timer = setTimeout(() => {
+      if (window.lenis) {
+        window.lenis.resize();
+      }
+    }, 120);
+
+    return () => clearTimeout(timer);
   }, [location.pathname, location.hash]);
 
   return (
     <div
-      className="min-h-screen flex flex-col transition-colors duration-200 relative selection:bg-blue-600 selection:text-white bg-[#f0f4f9] dark:bg-[#0b1329] text-[#1e293b] dark:text-[#f1f5f9]"
+      className="min-h-screen flex flex-col transition-colors duration-200 relative selection:bg-blue-600 selection:text-white bg-[#f0f4f9] dark:bg-[#121212] text-[#1e293b] dark:text-[#eeeeee]"
     >
       {/* Top Navigation - hidden on Officer Dashboard to render the dedicated platform interface */}
       {!isOfficerDashboardPage && (

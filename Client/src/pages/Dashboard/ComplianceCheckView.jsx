@@ -28,7 +28,10 @@ import {
   BadgeAlert,
   AlertCircle,
   FileSpreadsheet,
+  MessageSquare,
 } from 'lucide-react';
+import BidderChatBot from '../../components/common/BidderChatBot';
+import MarkdownRenderer from '../../components/common/MarkdownRenderer';
 
 const INITIAL_REQUIREMENTS = [
   {
@@ -252,10 +255,11 @@ const CATEGORIES = [
   { id: 'conditions', name: '5. Tender Conditions & GFR', count: '40 / 46 Compliant', color: 'emerald' },
 ];
 
-const ComplianceCheckView = ({ onBackToDashboard }) => {
+const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
   const [activeTab, setActiveTab] = useState('all'); // all | compliant | needs_review | non_compliant | not_applicable
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [chatBotOpen, setChatBotOpen] = useState(false);
 
   // Requirements state
   const [requirements, setRequirements] = useState(INITIAL_REQUIREMENTS);
@@ -574,6 +578,16 @@ const ComplianceCheckView = ({ onBackToDashboard }) => {
               </button>
             )}
           </div>
+
+          <button
+            type="button"
+            onClick={() => setChatBotOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-xs font-bold text-white shadow-xs transition cursor-pointer shrink-0 group"
+            title="Ask AI Tender Assistant (POST /api/officer/tenders/chat)"
+          >
+            <MessageSquare className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+            <span>Ask Tender AI</span>
+          </button>
 
           <button
             type="button"
@@ -905,9 +919,10 @@ const ComplianceCheckView = ({ onBackToDashboard }) => {
                 <Sparkles className="w-3 h-3" />
                 <span>AI Verification Reasoning</span>
               </span>
-              <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed mt-1">
-                {selectedReq.aiSummary}
-              </p>
+              <MarkdownRenderer
+                content={selectedReq.aiSummary}
+                className="text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed mt-1"
+              />
             </div>
 
             {/* Discrepancy Callout if applicable */}
@@ -1063,6 +1078,26 @@ const ComplianceCheckView = ({ onBackToDashboard }) => {
           </div>
         </div>
       )}
+
+      {/* Per-Tender & Bidder AI Chatbot (POST /api/officer/tenders/chat) */}
+      <BidderChatBot
+        isOpen={chatBotOpen}
+        onClose={() => setChatBotOpen(false)}
+        tenderId={submissionData?.tenderId || '1'}
+        bidderId={submissionData?.bidderId || submissionData?.id || 'BID-007'}
+        bidderData={
+          submissionData || {
+            bidder: 'ABC Enterprises Pvt. Ltd.',
+            id: 'BID-007',
+            bidderId: 'BID-007',
+            tenderId: '1',
+            tenderTitle: 'Supply of Office Stationery Items',
+            department: 'Ministry of Education',
+            complianceScore: 92,
+            complianceStatus: 'Compliant',
+          }
+        }
+      />
     </div>
   );
 };

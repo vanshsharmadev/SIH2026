@@ -37,6 +37,18 @@ import {
   MessageSquare,
   Download,
   Eye,
+  Copy,
+  Calendar,
+  ArrowRight,
+  Search,
+  Building,
+  Check,
+  Layers,
+  ChevronRight,
+  Sun,
+  Moon,
+  LogOut,
+  ChevronsUpDown,
 } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
@@ -47,7 +59,7 @@ import {
   setTimeFilter as setReduxTimeFilter,
 } from '../../store/slices/dashboardSlice';
 import { selectAllTenders } from '../../store/slices/tenderSlice';
-import { useAuth } from '../../context';
+import { useAuth, useTheme } from '../../context';
 import { ChatBox } from '../../components/common';
 import { isOfficerUser } from '../../utils/roleUtils';
 import ComplianceCheckView from './ComplianceCheckView';
@@ -55,11 +67,44 @@ import TenderSubmissionsView from './TenderSubmissionsView';
 import Reports from '../Reports';
 import AuditTrail from '../Audit';
 import { recordAuditLog, tenderService, mlService } from '../../services';
+import BidderDashboard from './BidderDashboard';
+
+// Lightweight SVG sparkline for KPI metric trajectory
+const Sparkline = ({ data = [10, 15, 12, 18, 20, 24, 28], color = '#3b82f6', width = 64, height = 24 }) => {
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const points = data
+    .map((val, idx) => {
+      const x = (idx / (data.length - 1)) * width;
+      const y = height - ((val - min) / range) * (height - 6) - 3;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+
+  return (
+    <svg width={width} height={height} className="overflow-visible shrink-0" aria-hidden="true">
+      <polyline
+        fill="none"
+        stroke={color}
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        points={points}
+      />
+    </svg>
+  );
+};
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user, isAuthenticated, logout } = useAuth();
+
+  // If user is authenticated as a Bidder/Vendor, present Bidder Dashboard with Compliance Document Vault
+  if (isAuthenticated && !isOfficerUser(user)) {
+    return <BidderDashboard />;
+  }
 
   const reduxMetrics = useSelector(selectDashboardMetrics);
   const reduxCompliance = useSelector(selectComplianceOverview);
@@ -113,7 +158,10 @@ const Dashboard = () => {
     }
   }, [searchParams]);
 
-  const handleOpenCompliance = () => {
+  const [activeComplianceSubmission, setActiveComplianceSubmission] = useState(null);
+
+  const handleOpenCompliance = (sub = null) => {
+    if (sub) setActiveComplianceSubmission(sub);
     setActiveMenu('compliance');
     setSearchParams({ tab: 'compliance' });
     setSidebarOpen(false);
@@ -143,14 +191,79 @@ const Dashboard = () => {
     setSidebarOpen(false);
   };
 
-  const [timeFilter, setTimeFilter] = useState('This Month');
-  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [timeFilter, setTimeFilter] = useState('Last 30 days');
+  const { isDarkMode, toggleTheme } = useTheme();
   const [chatBoxOpen, setChatBoxOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef(null);
+
+  // Close account menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Helper states for redesigned layout & interactions
+  const [copiedId, setCopiedId] = useState(null);
+  const [submissionsFilter, setSubmissionsFilter] = useState('all'); // 'all', 'today', 'earlier'
+  const [showAllSubmissions, setShowAllSubmissions] = useState(false);
+  const [needsAttentionOpen, setNeedsAttentionOpen] = useState(true);
+  const [isMoreOpen, setIsMoreOpen] = useState(true); // Collapsible 'More Tools' group
+
+  // Accessibility: close mobile sidebar on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && sidebarOpen) {
+        setSidebarOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [sidebarOpen]);
 
   // Quick Action Modal states
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [evalModalOpen, setEvalModalOpen] = useState(false);
   const [selectedDocSubmission, setSelectedDocSubmission] = useState(null);
+
+  const handleCopyTenderId = (id) => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(id);
+    }
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleExportReport = () => {
+    const reportData = {
+      generatedAt: new Date().toISOString(),
+      officer: officerName,
+      metrics,
+      compliance,
+      summary: 'GeM AI Tender Compliance Assessment Report',
+    };
+    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gem-compliance-report-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    recordAuditLog({
+      activity: 'Export Compliance Report',
+      module: 'Compliance',
+      details: `Officer ${officerName} exported compliance overview report`,
+      status: 'Success',
+      user: { name: officerName, role: officerRole },
+    });
+  };
 
   // Officer Cloudinary Tender Upload & ML OCR state
   const [tenderUploadFile, setTenderUploadFile] = useState(null);
@@ -308,83 +421,168 @@ const Dashboard = () => {
 
   const compliance = reduxCompliance || {
     totalChecks: 346,
-    compliant: 253,
-    compliantPercentage: 73,
-    minorIssues: 61,
+    compliant: 246,
+    compliantPercentage: 71,
+    minorIssues: 62,
     minorIssuesPercentage: 18,
-    majorIssues: 32,
-    majorIssuesPercentage: 9,
-    complianceRate: 73,
+    majorIssues: 38,
+    majorIssuesPercentage: 11,
+    complianceRate: 71,
     complianceRateTrend: '+8%',
-    timeFilter: 'This Month',
+    timeFilter: 'Last 30 days',
   };
 
-  // Recent Tenders Data (Exact match with screenshot & connected to Redux)
-  const recentTenders = reduxTenders?.length
-    ? reduxTenders.slice(0, 5).map((t) => ({
-      id: t.id,
-      title: t.title,
-      department: t.department,
-      lastDate: t.lastDate,
-      submissions: t.submissions,
-      status: t.status,
-    }))
-    : [
-      {
-        id: 'GEM/2024/B/5123981',
-        title: 'Supply of Office Stationery...',
-        department: 'Ministry of Education',
-        lastDate: '25 May 2024',
-        submissions: 8,
-        status: 'Open',
-      },
-      {
-        id: 'GEM/2024/B/5123982',
-        title: 'IT Hardware Procurement...',
-        department: 'Ministry of Railways',
-        lastDate: '28 May 2024',
-        submissions: 12,
-        status: 'Open',
-      },
-      {
-        id: 'GEM/2024/B/5123983',
-        title: 'Road Construction Work...',
-        department: 'PWD Department',
-        lastDate: '30 May 2024',
-        submissions: 5,
-        status: 'Open',
-      },
-      {
-        id: 'GEM/2024/B/5123984',
-        title: 'Medical Equipment Supply...',
-        department: 'Health Department',
-        lastDate: '20 May 2024',
-        submissions: 14,
-        status: 'Closed',
-      },
-      {
-        id: 'GEM/2024/B/5123985',
-        title: 'Smart Classroom Setup...',
-        department: 'Ministry of Education',
-        lastDate: '18 May 2024',
-        submissions: 9,
-        status: 'Closed',
-      },
-    ];
+  // Recent Tenders Data with detailed metadata, countdowns, and statuses
+  const defaultRecentTenders = [
+    {
+      id: 'GEM/2024/B/5123981',
+      title: 'Supply of Office Stationery & Administrative Items',
+      department: 'Ministry of Education',
+      deptCode: 'MoE',
+      lastDate: '25 May 2024',
+      daysLeft: 5,
+      submissions: 8,
+      status: 'Active',
+      statusType: 'active',
+      value: '₹ 45 Lakhs',
+    },
+    {
+      id: 'GEM/2024/B/5123982',
+      title: 'IT Hardware Procurement & Networking Infrastructure',
+      department: 'Ministry of Railways',
+      deptCode: 'MoR',
+      lastDate: '28 May 2024',
+      daysLeft: 8,
+      submissions: 12,
+      status: 'Under review',
+      statusType: 'review',
+      value: '₹ 8.4 Crores',
+    },
+    {
+      id: 'GEM/2024/B/5123983',
+      title: 'Road Construction & Highway Maintenance Work',
+      department: 'PWD Department',
+      deptCode: 'PWD',
+      lastDate: '30 May 2024',
+      daysLeft: 10,
+      submissions: 5,
+      status: 'Active',
+      statusType: 'active',
+      value: '₹ 2.1 Crores',
+    },
+    {
+      id: 'GEM/2024/B/5123984',
+      title: 'Advanced Medical Diagnostic Equipment Supply',
+      department: 'Health Department',
+      deptCode: 'MoH',
+      lastDate: '20 May 2024',
+      daysLeft: 0,
+      submissions: 14,
+      status: 'Compliance issue',
+      statusType: 'issue',
+      value: '₹ 1.8 Crores',
+    },
+    {
+      id: 'GEM/2024/B/5123985',
+      title: 'Smart Classroom Audio-Visual Setup',
+      department: 'Ministry of Education',
+      deptCode: 'MoE',
+      lastDate: '18 May 2024',
+      daysLeft: -2,
+      submissions: 9,
+      status: 'Closed',
+      statusType: 'closed',
+      value: '₹ 65 Lakhs',
+    },
+  ];
 
-  // Default base submissions if Redux is initial
+  const recentTenders = reduxTenders?.length
+    ? reduxTenders.slice(0, 5).map((t, i) => ({
+      id: t.id || defaultRecentTenders[i]?.id || `GEM/2024/B/${5123980 + i}`,
+      title: t.title || defaultRecentTenders[i]?.title,
+      department: t.department || defaultRecentTenders[i]?.department,
+      deptCode: defaultRecentTenders[i]?.deptCode || 'GOV',
+      lastDate: t.lastDate || defaultRecentTenders[i]?.lastDate,
+      daysLeft: defaultRecentTenders[i]?.daysLeft ?? 3,
+      submissions: t.submissions || defaultRecentTenders[i]?.submissions || 6,
+      status: t.status || defaultRecentTenders[i]?.status || 'Active',
+      statusType: t.status === 'Closed' ? 'closed' : t.status === 'Compliance issue' ? 'issue' : t.status === 'Under review' ? 'review' : 'active',
+      value: defaultRecentTenders[i]?.value || '₹ 50 Lakhs',
+    }))
+    : defaultRecentTenders;
+
+  // Default base submissions grouped with Today & Earlier indicators
   const defaultSubmissions = [
+    // --- Group: TODAY ---
+    {
+      id: 'APP-2024-5130',
+      tenderId: 'GEM/2024/B/5123981',
+      tenderTitle: 'Supply of Office Stationery & Administrative Items',
+      bidder: 'Rajat',
+      submittedOn: 'Today, 11:20 AM',
+      relativeTime: 'Just now',
+      score: 100,
+      status: 'Compliant',
+      statusColor: 'emerald',
+      quotedAmount: '₹ 42,50,000',
+      ministry: 'Ministry of Education',
+      isToday: true,
+      documents: [
+        { name: 'Technical_Proposal_Compliance.pdf', size: '2.8 MB', status: 'Verified', date: 'Today' },
+        { name: 'BOQ_Price_Schedule.xlsx', size: '480 KB', status: 'Verified', date: 'Today' },
+        { name: 'GFR_144xi_Certificate.pdf', size: '360 KB', status: 'Compliant', date: 'Today' },
+      ],
+    },
+    {
+      id: 'APP-2024-5131',
+      tenderId: 'GEM/2024/B/5123982',
+      tenderTitle: 'IT Hardware Procurement & Networking Infrastructure',
+      bidder: 'Rajat',
+      submittedOn: 'Today, 09:15 AM',
+      relativeTime: '2h ago',
+      score: 98,
+      status: 'Compliant',
+      statusColor: 'emerald',
+      quotedAmount: '₹ 44,80,000',
+      ministry: 'Ministry of Railways',
+      isToday: true,
+      documents: [
+        { name: 'IT_Hardware_Specs_Dossier.pdf', size: '4.1 MB', status: 'Verified', date: 'Today' },
+        { name: 'Make_In_India_Declaration.pdf', size: '520 KB', status: 'Verified (72%)', date: 'Today' },
+      ],
+    },
+    {
+      id: 'APP-2024-5132',
+      tenderId: 'GEM/2024/B/5123983',
+      tenderTitle: 'Road Construction & Highway Maintenance Work',
+      bidder: 'Itachi Uchiha',
+      submittedOn: 'Today, 07:40 AM',
+      relativeTime: '4h ago',
+      score: 98,
+      status: 'Compliant',
+      statusColor: 'emerald',
+      quotedAmount: '₹ 8,10,00,000',
+      ministry: 'PWD Department',
+      isToday: true,
+      documents: [
+        { name: 'PWD_Highway_Proposal_Plan.pdf', size: '6.4 MB', status: 'Verified', date: 'Today' },
+        { name: 'Machinery_Equipment_List.pdf', size: '1.1 MB', status: 'Compliant', date: 'Today' },
+      ],
+    },
+    // --- Group: EARLIER ---
     {
       id: 'APP-2024-5123',
       tenderId: 'GEM/2024/B/5123981',
       tenderTitle: 'Supply of Office Stationery & Administrative Items',
       bidder: 'ABC Enterprises Pvt. Ltd.',
       submittedOn: '19 May 2024',
+      relativeTime: '2 days ago',
       score: 92,
       status: 'Compliant',
       statusColor: 'emerald',
       quotedAmount: '₹ 42,50,000',
       ministry: 'Ministry of Education',
+      isToday: false,
       documents: [
         { name: 'Technical_Proposal_Compliance.pdf', size: '2.8 MB', status: 'Verified', date: '19 May 2024' },
         { name: 'BOQ_Price_Schedule.xlsx', size: '480 KB', status: 'Verified', date: '19 May 2024' },
@@ -397,11 +595,13 @@ const Dashboard = () => {
       tenderTitle: 'Supply of Office Stationery & Administrative Items',
       bidder: 'XYZ Solutions',
       submittedOn: '18 May 2024',
+      relativeTime: '3 days ago',
       score: 68,
       status: 'Minor Issues',
       statusColor: 'amber',
       quotedAmount: '₹ 45,00,000',
       ministry: 'Ministry of Education',
+      isToday: false,
       documents: [
         { name: 'Stationery_Tender_Proposal.pdf', size: '3.1 MB', status: 'Verified', date: '18 May 2024' },
         { name: 'Audited_Turnover_BOM.pdf', size: '1.2 MB', status: 'Flagged (Local Content 45%)', date: '18 May 2024' },
@@ -413,11 +613,13 @@ const Dashboard = () => {
       tenderTitle: 'Supply of Office Stationery & Administrative Items',
       bidder: 'Global Traders',
       submittedOn: '17 May 2024',
+      relativeTime: '4 days ago',
       score: 45,
       status: 'Major Issues',
       statusColor: 'rose',
       quotedAmount: '₹ 39,20,000',
       ministry: 'Ministry of Education',
+      isToday: false,
       documents: [
         { name: 'Global_Bid_Form_A.pdf', size: '1.5 MB', status: 'Verified', date: '17 May 2024' },
         { name: 'Banned_Subcontractor_List.pdf', size: '890 KB', status: 'Violates GFR Rule 144(xi)', date: '17 May 2024' },
@@ -429,11 +631,13 @@ const Dashboard = () => {
       tenderTitle: 'IT Hardware Procurement & Networking',
       bidder: 'TechCorp India Pvt. Ltd.',
       submittedOn: '19 May 2024',
+      relativeTime: '2 days ago',
       score: 85,
       status: 'Compliant',
       statusColor: 'emerald',
       quotedAmount: '₹ 8,40,00,000',
       ministry: 'Ministry of Railways',
+      isToday: false,
       documents: [
         { name: 'IT_Hardware_Tech_Specs.pdf', size: '4.2 MB', status: 'Verified', date: '19 May 2024' },
         { name: 'Make_In_India_Auditor_Cert.pdf', size: '650 KB', status: 'Verified (68%)', date: '19 May 2024' },
@@ -445,11 +649,13 @@ const Dashboard = () => {
       tenderTitle: 'IT Hardware Procurement & Networking',
       bidder: 'Innovative Supplies',
       submittedOn: '18 May 2024',
+      relativeTime: '3 days ago',
       score: 72,
       status: 'Minor Issues',
       statusColor: 'amber',
       quotedAmount: '₹ 8,90,00,000',
       ministry: 'Ministry of Railways',
+      isToday: false,
       documents: [
         { name: 'Hardware_Bidding_Dossier.pdf', size: '2.9 MB', status: 'Verified', date: '18 May 2024' },
         { name: 'DSC_Timestamp_Declaration.pdf', size: '320 KB', status: 'Clarification Needed', date: '18 May 2024' },
@@ -467,7 +673,7 @@ const Dashboard = () => {
       const key = item.id || `${item.tenderId}-${item.bidder}`;
       if (!seen.has(key)) {
         seen.add(key);
-        list.push(item);
+        list.push({ ...item, isToday: item.isToday ?? true });
       }
     }
     for (const item of base) {
@@ -480,46 +686,76 @@ const Dashboard = () => {
     return list;
   }, [reduxSubmissions, localOfficerSubmissions]);
 
+  // Default Activities grouped by Today and Earlier
+  const defaultActivities = [
+    // Today
+    {
+      id: 1,
+      type: 'completed',
+      title: 'Compliance check passed (100%)',
+      subtext: 'Tender: GEM/2024/B/5123981 • Bidder: Rajat',
+      time: '10:30 AM',
+      isToday: true,
+      tag: 'Auto-Verified',
+    },
+    {
+      id: 2,
+      type: 'completed',
+      title: 'Automated OCR verification passed (98%)',
+      subtext: 'Tender: GEM/2024/B/5123982 • Bidder: Rajat',
+      time: '09:45 AM',
+      isToday: true,
+      tag: 'OCR Engine',
+    },
+    {
+      id: 3,
+      type: 'completed',
+      title: 'Technical bid compliance certified (98%)',
+      subtext: 'Tender: GEM/2024/B/5123983 • Bidder: Itachi Uchiha',
+      time: '09:15 AM',
+      isToday: true,
+      tag: 'CVC Rules',
+    },
+    {
+      id: 4,
+      type: 'warning',
+      title: 'Minor turnover discrepancy flagged',
+      subtext: 'Tender: GEM/2024/B/5123981 • Bidder: XYZ Solutions',
+      time: '08:20 AM',
+      isToday: true,
+      tag: 'Flagged',
+    },
+    // Earlier
+    {
+      id: 5,
+      type: 'danger',
+      title: 'GFR Rule 144(xi) violation detected',
+      subtext: 'Tender: GEM/2024/B/5123981 • Bidder: Global Traders',
+      time: 'Yesterday',
+      isToday: false,
+      tag: 'High Risk',
+    },
+    {
+      id: 6,
+      type: 'completed',
+      title: 'Make-in-India declaration verified (68%)',
+      subtext: 'Tender: GEM/2024/B/5123982 • Bidder: TechCorp India Pvt. Ltd.',
+      time: '2 days ago',
+      isToday: false,
+      tag: 'MII Verified',
+    },
+  ];
+
   // Combined AI Verification Activity (Redux + localStorage activities)
   const activities = useMemo(() => {
-    const base = reduxActivities || [
-      {
-        id: 1,
-        type: 'completed',
-        title: 'Compliance check completed',
-        subtext: 'Tender ID: GEM/2024/B/5123981 | Bidder: ABC Enterprises Pvt. Ltd.',
-        time: '10:30 AM',
-      },
-      {
-        id: 2,
-        type: 'warning',
-        title: 'Minor issues detected',
-        subtext: 'Tender ID: GEM/2024/B/5123981 | Bidder: XYZ Solutions',
-        time: '09:45 AM',
-      },
-      {
-        id: 3,
-        type: 'danger',
-        title: 'Major compliance issues detected',
-        subtext: 'Tender ID: GEM/2024/B/5123981 | Bidder: Global Traders',
-        time: '09:15 AM',
-      },
-      {
-        id: 4,
-        type: 'completed',
-        title: 'Document verification completed',
-        subtext: 'Tender ID: GEM/2024/B/5123982 | Bidder: TechCorp India Pvt. Ltd.',
-        time: 'Yesterday',
-      },
-    ];
-
+    const base = reduxActivities && reduxActivities.length > 0 ? reduxActivities : defaultActivities;
     const seen = new Set();
     const list = [];
     for (const act of localOfficerActivities) {
       const key = act.id || `${act.title}-${act.time}`;
       if (!seen.has(key)) {
         seen.add(key);
-        list.push(act);
+        list.push({ ...act, isToday: act.isToday ?? true });
       }
     }
     for (const act of base) {
@@ -544,29 +780,34 @@ const Dashboard = () => {
 
   // Strict Role Guard: Commercial Bidders must NEVER see the internal Officer Evaluation Portal
   if (!isOfficerUser(user)) {
-    return <Navigate to="/my-applications" replace />;
+    return <Navigate to="/bidder-dashboard" replace />;
   }
 
   return (
-    <div className="flex min-h-screen bg-[#f4f7fa] dark:bg-[#0b1329] text-slate-800 dark:text-slate-100 font-sans antialiased">
+    <div className="flex min-h-screen bg-[#f0f4f9] dark:bg-[#121212] text-slate-800 dark:text-[#eeeeee] font-sans antialiased transition-colors duration-200">
 
-      {/* -------------------- 1. LEFT SIDEBAR -------------------- */}
-      {/* Backdrop for mobile */}
+      {/* -------------------- 1. REDESIGNED LEFT SIDEBAR -------------------- */}
+      {/* Accessible Backdrop for mobile with blur */}
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden backdrop-blur-xs"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden animate-in fade-in duration-200"
+          aria-hidden="true"
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 h-screen max-h-screen bg-[#0d1527] text-white flex flex-col transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-20' : 'w-64'
-          } ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
+        role="complementary"
+        aria-label="Officer Workspace Sidebar"
+        className={`fixed inset-y-0 left-0 z-40 h-screen max-h-screen bg-[#141414] dark:bg-[#121212] border-r border-[#262626] text-white flex flex-col transition-all duration-300 ease-in-out shadow-2xl ${
+          sidebarCollapsed ? 'w-20' : 'w-64'
+        } ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
         {/* Brand Header */}
         <div
-          className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2 py-4 cursor-pointer group' : 'justify-between px-5 py-4'
-            } border-b border-slate-800/80 shrink-0 transition-all duration-300`}
+          className={`flex items-center ${
+            sidebarCollapsed ? 'justify-center px-2 py-4 cursor-pointer group' : 'justify-between px-4 py-4'
+          } border-b border-[#262626] shrink-0 transition-all duration-300`}
           onClick={sidebarCollapsed ? toggleCollapse : undefined}
           title={sidebarCollapsed ? 'Click to expand sidebar' : undefined}
         >
@@ -581,21 +822,28 @@ const Dashboard = () => {
                   handleOpenDashboard();
                 }
               }}
-              title={sidebarCollapsed ? 'Click to expand sidebar' : 'GeM Compliflix'}
-              className={`w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white shrink-0 transition-all cursor-pointer ${sidebarCollapsed
-                  ? 'group-hover:scale-105 group-hover:ring-2 group-hover:ring-blue-400/50 group-hover:shadow-blue-500/40'
+              title={sidebarCollapsed ? 'Click to expand sidebar' : 'GeM Compliflix Overview'}
+              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'GeM Compliflix Home'}
+              className={`w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/25 text-white shrink-0 transition-all cursor-pointer ${
+                sidebarCollapsed
+                  ? 'group-hover:scale-105 group-hover:ring-2 group-hover:ring-blue-400/50'
                   : 'hover:opacity-90'
-                }`}
+              }`}
             >
               <ShieldCheck className="w-5 h-5" />
             </button>
             {!sidebarCollapsed && (
               <div className="min-w-0 flex-1">
-                <h1 className="text-base font-bold tracking-tight text-white leading-tight truncate">
-                  GeM <span className='text-[#0E9F6E]'>Compliflix</span>
-                </h1>
+                <div className="flex items-center gap-1.5">
+                  <h1 className="text-base font-bold tracking-tight text-white leading-tight truncate">
+                    GeM <span className="text-[#0E9F6E]">Compliflix</span>
+                  </h1>
+                  <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase">
+                    Gov
+                  </span>
+                </div>
                 <p className="text-[10px] font-medium text-slate-400 truncate">
-                  AI Tender Compliance Platform
+                  AI Tender Compliance Portal
                 </p>
               </div>
             )}
@@ -604,19 +852,19 @@ const Dashboard = () => {
           {/* Mobile close button */}
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-1 text-slate-400 hover:text-white cursor-pointer"
-            aria-label="Close sidebar"
+            className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#202020] transition cursor-pointer"
+            aria-label="Close sidebar navigation"
           >
             <X className="w-5 h-5" />
           </button>
 
-          {/* Desktop collapse toggle button on the right side of GeM Compliflix - ONLY VISIBLE WHEN EXPANDED */}
+          {/* Desktop collapse toggle button */}
           {!sidebarCollapsed && (
             <button
               type="button"
               onClick={toggleCollapse}
-              className="hidden lg:flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer border border-slate-700/50"
-              title="Collapse sidebar"
+              className="hidden lg:flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#202020] transition cursor-pointer border border-[#303030]"
+              title="Collapse sidebar (compact mode)"
               aria-label="Collapse sidebar"
             >
               <PanelLeftClose className="w-4 h-4" />
@@ -624,211 +872,443 @@ const Dashboard = () => {
           )}
         </div>
 
-        {/* Scrollable Navigation Menu (sidebar-scroll + min-h-0 ensures smooth vertical scrolling) */}
-        <div
-          className={`flex-1 min-h-0 sidebar-scroll ${sidebarCollapsed ? 'px-2' : 'px-3.5'
-            } py-4 space-y-5 text-xs select-none overscroll-contain`}
+        {/* Scrollable Navigation Menu */}
+        <nav
+          role="navigation"
+          aria-label="Dashboard Workspace Navigation"
+          className={`flex-1 min-h-0 sidebar-scroll ${
+            sidebarCollapsed ? 'px-2' : 'px-3'
+          } py-3.5 space-y-4 text-xs select-none overscroll-contain overflow-y-auto`}
         >
-          {/* Main Dashboard Link */}
-          <div>
-            <button
-              onClick={handleOpenDashboard}
-              title="Dashboard"
-              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-                } py-2.5 rounded-xl font-semibold transition-all cursor-pointer ${activeMenu === 'dashboard'
-                  ? 'bg-blue-600/90 text-white shadow-md shadow-blue-600/20'
-                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
-                }`}
-            >
-              <LayoutDashboard className="w-4 h-4 shrink-0" />
-              {!sidebarCollapsed && <span className="text-xs truncate">Dashboard</span>}
-            </button>
-          </div>
-
-          {/* Group 1: TENDER MANAGEMENT */}
+          {/* ZONE 1: CORE WORKSPACES */}
           <div className="space-y-1">
-            {!sidebarCollapsed ? (
-              <p className="px-3 text-[10px] font-bold tracking-wider text-slate-400 uppercase truncate">
-                Tender Management
+            {!sidebarCollapsed && (
+              <p className="px-3 pb-1 text-[10px] font-bold tracking-wider text-slate-500 uppercase truncate">
+                Core Workspaces
               </p>
-            ) : (
-              <div className="border-t border-slate-800/80 my-2 mx-1" />
             )}
-            <Link
-              to="/tenders"
-              onClick={() => setSidebarOpen(false)}
-              title="Tenders"
-              className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-                } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer`}
-            >
-              <FileSpreadsheet className="w-4 h-4 text-slate-400 shrink-0" />
-              {!sidebarCollapsed && <span className="truncate">Tenders</span>}
-            </Link>
-            <button
-              type="button"
-              onClick={handleOpenSubmissions}
-              title="Tender Submissions"
-              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-                } py-2 rounded-xl transition-all cursor-pointer text-left ${activeMenu === 'submissions'
-                  ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/25'
-                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
-                }`}
-            >
-              <FileEdit className="w-4 h-4 shrink-0" />
-              {!sidebarCollapsed && <span className="truncate">Tender Submissions</span>}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setEvalModalOpen(true);
-                setSidebarOpen(false);
-              }}
-              title="My Evaluations"
-              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-                } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer text-left`}
-            >
-              <CheckSquare className="w-4 h-4 text-slate-400 shrink-0" />
-              {!sidebarCollapsed && <span className="truncate">My Evaluations</span>}
-            </button>
-          </div>
 
-          {/* Group 2: DOCUMENT VERIFICATION */}
-          <div className="space-y-1">
-            {!sidebarCollapsed ? (
-              <p className="px-3 text-[10px] font-bold tracking-wider text-slate-400 uppercase truncate">
-                Document Verification
-              </p>
-            ) : (
-              <div className="border-t border-slate-800/80 my-2 mx-1" />
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setUploadModalOpen(true);
-                setSidebarOpen(false);
-              }}
-              title="Upload & Extract"
-              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-                } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer text-left`}
-            >
-              <UploadCloud className="w-4 h-4 text-slate-400 shrink-0" />
-              {!sidebarCollapsed && <span className="truncate">Upload & Extract</span>}
-            </button>
-            <button
-              type="button"
-              onClick={handleOpenCompliance}
-              title="Compliance Check"
-              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-                } py-2 rounded-xl transition-all cursor-pointer text-left ${activeMenu === 'compliance'
-                  ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/25'
-                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
-                }`}
-            >
-              <ShieldCheck className="w-4 h-4 shrink-0" />
-              {!sidebarCollapsed && <span className="truncate">Compliance Check</span>}
-            </button>
-          </div>
-
-          {/* Group 3: REPORTS & AUDIT */}
-          <div className="space-y-1">
-            {!sidebarCollapsed ? (
-              <p className="px-3 text-[10px] font-bold tracking-wider text-slate-400 uppercase truncate">
-                Reports & Audit
-              </p>
-            ) : (
-              <div className="border-t border-slate-800/80 my-2 mx-1" />
-            )}
-            <button
-              type="button"
-              onClick={handleOpenReports}
-              title="Compliance Reports"
-              className={`w-full flex items-center ${
-                sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-              } py-2 rounded-xl transition-colors cursor-pointer ${
-                activeMenu === 'reports'
-                  ? 'bg-blue-600 text-white font-bold shadow-sm'
-                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
-              }`}
-            >
-              <FileSpreadsheet className="w-4 h-4 text-slate-400 shrink-0" />
-              {!sidebarCollapsed && <span className="truncate">Compliance Reports</span>}
-            </button>
-            <button
-              type="button"
-              onClick={handleOpenAudit}
-              title="Audit Trail"
-              className={`w-full flex items-center ${
-                sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-              } py-2 rounded-xl transition-colors cursor-pointer ${
-                activeMenu === 'audit'
-                  ? 'bg-blue-600 text-white font-bold shadow-sm'
-                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
-              }`}
-            >
-              <Clock className="w-4 h-4 text-slate-400 shrink-0" />
-              {!sidebarCollapsed && <span className="truncate">Audit Trail</span>}
-            </button>
-          </div>
-
-          {/* Group 4: AI COMPLIANCE ASSISTANT (CHATBOX) */}
-          <div className="space-y-1">
-            {!sidebarCollapsed ? (
-              <p className="px-3 text-[10px] font-bold tracking-wider text-slate-400 uppercase truncate">
-                AI Assistant
-              </p>
-            ) : (
-              <div className="border-t border-slate-800/80 my-2 mx-1" />
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveMenu('chatbox');
-                setChatBoxOpen(true);
-                setSidebarOpen(false);
-              }}
-              title="AI Chatbox (GFR 2017 & GeM Guidelines)"
-              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
-                } py-2 rounded-xl transition-all cursor-pointer text-left relative ${chatBoxOpen
-                  ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
-                }`}
-            >
-              <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
-                <Bot className="w-4 h-4 text-indigo-400 shrink-0" />
-                {!sidebarCollapsed && <span className="font-semibold truncate">AI Chatbox</span>}
-              </div>
-              {!sidebarCollapsed ? (
-                <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 uppercase tracking-wide">
-                  Live
-                </span>
-              ) : (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#0d1527]" />
+            {/* Dashboard Overview */}
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={handleOpenDashboard}
+                title="Dashboard Overview"
+                aria-current={activeMenu === 'dashboard' ? 'page' : undefined}
+                className={`w-full flex items-center ${
+                  sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                } py-2.5 rounded-xl font-semibold transition-all cursor-pointer relative group text-left ${
+                  activeMenu === 'dashboard'
+                    ? 'bg-blue-600/15 text-white font-bold border border-blue-500/30'
+                    : 'text-slate-300 hover:bg-[#202020] hover:text-white border border-transparent'
+                } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
+              >
+                {activeMenu === 'dashboard' && (
+                  <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-md bg-blue-500" />
+                )}
+                <LayoutDashboard className={`w-4 h-4 shrink-0 ${activeMenu === 'dashboard' ? 'text-blue-400' : 'text-slate-400 group-hover:text-white'}`} />
+                {!sidebarCollapsed && <span className="truncate">Dashboard Overview</span>}
+              </button>
+              {sidebarCollapsed && (
+                <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-[#1e1e1e] border border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                  Dashboard Overview
+                </div>
               )}
-            </button>
+            </div>
+
+            {/* Tenders Directory */}
+            <div className="relative group">
+              <Link
+                to="/tenders"
+                onClick={() => setSidebarOpen(false)}
+                title="Tenders Directory"
+                className={`flex items-center ${
+                  sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
+                } py-2.5 rounded-xl transition-all cursor-pointer text-slate-300 hover:bg-[#202020] hover:text-white border border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
+              >
+                <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
+                  <FileSpreadsheet className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-white" />
+                  {!sidebarCollapsed && <span className="truncate font-medium">Tenders</span>}
+                </div>
+                {!sidebarCollapsed && (
+                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-md bg-slate-800 text-slate-300 border border-slate-700">
+                    {metrics.totalTenders}
+                  </span>
+                )}
+              </Link>
+              {sidebarCollapsed && (
+                <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-[#1e1e1e] border border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                  Tenders ({metrics.totalTenders})
+                </div>
+              )}
+            </div>
+
+            {/* Tender Submissions */}
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={handleOpenSubmissions}
+                title="Tender Submissions"
+                aria-current={activeMenu === 'submissions' ? 'page' : undefined}
+                className={`w-full flex items-center ${
+                  sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
+                } py-2.5 rounded-xl transition-all cursor-pointer text-left relative group ${
+                  activeMenu === 'submissions'
+                    ? 'bg-blue-600/15 text-white font-bold border border-blue-500/30'
+                    : 'text-slate-300 hover:bg-[#202020] hover:text-white border border-transparent'
+                } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
+              >
+                {activeMenu === 'submissions' && (
+                  <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-md bg-blue-500" />
+                )}
+                <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
+                  <FileEdit className={`w-4 h-4 shrink-0 ${activeMenu === 'submissions' ? 'text-blue-400' : 'text-slate-400 group-hover:text-white'}`} />
+                  {!sidebarCollapsed && <span className="truncate">Tender Submissions</span>}
+                </div>
+                {!sidebarCollapsed && (
+                  <span className="px-1.5 py-0.2 text-[10px] font-bold rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    +3 New
+                  </span>
+                )}
+              </button>
+              {sidebarCollapsed && (
+                <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-[#1e1e1e] border border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                  Tender Submissions (+3 New)
+                </div>
+              )}
+            </div>
+
+            {/* Compliance Check */}
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={handleOpenCompliance}
+                title="Compliance Check"
+                aria-current={activeMenu === 'compliance' ? 'page' : undefined}
+                className={`w-full flex items-center ${
+                  sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
+                } py-2.5 rounded-xl transition-all cursor-pointer text-left relative group ${
+                  activeMenu === 'compliance'
+                    ? 'bg-blue-600/15 text-white font-bold border border-blue-500/30'
+                    : 'text-slate-300 hover:bg-[#202020] hover:text-white border border-transparent'
+                } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
+              >
+                {activeMenu === 'compliance' && (
+                  <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-md bg-blue-500" />
+                )}
+                <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
+                  <ShieldCheck className={`w-4 h-4 shrink-0 ${activeMenu === 'compliance' ? 'text-blue-400' : 'text-slate-400 group-hover:text-white'}`} />
+                  {!sidebarCollapsed && <span className="truncate">Compliance Check</span>}
+                </div>
+                {!sidebarCollapsed && (
+                  <span className="px-1.5 py-0.2 text-[10px] font-bold rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                    23 Alert
+                  </span>
+                )}
+              </button>
+              {sidebarCollapsed && (
+                <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-[#1e1e1e] border border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                  Compliance Check (23 Issues)
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Group 5: ADMINISTRATION */}
-          <div className="space-y-1">
-            {!sidebarCollapsed ? (
-              <p className="px-3 text-[10px] font-bold tracking-wider text-slate-400 uppercase truncate">
-                Administration
+          {/* ZONE 2: OPERATIONS & AI */}
+          <div className="pt-2 border-t border-[#262626] space-y-1">
+            {!sidebarCollapsed && (
+              <p className="px-3 pb-1 text-[10px] font-bold tracking-wider text-slate-500 uppercase truncate">
+                Operations &amp; AI
               </p>
-            ) : (
-              <div className="border-t border-slate-800/80 my-2 mx-1" />
             )}
-            <Link
-              to="/settings"
-              onClick={() => setSidebarOpen(false)}
-              title="Settings"
-              className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
-                } py-2 rounded-xl text-slate-300 hover:bg-slate-800/60 hover:text-white transition-colors cursor-pointer`}
-            >
-              <SettingsIcon className="w-4 h-4 text-slate-400 shrink-0" />
-              {!sidebarCollapsed && <span className="truncate">Settings</span>}
-            </Link>
-          </div>
-        </div>
 
+            {/* My Evaluations */}
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={() => {
+                  setEvalModalOpen(true);
+                  setSidebarOpen(false);
+                }}
+                title="My Evaluations"
+                className={`w-full flex items-center ${
+                  sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
+                } py-2.5 rounded-xl text-slate-300 hover:bg-[#202020] hover:text-white transition-all cursor-pointer text-left border border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
+              >
+                <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
+                  <CheckSquare className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-white" />
+                  {!sidebarCollapsed && <span className="truncate font-medium">My Evaluations</span>}
+                </div>
+                {!sidebarCollapsed && (
+                  <span className="px-1.5 py-0.2 text-[10px] font-semibold rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/25">
+                    8 Awaiting
+                  </span>
+                )}
+              </button>
+              {sidebarCollapsed && (
+                <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-[#1e1e1e] border border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                  My Evaluations (8 Awaiting)
+                </div>
+              )}
+            </div>
+
+            {/* AI Compliance Assistant (Chatbox) */}
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveMenu('chatbox');
+                  setChatBoxOpen(true);
+                  setSidebarOpen(false);
+                }}
+                title="AI Chatbox (GFR 2017 & GeM Guidelines)"
+                aria-current={chatBoxOpen ? 'true' : undefined}
+                className={`w-full flex items-center ${
+                  sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
+                } py-2.5 rounded-xl transition-all cursor-pointer text-left relative ${
+                  chatBoxOpen
+                    ? 'bg-gradient-to-r from-indigo-600/30 to-blue-600/30 text-white font-bold border border-indigo-500/40'
+                    : 'text-slate-300 hover:bg-[#202020] hover:text-white border border-transparent'
+                } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
+              >
+                <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
+                  <div className="relative shrink-0">
+                    <Bot className="w-4 h-4 text-indigo-400" />
+                    <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  </div>
+                  {!sidebarCollapsed && <span className="font-semibold truncate">AI Assistant</span>}
+                </div>
+                {!sidebarCollapsed && (
+                  <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase tracking-wide">
+                    Live
+                  </span>
+                )}
+              </button>
+              {sidebarCollapsed && (
+                <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-[#1e1e1e] border border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                  AI Assistant (Live)
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ZONE 3: COLLAPSIBLE "MORE TOOLS & SYSTEM" DRAWER */}
+          <div className="pt-2 border-t border-[#262626] space-y-1">
+            {!sidebarCollapsed ? (
+              <button
+                type="button"
+                onClick={() => setIsMoreOpen(!isMoreOpen)}
+                aria-expanded={isMoreOpen}
+                aria-controls="more-tools-panel"
+                className="w-full flex items-center justify-between px-3 py-1 text-[10px] font-bold tracking-wider text-slate-500 hover:text-slate-300 uppercase cursor-pointer transition rounded-lg hover:bg-[#1a1a1a]"
+                title="Toggle secondary tools & analytics"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-slate-500" />
+                  <span>More Tools &amp; System</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-slate-800 text-slate-400">
+                    4
+                  </span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      isMoreOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </div>
+              </button>
+            ) : (
+              <div className="border-t border-[#262626] my-2 mx-1" />
+            )}
+
+            {/* Expandable Group Content (or Direct Icons in Collapsed Mode) */}
+            {(!sidebarCollapsed ? isMoreOpen : true) && (
+              <div
+                id="more-tools-panel"
+                className={`space-y-1 transition-all ${
+                  !sidebarCollapsed ? 'pl-0.5 pt-0.5 animate-in fade-in duration-200' : ''
+                }`}
+              >
+                {/* Compliance Reports */}
+                <div className="relative group">
+                  <button
+                    type="button"
+                    onClick={handleOpenReports}
+                    title="Compliance Reports"
+                    aria-current={activeMenu === 'reports' ? 'page' : undefined}
+                    className={`w-full flex items-center ${
+                      sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                    } py-2 rounded-xl transition-all cursor-pointer text-left ${
+                      activeMenu === 'reports'
+                        ? 'bg-blue-600/15 text-white font-bold border border-blue-500/30'
+                        : 'text-slate-400 hover:bg-[#202020] hover:text-white border border-transparent'
+                    } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
+                  >
+                    <BarChart3 className={`w-4 h-4 shrink-0 ${activeMenu === 'reports' ? 'text-blue-400' : 'text-slate-400 group-hover:text-white'}`} />
+                    {!sidebarCollapsed && <span className="truncate">Compliance Reports</span>}
+                  </button>
+                  {sidebarCollapsed && (
+                    <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-[#1e1e1e] border border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                      Compliance Reports
+                    </div>
+                  )}
+                </div>
+
+                {/* Audit Trail */}
+                <div className="relative group">
+                  <button
+                    type="button"
+                    onClick={handleOpenAudit}
+                    title="Audit Trail"
+                    aria-current={activeMenu === 'audit' ? 'page' : undefined}
+                    className={`w-full flex items-center ${
+                      sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'
+                    } py-2 rounded-xl transition-all cursor-pointer text-left ${
+                      activeMenu === 'audit'
+                        ? 'bg-blue-600/15 text-white font-bold border border-blue-500/30'
+                        : 'text-slate-400 hover:bg-[#202020] hover:text-white border border-transparent'
+                    } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
+                  >
+                    <Clock className={`w-4 h-4 shrink-0 ${activeMenu === 'audit' ? 'text-blue-400' : 'text-slate-400 group-hover:text-white'}`} />
+                    {!sidebarCollapsed && <span className="truncate">Audit Trail</span>}
+                  </button>
+                  {sidebarCollapsed && (
+                    <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-[#1e1e1e] border border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                      Audit Trail
+                    </div>
+                  )}
+                </div>
+
+                {/* Upload & Extract ML OCR */}
+                <div className="relative group">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUploadModalOpen(true);
+                      setSidebarOpen(false);
+                    }}
+                    title="Upload & Extract (Cloudinary + ML OCR)"
+                    className={`w-full flex items-center ${
+                      sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
+                    } py-2 rounded-xl text-slate-400 hover:bg-[#202020] hover:text-white transition-all cursor-pointer text-left border border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
+                  >
+                    <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
+                      <UploadCloud className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-white" />
+                      {!sidebarCollapsed && <span className="truncate">Upload &amp; Extract</span>}
+                    </div>
+                    {!sidebarCollapsed && (
+                      <span className="px-1.5 py-0.2 text-[9px] font-bold rounded bg-slate-800 text-slate-400 border border-slate-700">
+                        ML OCR
+                      </span>
+                    )}
+                  </button>
+                  {sidebarCollapsed && (
+                    <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-[#1e1e1e] border border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                      Upload &amp; Extract (OCR)
+                    </div>
+                  )}
+                </div>
+
+                {/* Account Settings */}
+                <div className="relative group">
+                  {sidebarCollapsed && (
+                    <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-[#1e1e1e] border border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                      Settings
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </nav>
+
+        {/* Sidebar Footer: Officer Identity Card */}
+        <div className="p-3 border-t border-[#262626] bg-[#101010] shrink-0 relative" ref={accountMenuRef}>
+          {/* Account Dropdown Popover (opens upward) */}
+          {accountMenuOpen && (
+            <div className={`absolute ${sidebarCollapsed ? 'left-full ml-3 bottom-2 w-60' : 'bottom-full mb-2 left-3 right-3'} bg-[#181818] border border-[#2e2e2e] rounded-xl shadow-2xl p-1.5 z-50 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150`}>
+              <div className="px-3 py-2 border-b border-[#262626]">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-600 to-amber-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
+                    {initials}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-white truncate leading-tight">{officerName}</p>
+                    <p className="text-[10px] text-blue-400 font-medium truncate">{officerRole}</p>
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 truncate mt-1.5">{user?.email || 'pooja.sharma@gem.gov.in'}</p>
+              </div>
+
+              <div className="py-1 space-y-0.5">
+                <Link
+                  to="/settings"
+                  onClick={() => setAccountMenuOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-2 text-slate-300 hover:text-white hover:bg-[#222222] rounded-lg transition"
+                >
+                  <SettingsIcon className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="font-medium">Account Settings</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    recordAuditLog({
+                      activity: 'Logout',
+                      module: 'Authentication',
+                      details: `Officer ${officerName} signed out of session`,
+                      status: 'Success',
+                      user: { name: officerName, role: officerRole },
+                    });
+                    logout();
+                    navigate('/login');
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 rounded-lg transition text-left cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                  <span className="font-medium">Sign Out</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!sidebarCollapsed ? (
+            <button
+              type="button"
+              onClick={() => setAccountMenuOpen(!accountMenuOpen)}
+              className={`w-full flex items-center justify-between gap-2 p-2 rounded-xl bg-[#181818] hover:bg-[#202020] border ${accountMenuOpen ? 'border-blue-500/50 ring-1 ring-blue-500/30' : 'border-[#282828]'} transition-all cursor-pointer text-left group`}
+              aria-expanded={accountMenuOpen}
+              aria-haspopup="true"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-600 to-amber-500 text-white flex items-center justify-center font-bold text-xs shadow-xs shrink-0 ring-1 ring-amber-400/30">
+                  {initials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-white truncate leading-tight group-hover:text-blue-400 transition-colors">
+                    {officerName}
+                  </p>
+                  <p className="text-[10px] text-slate-400 truncate">
+                    {officerRole}
+                  </p>
+                </div>
+              </div>
+              <ChevronsUpDown className="w-4 h-4 text-slate-400 group-hover:text-white shrink-0 transition-colors" />
+            </button>
+          ) : (
+            <div className="relative group flex justify-center">
+              <button
+                type="button"
+                onClick={() => setAccountMenuOpen(!accountMenuOpen)}
+                className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-600 to-amber-500 text-white flex items-center justify-center font-bold text-xs shadow-xs ring-1 ring-amber-400/30 cursor-pointer hover:ring-2 hover:ring-blue-400/50 transition-all"
+                title={`${officerName} (${officerRole})`}
+              >
+                {initials}
+              </button>
+            </div>
+          )}
+        </div>
       </aside>
 
       {/* -------------------- 2. MAIN CONTENT AREA -------------------- */}
@@ -839,14 +1319,14 @@ const Dashboard = () => {
 
         {/* Top Header Bar - FIXED AT TOP */}
         <header
-          className={`fixed top-0 right-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/90 dark:border-slate-800 px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 shadow-2xs transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'left-0 lg:left-20' : 'left-0 lg:left-64'
+          className={`fixed top-0 right-0 z-30 bg-white/95 dark:bg-[#181818]/95 backdrop-blur-md border-b border-slate-200/90 dark:border-[#262626] px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 shadow-2xs transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'left-0 lg:left-20' : 'left-0 lg:left-64'
             }`}
         >
           <div className="flex items-center gap-3">
             {/* Mobile hamburger button */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
+              className="lg:hidden p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#202020] cursor-pointer"
               aria-label="Open menu"
             >
               <Menu className="w-5 h-5" />
@@ -938,87 +1418,84 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Right Top Header Controls */}
-          <div className="flex items-center gap-2.5 sm:gap-4">
+          {/* Right Top Header Controls: Action Toolbar */}
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* Time Filter Select */}
+            <div className="relative hidden md:block">
+              <select
+                value={timeFilter}
+                onChange={(e) => {
+                  setTimeFilter(e.target.value);
+                  dispatch(setReduxTimeFilter(e.target.value));
+                }}
+                className="h-9 text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-slate-200/90 dark:border-[#303030] bg-white dark:bg-[#202020] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#282828] focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer transition shadow-2xs"
+                title="Filter metrics by date period"
+              >
+                <option value="Last 30 days">Last 30 days</option>
+                <option value="This Month">This Month</option>
+                <option value="Last Month">Last Month</option>
+                <option value="This Quarter">This Quarter</option>
+              </select>
+            </div>
+
+            {/* Export Report CTA */}
+            <button
+              type="button"
+              onClick={handleExportReport}
+              className="inline-flex items-center gap-1.5 h-9 px-3 py-1.5 rounded-xl border border-slate-200/90 dark:border-[#303030] bg-white dark:bg-[#202020] hover:bg-slate-50 dark:hover:bg-[#282828] text-slate-700 dark:text-slate-200 font-semibold text-xs shadow-2xs transition cursor-pointer"
+              title="Export GeM AI Compliance Assessment Report (JSON)"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+              <span className="hidden sm:inline">Export report</span>
+            </button>
+
+            {/* Quick Upload Tender CTA */}
+            <button
+              type="button"
+              onClick={() => setUploadModalOpen(true)}
+              className="inline-flex items-center gap-1.5 h-9 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+              title="Upload tender document to Cloudinary & process via GeM ML"
+            >
+              <UploadCloud className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Upload tender</span>
+            </button>
 
             {/* Notification Bell with Badge 6 */}
             <button
               onClick={() => alert('6 Notifications: 2 new bids submitted, 1 high-risk anomaly flagged, 3 compliance checks ready.')}
-              className="relative p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition cursor-pointer"
+              className="relative p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-[#202020] dark:hover:text-white transition cursor-pointer"
               title="Notifications"
             >
               <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-red-500 text-white font-bold text-[9px] flex items-center justify-center border-2 border-white dark:border-slate-900">
+              <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-red-500 text-white font-bold text-[9px] flex items-center justify-center border-2 border-white dark:border-[#181818]">
                 6
               </span>
             </button>
 
-            {/* Officer Profile Badge */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                className="flex items-center gap-2 sm:gap-2.5 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-600 to-amber-500 text-white flex items-center justify-center font-bold text-xs shadow-2xs ring-2 ring-white dark:ring-slate-800 shrink-0">
-                  {initials}
-                </div>
-                <div className="hidden sm:flex flex-col text-left leading-none">
-                  <span className="text-xs font-bold text-slate-900 dark:text-white">
-                    {officerName}
-                  </span>
-                  <span className="text-[10.5px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    {officerRole}
-                  </span>
-                </div>
-                <ChevronDown
-                  className={`w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform duration-200 shrink-0 ${userDropdownOpen ? 'rotate-180 text-slate-600 dark:text-slate-300' : ''
-                    }`}
-                />
-              </button>
-
-              {userDropdownOpen && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 py-1 z-50 text-xs">
-                  <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 sm:hidden">
-                    <p className="font-bold text-slate-900 dark:text-white">{officerName}</p>
-                    <p className="text-[11px] text-slate-500">{officerRole}</p>
-                  </div>
-                  <Link
-                    to="/settings"
-                    onClick={() => setUserDropdownOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
-                  >
-                    <SettingsIcon className="w-3.5 h-3.5" />
-                    <span>Settings</span>
-                  </Link>
-                  <button
-                    onClick={() => {
-                      setUserDropdownOpen(false);
-                      recordAuditLog({
-                        activity: 'Logout',
-                        module: 'Authentication',
-                        details: `Officer ${officerName} signed out of session`,
-                        status: 'Success',
-                        user: { name: officerName, role: officerRole },
-                      });
-                      logout();
-                      navigate('/login');
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-left font-semibold cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    <span>Sign Out</span>
-                  </button>
-                </div>
+            {/* Theme Toggle Button */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-[#202020] dark:hover:text-white transition cursor-pointer"
+              aria-label={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}
+              title={isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}
+            >
+              {isDarkMode ? (
+                <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 hover:rotate-45 transition-transform" />
+              ) : (
+                <Moon className="w-4 h-4 sm:w-5 sm:h-5 hover:-rotate-12 transition-transform" />
               )}
-            </div>
+            </button>
           </div>
         </header>
 
         {/* Dashboard Content Container */}
-        <main className="pt-[76px] sm:pt-[82px] p-4 sm:p-6 space-y-6 flex-1">
+        <main className="pt-[76px] sm:pt-[82px] pb-24 p-4 sm:p-6 space-y-6 flex-1">
           {activeMenu === 'compliance' ? (
-            <ComplianceCheckView onBackToDashboard={handleOpenDashboard} />
+            <ComplianceCheckView
+              onBackToDashboard={handleOpenDashboard}
+              submissionData={activeComplianceSubmission}
+            />
           ) : activeMenu === 'submissions' ? (
             <TenderSubmissionsView
               onBackToDashboard={handleOpenDashboard}
@@ -1031,166 +1508,181 @@ const Dashboard = () => {
           ) : (
             <>
 
-              {/* -------------------- 3. TOP STATS CARDS -------------------- */}
+              {/* ==================== 1. TOP STATS KPI CARDS ==================== */}
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
 
                 {/* Card 1: Total Tenders */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-md transition">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                      <FileText className="w-6 h-6" />
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-[#303030] shadow-2xs hover:border-slate-300 dark:hover:border-slate-700 transition">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Tenders</p>
+                        <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                          {metrics.totalTenders}
+                        </h3>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Tenders</p>
-                      <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-                        {metrics.totalTenders}
-                      </h3>
-                      <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-0.5">
-                        <span>↑ {metrics.totalTendersTrend?.replace('+', '')}</span>
-                        <span className="text-slate-400 font-normal">from last month</span>
-                      </p>
-                    </div>
+                    <Sparkline data={[105, 110, 114, 118, 122, 125, 128]} color="#6366f1" width={56} height={26} />
+                  </div>
+                  <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-[#282828] flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                      <span>↑ {metrics.totalTendersTrend?.replace('+', '')}</span>
+                      <span className="text-slate-400 font-normal ml-1">vs last month</span>
+                    </span>
+                    <span className="text-slate-400">8 active now</span>
                   </div>
                 </div>
 
                 {/* Card 2: Submissions Received */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-md transition">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                      <ClipboardCheck className="w-6 h-6" />
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-[#303030] shadow-2xs hover:border-slate-300 dark:hover:border-slate-700 transition">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                        <ClipboardCheck className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Submissions Received</p>
+                        <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                          {metrics.submissionsReceived}
+                        </h3>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Submissions Received</p>
-                      <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-                        {metrics.submissionsReceived}
-                      </h3>
-                      <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-0.5">
-                        <span>↑ {metrics.submissionsReceivedTrend?.replace('+', '')}</span>
-                        <span className="text-slate-400 font-normal">from last month</span>
-                      </p>
-                    </div>
+                    <Sparkline data={[280, 295, 310, 318, 330, 340, 346]} color="#10b981" width={56} height={26} />
+                  </div>
+                  <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-[#282828] flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                      <span>↑ {metrics.submissionsReceivedTrend?.replace('+', '')}</span>
+                      <span className="text-slate-400 font-normal ml-1">vs last month</span>
+                    </span>
+                    <span className="text-slate-400">+3 today</span>
                   </div>
                 </div>
 
                 {/* Card 3: Evaluations Completed */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-md transition">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                      <CheckCircle2 className="w-6 h-6" />
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-[#303030] shadow-2xs hover:border-slate-300 dark:hover:border-slate-700 transition">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Evaluations Completed</p>
+                        <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                          {metrics.evaluationsCompleted}
+                        </h3>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Evaluations Completed</p>
-                      <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-                        {metrics.evaluationsCompleted}
-                      </h3>
-                      <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-0.5">
-                        <span>↑ {metrics.evaluationsCompletedTrend?.replace('+', '')}</span>
-                        <span className="text-slate-400 font-normal">from last month</span>
-                      </p>
-                    </div>
+                    <Sparkline data={[65, 70, 72, 78, 82, 85, 89]} color="#3b82f6" width={56} height={26} />
+                  </div>
+                  <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-[#282828] flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                      <span>↑ {metrics.evaluationsCompletedTrend?.replace('+', '')}</span>
+                      <span className="text-slate-400 font-normal ml-1">vs last month</span>
+                    </span>
+                    <span className="text-slate-400">72% rate</span>
                   </div>
                 </div>
 
-                {/* Card 4: Compliance Issues */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-md transition">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-                      <AlertTriangle className="w-6 h-6" />
+                {/* Card 4: Compliance Issues - High-Visibility Alert Treatment */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border-2 border-rose-300/80 dark:border-rose-900/60 shadow-xs hover:border-rose-400 dark:hover:border-rose-800 transition relative overflow-hidden">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-300 flex items-center justify-center shrink-0 ring-2 ring-rose-200 dark:ring-rose-800">
+                        <AlertTriangle className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xs font-bold text-rose-800 dark:text-rose-300">Compliance Issues</p>
+                          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-extrabold uppercase bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-200">
+                            Alert
+                          </span>
+                        </div>
+                        <h3 className="text-2xl font-black text-rose-700 dark:text-rose-300 tracking-tight mt-0.5">
+                          {metrics.complianceIssues}
+                        </h3>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Compliance Issues</p>
-                      <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-                        {metrics.complianceIssues}
-                      </h3>
-                      <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-0.5">
-                        <span>↓ {metrics.complianceIssuesTrend?.replace('-', '')}</span>
-                        <span className="text-slate-400 font-normal">from last month</span>
-                      </p>
-                    </div>
+                    <Sparkline data={[35, 32, 28, 30, 27, 25, 23]} color="#f43f5e" width={56} height={26} />
+                  </div>
+                  <div className="mt-3 pt-2.5 border-t border-rose-200/60 dark:border-rose-900/40 flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-rose-700 dark:text-rose-300 flex items-center gap-0.5">
+                      <span>↓ {metrics.complianceIssuesTrend?.replace('-', '')}</span>
+                      <span className="text-rose-600/80 dark:text-rose-400/80 font-normal ml-1">vs last month</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleOpenCompliance}
+                      className="font-bold text-rose-700 dark:text-rose-300 hover:underline cursor-pointer"
+                    >
+                      Review now →
+                    </button>
                   </div>
                 </div>
               </div>
 
-              {/* -------------------- 4. MIDDLE ROW: RECENT TENDERS & COMPLIANCE OVERVIEW -------------------- */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-                {/* Left: Recent Tenders Table (~62%) */}
-                <div className="lg:col-span-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs p-5">
-                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                      Recent Tenders
-                    </h3>
-                    <Link
-                      to="/tenders"
-                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      View All
-                    </Link>
+              {/* ==================== 2. "NEEDS ATTENTION" OPERATIONAL ALERT STRIP ==================== */}
+              {needsAttentionOpen && (
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/20 border border-amber-300/80 dark:border-amber-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/20 dark:bg-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                      <AlertCircle className="w-4 h-4 animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-slate-900 dark:text-white">
+                          Operational Attention Required:
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300">
+                          23 issues in 4 tenders
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300">
+                          8 awaiting evaluation
+                        </span>
+                        <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-200/80 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                          4 missing annexures
+                        </span>
+                      </div>
+                    </div>
                   </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Tender ID</th>
-                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Title</th>
-                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Department</th>
-                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Last Date</th>
-                          <th className="py-2.5 px-3.5 font-bold text-center whitespace-nowrap">Submissions</th>
-                          <th className="py-2.5 px-3.5 font-bold text-right whitespace-nowrap">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                        {recentTenders.map((item, idx) => (
-                          <tr
-                            key={idx}
-                            className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
-                          >
-                            <td className="py-2.5 px-3.5 font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap">
-                              <Link to="/tenders" className="hover:underline">
-                                {item.id}
-                              </Link>
-                            </td>
-                            <td className="py-2.5 px-3.5 text-slate-900 dark:text-slate-200">
-                              <span className="max-w-[160px] truncate block" title={item.title}>
-                                {item.title}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3.5 text-slate-600 dark:text-slate-400">
-                              <span className="max-w-[130px] truncate block" title={item.department}>
-                                {item.department}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3.5 text-slate-500 dark:text-slate-400 whitespace-nowrap text-[11px]">
-                              {item.lastDate}
-                            </td>
-                            <td className="py-2.5 px-3.5 text-center text-slate-700 dark:text-slate-200 font-bold whitespace-nowrap">
-                              {item.submissions}
-                            </td>
-                            <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
-                              <span
-                                className={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold ${item.status === 'Open'
-                                    ? 'bg-emerald-100/70 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
-                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                                  }`}
-                              >
-                                {item.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={handleOpenCompliance}
+                      className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-2xs transition cursor-pointer flex items-center gap-1"
+                    >
+                      <span>Review Issues</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNeedsAttentionOpen(false)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      title="Dismiss alert"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
+              )}
 
-                {/* Right: Compliance Overview Donut Chart (~38%) */}
-                <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs p-5 flex flex-col justify-between">
+              {/* ==================== 3. UPPER SPLIT ROW: COMPLIANCE OVERVIEW + AI VERIFICATION ==================== */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                {/* Left: Simplified Compliance Overview (lg:col-span-6) */}
+                <div className="lg:col-span-6 bg-white dark:bg-[#181818] rounded-2xl border border-slate-200/90 dark:border-[#303030] shadow-2xs p-5 flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
-                      <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                        Compliance Overview
-                      </h3>
+                    <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-[#282828]">
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                          Compliance Overview
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Breakdown of AI checks across active tenders
+                        </p>
+                      </div>
                       <div className="relative">
                         <select
                           value={compliance.timeFilter || timeFilter}
@@ -1198,8 +1690,9 @@ const Dashboard = () => {
                             setTimeFilter(e.target.value);
                             dispatch(setReduxTimeFilter(e.target.value));
                           }}
-                          className="text-xs font-semibold px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer"
+                          className="text-xs font-semibold px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer"
                         >
+                          <option value="Last 30 days">Last 30 days</option>
                           <option value="This Month">This Month</option>
                           <option value="Last Month">Last Month</option>
                           <option value="This Quarter">This Quarter</option>
@@ -1207,46 +1700,46 @@ const Dashboard = () => {
                       </div>
                     </div>
 
-                    {/* Donut Chart & Legend */}
-                    <div className="flex items-center justify-between gap-4 my-4">
-                      {/* SVG Donut */}
-                      <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
+                    {/* Thinned Donut Chart & Detailed Legend */}
+                    <div className="flex items-center justify-center sm:justify-between gap-6 my-5 flex-wrap sm:flex-nowrap">
+                      {/* Thinned SVG Donut */}
+                      <div className="relative w-32 h-32 shrink-0 flex items-center justify-center">
                         <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                          {/* Background circle */}
+                          {/* Background Track */}
                           <path
-                            className="text-slate-100 dark:text-slate-800"
-                            strokeWidth="3.8"
+                            className="text-slate-100 dark:text-slate-800/80"
+                            strokeWidth="3.2"
                             stroke="currentColor"
                             fill="none"
                             d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                           />
-                          {/* Compliant: 73% (stroke-dasharray="73, 100") */}
+                          {/* Compliant: 71% */}
                           <path
-                            className="text-emerald-500"
-                            strokeDasharray={`${compliance.compliantPercentage || 73}, 100`}
-                            strokeWidth="4"
+                            className="text-emerald-500 transition-all duration-700"
+                            strokeDasharray={`${compliance.compliantPercentage || 71}, 100`}
+                            strokeWidth="3.4"
                             strokeLinecap="round"
                             stroke="currentColor"
                             fill="none"
                             d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                           />
-                          {/* Minor Issues: 18% (offset 73) */}
+                          {/* Minor Issues: 18% */}
                           <path
-                            className="text-amber-500"
+                            className="text-amber-500 transition-all duration-700"
                             strokeDasharray={`${compliance.minorIssuesPercentage || 18}, 100`}
-                            strokeDashoffset={`-${compliance.compliantPercentage || 73}`}
-                            strokeWidth="4"
+                            strokeDashoffset={`-${compliance.compliantPercentage || 71}`}
+                            strokeWidth="3.4"
                             strokeLinecap="round"
                             stroke="currentColor"
                             fill="none"
                             d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                           />
-                          {/* Major Issues: 9% (offset 91) */}
+                          {/* Major Issues: 11% */}
                           <path
-                            className="text-rose-500"
-                            strokeDasharray={`${compliance.majorIssuesPercentage || 9}, 100`}
-                            strokeDashoffset={`-${(compliance.compliantPercentage || 73) + (compliance.minorIssuesPercentage || 18)}`}
-                            strokeWidth="4"
+                            className="text-rose-500 transition-all duration-700"
+                            strokeDasharray={`${compliance.majorIssuesPercentage || 11}, 100`}
+                            strokeDashoffset={`-${(compliance.compliantPercentage || 71) + (compliance.minorIssuesPercentage || 18)}`}
+                            strokeWidth="3.4"
                             strokeLinecap="round"
                             stroke="currentColor"
                             fill="none"
@@ -1254,144 +1747,469 @@ const Dashboard = () => {
                           />
                         </svg>
 
-                        {/* Donut Center Label */}
+                        {/* Donut Center Total Checks */}
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                          <span className="text-2xl font-black text-slate-900 dark:text-white">
+                          <span className="text-2xl font-black text-slate-900 dark:text-white leading-none">
                             {compliance.totalChecks}
                           </span>
-                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-tight">
+                          <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-tight mt-0.5">
                             Total Checks
                           </span>
                         </div>
                       </div>
 
-                      {/* Legend Counts */}
-                      <div className="space-y-2.5 text-xs flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300">
+                      {/* Legend with explicit counts & percentages */}
+                      <div className="space-y-3 text-xs flex-1 w-full sm:w-auto">
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+                          <span className="flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-200">
                             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                             Compliant
                           </span>
                           <span className="font-bold text-slate-900 dark:text-white">
-                            {compliance.compliant} <span className="text-slate-400 font-normal">({compliance.compliantPercentage}%)</span>
+                            {compliance.compliant} <span className="text-emerald-600 dark:text-emerald-400 font-normal">({compliance.compliantPercentage}%)</span>
                           </span>
                         </div>
 
-                        <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300">
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+                          <span className="flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-200">
                             <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
                             Minor Issues
                           </span>
                           <span className="font-bold text-slate-900 dark:text-white">
-                            {compliance.minorIssues} <span className="text-slate-400 font-normal">({compliance.minorIssuesPercentage}%)</span>
+                            {compliance.minorIssues} <span className="text-amber-600 dark:text-amber-400 font-normal">({compliance.minorIssuesPercentage}%)</span>
                           </span>
                         </div>
 
-                        <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300">
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+                          <span className="flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-200">
                             <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
                             Major Issues
                           </span>
                           <span className="font-bold text-slate-900 dark:text-white">
-                            {compliance.majorIssues} <span className="text-slate-400 font-normal">({compliance.majorIssuesPercentage}%)</span>
+                            {compliance.majorIssues} <span className="text-rose-600 dark:text-rose-400 font-normal">({compliance.majorIssuesPercentage}%)</span>
                           </span>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Bottom Compliance Rate Progress Bar */}
-                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                  {/* Bottom Overall Compliance Rate Progress Bar */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-[#282828] space-y-1.5">
                     <div className="flex items-center justify-between text-xs font-semibold">
-                      <span className="text-slate-500 dark:text-slate-400">Compliance Rate</span>
+                      <span className="text-slate-500 dark:text-slate-400">Overall Compliance Rate</span>
                       <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                        <span>{compliance.complianceRate}%</span>
-                        <span className="text-[11px] font-bold">↑ {compliance.complianceRateTrend?.replace('+', '')} from last month</span>
+                        <span className="font-bold">{compliance.complianceRate}%</span>
+                        <span className="text-[11px] font-medium text-slate-400">
+                          (↑ {compliance.complianceRateTrend?.replace('+', '')} vs last month)
+                        </span>
                       </span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                       <div
-                        className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                        className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
                         style={{ width: `${compliance.complianceRate}%` }}
                       />
                     </div>
                   </div>
                 </div>
+
+                {/* Right: Grouped AI Verification Activity (lg:col-span-6) */}
+                <div className="lg:col-span-6 bg-white dark:bg-[#181818] rounded-2xl border border-slate-200/90 dark:border-[#303030] shadow-2xs p-5 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-[#282828]">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                          AI Verification Activity
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300">
+                          4 Today
+                        </span>
+                      </div>
+                      <Link
+                        to="/audit"
+                        className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                      >
+                        <span>Audit Log</span>
+                        <ArrowUpRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+
+                    {/* Timeline List Grouped by Today / Earlier */}
+                    <div className="divide-y divide-slate-100 dark:divide-[#282828] max-h-[290px] overflow-y-auto pr-1">
+                      {activities.slice(0, 5).map((act) => {
+                        const Icon = act.icon;
+                        return (
+                          <div key={act.id} className="py-2.5 flex items-start gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 px-1 rounded-xl transition-colors">
+                            <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${act.iconColor}`}>
+                              <Icon className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-1">
+                                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                  {act.title}
+                                </p>
+                                <span className="text-[10px] text-slate-400 shrink-0 font-medium">
+                                  {act.time}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                                {act.subtext}
+                              </p>
+                              {act.tag && (
+                                <span className={`inline-block mt-1 px-1.5 py-0.2 text-[9.5px] font-semibold rounded ${
+                                  act.type === 'danger'
+                                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                    : act.type === 'warning'
+                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                }`}>
+                                  {act.tag}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 dark:border-[#282828] flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>AI Verification Engine active</span>
+                    </span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      98.4% Auto-Accuracy
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              {/* -------------------- 5. LOWER ROW: RECENT SUBMISSIONS & AI ACTIVITY -------------------- */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* ==================== 4. FULL-WIDTH RECENT TENDERS TABLE ==================== */}
+              <div className="bg-white dark:bg-[#181818] rounded-2xl border border-slate-200/90 dark:border-[#303030] shadow-2xs p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3.5 border-b border-slate-100 dark:border-[#282828]">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Recent Tenders
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Active tenders monitored for compliance, deadlines &amp; submission quotas
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setUploadModalOpen(true)}
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 transition cursor-pointer"
+                    >
+                      + New Tender
+                    </button>
+                    <Link
+                      to="/tenders"
+                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                    >
+                      <span>View All ({metrics.totalTenders})</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                </div>
 
-                {/* Left: Recent Submissions Table (~62%) */}
-                <div className="lg:col-span-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs p-5">
-                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
+                <div className="overflow-x-auto mt-2">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-100 dark:border-[#282828] bg-slate-50/50 dark:bg-slate-800/30">
+                        <th className="py-3 px-4 font-bold whitespace-nowrap">Tender ID</th>
+                        <th className="py-3 px-4 font-bold whitespace-nowrap min-w-[220px]">Title &amp; Scope</th>
+                        <th className="py-3 px-4 font-bold whitespace-nowrap">Department</th>
+                        <th className="py-3 px-4 font-bold whitespace-nowrap">Last Date / Deadline</th>
+                        <th className="py-3 px-4 font-bold text-center whitespace-nowrap">Submissions</th>
+                        <th className="py-3 px-4 font-bold whitespace-nowrap">Status</th>
+                        <th className="py-3 px-4 font-bold text-right whitespace-nowrap">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-[#282828] font-medium">
+                      {recentTenders.map((item) => (
+                        <tr
+                          key={item.id}
+                          className="hover:bg-slate-50/70 dark:hover:bg-[#202020] transition-colors"
+                        >
+                          {/* Tender ID + Copy CTA */}
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <Link
+                                to="/tenders"
+                                className="font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                {item.id}
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyTenderId(item.id)}
+                                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded cursor-pointer transition"
+                                title={copiedId === item.id ? 'Copied!' : 'Copy Tender ID'}
+                              >
+                                {copiedId === item.id ? (
+                                  <Check className="w-3 h-3 text-emerald-500" />
+                                ) : (
+                                  <Copy className="w-3 h-3" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+
+                          {/* Title */}
+                          <td className="py-3 px-4 text-slate-900 dark:text-slate-200">
+                            <span className="font-semibold text-slate-800 dark:text-slate-100 block">
+                              {item.title}
+                            </span>
+                            <span className="text-[10.5px] text-slate-400">
+                              Estimated Value: {item.value || '₹ 50 Lakhs'}
+                            </span>
+                          </td>
+
+                          {/* Department */}
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <Building className="w-3.5 h-3.5 text-slate-400" />
+                              <span className="text-slate-700 dark:text-slate-300 font-medium">
+                                {item.department}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Deadline with Countdown */}
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <div className="flex flex-col">
+                              <span className="text-slate-700 dark:text-slate-300 font-medium text-[11px]">
+                                {item.lastDate}
+                              </span>
+                              {item.daysLeft > 0 ? (
+                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                  {item.daysLeft} days left
+                                </span>
+                              ) : item.daysLeft === 0 ? (
+                                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                                  Due today
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold text-slate-400">
+                                  Closed
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Submissions count */}
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
+                              {item.submissions} bids
+                            </span>
+                          </td>
+
+                          {/* Status Badge */}
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold ${
+                                item.statusType === 'active' || item.status === 'Active' || item.status === 'Open'
+                                  ? 'bg-emerald-100/80 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900'
+                                  : item.statusType === 'review' || item.status === 'Under review'
+                                  ? 'bg-amber-100/80 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900'
+                                  : item.statusType === 'issue' || item.status === 'Compliance issue'
+                                  ? 'bg-rose-100/80 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
+                                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                              }`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${
+                                item.statusType === 'active' || item.status === 'Active' || item.status === 'Open'
+                                  ? 'bg-emerald-500'
+                                  : item.statusType === 'review' || item.status === 'Under review'
+                                  ? 'bg-amber-500'
+                                  : item.statusType === 'issue' || item.status === 'Compliance issue'
+                                  ? 'bg-rose-500'
+                                  : 'bg-slate-400'
+                              }`} />
+                              <span>{item.status}</span>
+                            </span>
+                          </td>
+
+                          {/* Action CTA */}
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={handleOpenCompliance}
+                              className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-300 font-bold text-[11px] transition cursor-pointer"
+                            >
+                              Review
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* ==================== 5. FULL-WIDTH GROUPED RECENT SUBMISSIONS TABLE ==================== */}
+              <div className="bg-white dark:bg-[#181818] rounded-2xl border border-slate-200/90 dark:border-[#303030] shadow-2xs p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100 dark:border-[#282828]">
+                  <div>
                     <h3 className="text-base font-bold text-slate-900 dark:text-white">
                       Recent Submissions
                     </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Bids submitted by commercial vendors with automated compliance scoring
+                    </p>
+                  </div>
+
+                  {/* Filter Pills: All / Today / Earlier */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setSubmissionsFilter('all')}
+                        className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                          submissionsFilter === 'all'
+                            ? 'bg-white dark:bg-[#242424] text-slate-900 dark:text-white shadow-2xs'
+                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+                        }`}
+                      >
+                        All ({recentSubmissions.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSubmissionsFilter('today')}
+                        className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                          submissionsFilter === 'today'
+                            ? 'bg-white dark:bg-[#242424] text-slate-900 dark:text-white shadow-2xs'
+                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+                        }`}
+                      >
+                        Today ({recentSubmissions.filter(s => s.isToday).length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSubmissionsFilter('earlier')}
+                        className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                          submissionsFilter === 'earlier'
+                            ? 'bg-white dark:bg-[#242424] text-slate-900 dark:text-white shadow-2xs'
+                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+                        }`}
+                      >
+                        Earlier ({recentSubmissions.filter(s => !s.isToday).length})
+                      </button>
+                    </div>
+
                     <button
                       type="button"
                       onClick={handleOpenSubmissions}
-                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1 ml-1"
                     >
-                      View All
+                      <span>View All Submissions</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
+                </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Tender ID</th>
-                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Bidder Name</th>
-                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Submitted On</th>
-                          <th className="py-2.5 px-3.5 font-bold whitespace-nowrap">Compliance Score</th>
-                          <th className="py-2.5 px-3.5 font-bold text-center whitespace-nowrap">Bidder Docs</th>
-                          <th className="py-2.5 px-3.5 font-bold text-right whitespace-nowrap">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                        {recentSubmissions.map((sub, idx) => (
+                <div className="overflow-x-auto mt-2">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-100 dark:border-[#282828] bg-slate-50/50 dark:bg-slate-800/30">
+                        <th className="py-3 px-4 font-bold whitespace-nowrap">Bidder Name</th>
+                        <th className="py-3 px-4 font-bold whitespace-nowrap">Tender Reference</th>
+                        <th className="py-3 px-4 font-bold whitespace-nowrap">Submitted On</th>
+                        <th className="py-3 px-4 font-bold whitespace-nowrap">Compliance Score</th>
+                        <th className="py-3 px-4 font-bold whitespace-nowrap">Quoted Value</th>
+                        <th className="py-3 px-4 font-bold text-center whitespace-nowrap">Bidder Docs</th>
+                        <th className="py-3 px-4 font-bold whitespace-nowrap">Status</th>
+                        <th className="py-3 px-4 font-bold text-right whitespace-nowrap">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-[#282828] font-medium">
+                      {recentSubmissions
+                        .filter((sub) => {
+                          if (submissionsFilter === 'today') return sub.isToday;
+                          if (submissionsFilter === 'earlier') return !sub.isToday;
+                          return true;
+                        })
+                        .map((sub, idx) => (
                           <tr
-                            key={idx}
-                            className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
+                            key={sub.id || idx}
+                            className="hover:bg-slate-50/70 dark:hover:bg-[#202020] transition-colors"
                           >
-                            <td className="py-2.5 px-3.5 font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                            {/* Bidder Name */}
+                            <td className="py-3 px-4 text-slate-900 dark:text-slate-100">
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-700 dark:text-slate-300 text-[11px] shrink-0">
+                                  {sub.bidder?.slice(0, 1) || 'B'}
+                                </div>
+                                <div>
+                                  <span className="font-bold block text-slate-900 dark:text-white">
+                                    {sub.bidder}
+                                  </span>
+                                  <span className="text-[10.5px] text-slate-400">
+                                    {sub.id}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Tender Ref */}
+                            <td className="py-3 px-4 whitespace-nowrap">
                               <button
                                 type="button"
                                 onClick={handleOpenCompliance}
-                                className="font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer text-left truncate max-w-[130px] block"
+                                className="font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer text-left block"
                                 title={sub.tenderId}
                               >
                                 {sub.tenderId}
                               </button>
-                            </td>
-                            <td className="py-2.5 px-3.5 text-slate-900 dark:text-slate-200">
-                              <span className="truncate max-w-[125px] block font-medium" title={sub.bidder}>
-                                {sub.bidder}
+                              <span className="text-[10px] text-slate-400 block max-w-[170px] truncate">
+                                {sub.tenderTitle}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3.5 text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap">
-                              {sub.submittedOn}
+
+                            {/* Submitted On */}
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <div className="flex flex-col">
+                                <span className="text-slate-700 dark:text-slate-300 text-[11px] font-medium">
+                                  {sub.submittedOn}
+                                </span>
+                                {sub.relativeTime && (
+                                  <span className={`text-[10px] font-bold ${sub.isToday ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>
+                                    {sub.relativeTime}
+                                  </span>
+                                )}
+                              </div>
                             </td>
-                            <td className="py-2.5 px-3.5 whitespace-nowrap">
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-slate-800 dark:text-slate-200 text-xs w-7">
+
+                            {/* Compliance Score */}
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <div className="flex items-center gap-2.5">
+                                <span className="font-bold text-slate-800 dark:text-slate-200 text-xs w-9">
                                   {sub.score}%
                                 </span>
-                                <div className="w-14 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
+                                <div className="w-16 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
                                   <div
-                                    className={`h-full rounded-full ${sub.score >= 80
+                                    className={`h-full rounded-full transition-all ${
+                                      sub.score >= 80
                                         ? 'bg-emerald-500'
                                         : sub.score >= 60
-                                          ? 'bg-amber-500'
-                                          : 'bg-rose-500'
-                                      }`}
+                                        ? 'bg-amber-500'
+                                        : 'bg-rose-500'
+                                    }`}
                                     style={{ width: `${sub.score}%` }}
                                   />
                                 </div>
                               </div>
                             </td>
-                            <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
+
+                            {/* Quoted Value */}
+                            <td className="py-3 px-4 whitespace-nowrap font-bold text-slate-800 dark:text-slate-200">
+                              {sub.quotedAmount || '₹ 42,50,000'}
+                            </td>
+
+                            {/* Bidder Docs */}
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
                               <button
                                 type="button"
                                 onClick={() => setSelectedDocSubmission(sub)}
@@ -1399,67 +2217,39 @@ const Dashboard = () => {
                                 title="Click to view bidder's uploaded documents"
                               >
                                 <FileText className="w-3.5 h-3.5 text-blue-500 group-hover:scale-110 transition-transform" />
-                                <span>{sub.documents?.length || 1} Docs</span>
+                                <span>{sub.documents?.length || 2} Docs</span>
                               </button>
                             </td>
-                            <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+
+                            {/* Status */}
+                            <td className="py-3 px-4 whitespace-nowrap">
                               <span
-                                className={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold ${sub.statusColor === 'emerald'
-                                    ? 'bg-emerald-100/70 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
-                                    : sub.statusColor === 'amber'
-                                      ? 'bg-amber-100/70 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400'
-                                      : 'bg-rose-100/70 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
-                                  }`}
+                                className={`inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold ${
+                                  sub.statusColor === 'emerald' || sub.status === 'Compliant'
+                                    ? 'bg-emerald-100/80 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                    : sub.statusColor === 'amber' || sub.status === 'Minor Issues'
+                                    ? 'bg-amber-100/80 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                                    : 'bg-rose-100/80 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                }`}
                               >
                                 {sub.status}
                               </span>
                             </td>
+
+                            {/* Action */}
+                            <td className="py-3 px-4 text-right whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={handleOpenCompliance}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[11px] transition cursor-pointer"
+                              >
+                                Evaluate
+                              </button>
+                            </td>
                           </tr>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Right: AI Verification Activity (~38%) */}
-                <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs p-5">
-                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                      AI Verification Activity
-                    </h3>
-                    <Link
-                      to="/reports"
-                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      View All
-                    </Link>
-                  </div>
-
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                    {activities.map((act) => {
-                      const Icon = act.icon;
-                      return (
-                        <div key={act.id} className="py-3 flex items-start gap-3">
-                          <div className={`p-1.5 rounded-full shrink-0 ${act.iconColor}`}>
-                            <Icon className="w-3.5 h-3.5" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-1">
-                              <p className="text-xs font-bold text-slate-900 dark:text-white">
-                                {act.title}
-                              </p>
-                              <span className="text-[10px] text-slate-400 shrink-0">
-                                {act.time}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                              {act.subtext}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
@@ -1706,9 +2496,16 @@ const Dashboard = () => {
                   <p className="font-bold text-slate-900 dark:text-white">GEM/2024/B/5123981 - Office Stationery</p>
                   <p className="text-[11px] text-slate-500">8 Bids received &bull; 6 Compliant, 2 Flags</p>
                 </div>
-                <Link to="/verification" onClick={() => setEvalModalOpen(false)} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg font-bold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEvalModalOpen(false);
+                    setActiveTab('compliance');
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs transition cursor-pointer"
+                >
                   Evaluate
-                </Link>
+                </button>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
@@ -1716,9 +2513,16 @@ const Dashboard = () => {
                   <p className="font-bold text-slate-900 dark:text-white">GEM/2024/B/5123982 - IT Hardware Procurement</p>
                   <p className="text-[11px] text-slate-500">12 Bids received &bull; 10 Compliant, 1 Major Issue</p>
                 </div>
-                <Link to="/verification" onClick={() => setEvalModalOpen(false)} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg font-bold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEvalModalOpen(false);
+                    setActiveTab('compliance');
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs transition cursor-pointer"
+                >
                   Evaluate
-                </Link>
+                </button>
               </div>
             </div>
 
@@ -1887,14 +2691,14 @@ const Dashboard = () => {
         <button
           type="button"
           onClick={() => setChatBoxOpen(true)}
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 text-white font-bold text-xs shadow-2xl shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-105 transition-all cursor-pointer border border-white/20 group"
+          className="fixed bottom-6 right-6 z-30 flex items-center gap-2 px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-full bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 text-white font-bold text-xs shadow-2xl shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-105 transition-all cursor-pointer border border-white/20 group"
           title="Open GeM AI Compliance Assistant"
         >
           <div className="relative">
             <Bot className="w-4 h-4 text-emerald-300" />
             <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
           </div>
-          <span>Ask AI Assistant</span>
+          <span className="hidden sm:inline">Ask AI Assistant</span>
           <Sparkles className="w-3.5 h-3.5 text-amber-300 group-hover:rotate-12 transition-transform" />
         </button>
       )}

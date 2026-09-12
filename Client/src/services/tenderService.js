@@ -172,6 +172,21 @@ export const tenderService = {
       tender_requirements: tenderRequirements,
     });
   },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  3.5 — Officer Per-Tender AI Chatbot (Node AI RAG & Gemini Chatbot)
+  //  POST /api/officer/tenders/chat
+  //  Headers: Authorization: Bearer <officer_token>
+  //  Body: { tenderId: "1" | "TND-001", bidderId: "BID-007", query: "..." }
+  // ═══════════════════════════════════════════════════════════════════════
+  officerTenderChat: async ({ tenderId, bidderId, query }) => {
+    const payload = {
+      tenderId: tenderId !== undefined && tenderId !== null ? String(tenderId) : '1',
+      bidderId: bidderId !== undefined && bidderId !== null ? String(bidderId) : 'BID-007',
+      query: String(query || '').trim(),
+    };
+    return await api.post('/officer/tenders/chat', payload);
+  },
 };
 
 export default tenderService;

@@ -17,6 +17,7 @@ export const ThemeProvider = ({ children }) => {
     const root = document.documentElement;
     if (isDarkMode) {
       root.classList.add('dark');
+      root.setAttribute('data-theme', 'dark');
       try {
         localStorage.setItem('site_theme', 'dark');
       } catch {
@@ -24,6 +25,7 @@ export const ThemeProvider = ({ children }) => {
       }
     } else {
       root.classList.remove('dark');
+      root.setAttribute('data-theme', 'light');
       try {
         localStorage.setItem('site_theme', 'light');
       } catch {

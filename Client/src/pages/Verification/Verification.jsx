@@ -29,8 +29,8 @@ import mockTenders from '../../data/mockTenders';
 import { useAuth } from '../../context';
 import { isTenderClosed } from '../../utils';
 import { addSubmission, addActivity } from '../../store/slices/dashboardSlice';
-import { getUserDisplayName } from '../../utils/roleUtils';
-import { tenderService, mlService, recordAuditLog } from '../../services';
+import { getUserDisplayName, isOfficerUser } from '../../utils/roleUtils';
+import { tenderService, mlService, recordAuditLog, documentService } from '../../services';
 
 const Verification = () => {
   const navigate = useNavigate();
@@ -41,26 +41,6 @@ const Verification = () => {
   const queryTenderId = searchParams.get('tenderId') || searchParams.get('tender');
   const targetParam = paramTenderId || queryTenderId;
 
-  // 2-Second Auto-Disappearing Toast State
-  const [toastMessage, setToastMessage] = useState(null);
-  const toastTimerRef = useRef(null);
-
-  const triggerToast = (title, desc) => {
-    if (toastTimerRef.current) {
-      clearTimeout(toastTimerRef.current);
-    }
-    setToastMessage({ title, desc });
-    toastTimerRef.current = setTimeout(() => {
-      setToastMessage(null);
-    }, 2000); // Disappears strictly in 2 seconds
-  };
-
-  useEffect(() => {
-    return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    };
-  }, []);
-
   // Direct route guard: User must be authenticated to access AI Verification
   if (!isAuthenticated) {
     return (
@@ -70,6 +50,11 @@ const Verification = () => {
         replace
       />
     );
+  }
+
+  // Strict Role Guard: Govt Officers must NEVER access the bidder pre-screening portal
+  if (isOfficerUser(user)) {
+    return <Navigate to="/dashboard?tab=compliance" replace />;
   }
 
   // Helper to find tender by ID or Reference No
@@ -95,6 +80,26 @@ const Verification = () => {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisStep, setAnalysisStep] = useState(0);
   const [result, setResult] = useState(null);
+  const [toastMessage, setToastMessage] = useState(null);
+  const toastTimeoutRef = useRef(null);
+
+  const triggerToast = (title, desc) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    setToastMessage({ title, desc });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage(null);
+    }, 2000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Sync state if URL query/param changes
   useEffect(() => {
@@ -166,15 +171,21 @@ const Verification = () => {
       if (uploadedFiles.length > 0) {
         for (const fileObj of uploadedFiles) {
           try {
-            // 1. Attempt upload to Cloudinary & ML OCR endpoint
-            const uploadRes = await tenderService.uploadTenderDocument(
-              fileObj,
-              {
-                title: `${selectedTender.referenceNo} - ${fileObj.name}`,
-                description: `Bidder proposal document for ${selectedTender.title}`,
-                documentType: 'other',
-              }
-            ).catch(() => null);
+            // 1. Attempt upload to Bidder Document endpoint (POST /api/bidder/documents/upload)
+            let uploadRes = await documentService
+              .uploadDocument(fileObj, 'technical_proposal')
+              .catch(() => null);
+
+            // Fallback to officer tender upload endpoint if bidder endpoint fails
+            if (!uploadRes) {
+              uploadRes = await tenderService
+                .uploadTenderDocument(fileObj, {
+                  title: `${selectedTender.referenceNo} - ${fileObj.name}`,
+                  description: `Bidder proposal document for ${selectedTender.title}`,
+                  documentType: 'other',
+                })
+                .catch(() => null);
+            }
 
             const data = uploadRes?.data || uploadRes;
             if (data && data.fileUrl) {

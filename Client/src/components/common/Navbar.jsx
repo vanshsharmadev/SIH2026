@@ -4,6 +4,7 @@ import { Moon, Sun, Globe, ChevronDown, Check, Menu, X, LogOut, ShieldCheck, Lay
 import { useLanguage, useTheme, useAuth } from '../../context';
 import { isOfficerUser, getUserDisplayName } from '../../utils/roleUtils';
 import ScreenReaderModal from './ScreenReaderModal';
+import NationalEmblem from './NationalEmblem';
 
 const Navbar = ({ fontScale, setFontScale }) => {
   const location = useLocation();
@@ -124,12 +125,12 @@ const Navbar = ({ fontScale, setFontScale }) => {
     <>
       <header
         ref={headerRef}
-        className={`fixed top-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#071322]/95 backdrop-blur-md border-b select-none transition-all duration-200 ${
-          isScrolled ? 'shadow-md border-slate-300 dark:border-slate-800' : 'shadow-xs border-slate-200 dark:border-slate-800'
+        className={`fixed top-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#181818]/95 backdrop-blur-md border-b select-none transition-all duration-200 ${
+          isScrolled ? 'shadow-md border-slate-300 dark:border-[#303030]' : 'shadow-xs border-slate-200 dark:border-[#303030]'
         }`}
       >
         {/* 1. Top Government Utility Bar */}
-        <div className="w-full bg-[#f8fafc] dark:bg-[#05101d] border-b border-slate-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-300 text-xs py-1 px-4 sm:px-6 lg:px-8 transition-colors">
+        <div className="w-full bg-[#f8fafc] dark:bg-[#141414] border-b border-slate-200/90 dark:border-[#282828] text-slate-700 dark:text-slate-300 text-xs py-1 px-4 sm:px-6 lg:px-8 transition-colors">
           <div className="max-w-[1360px] mx-auto flex items-center justify-between">
             {/* Left: Indian Flag + Government of India */}
             <div className="flex items-center gap-2">
@@ -219,34 +220,41 @@ const Navbar = ({ fontScale, setFontScale }) => {
               <span className="text-slate-300 dark:text-slate-700">|</span>
 
               {/* Language Selector */}
-              <div className="relative" ref={dropdownRef}>
+              <div className="relative notranslate" ref={dropdownRef} translate="no">
                 <button
+                  type="button"
                   onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-                  className="flex items-center gap-1 text-slate-700 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400 font-medium transition cursor-pointer"
+                  className="flex items-center gap-1 text-slate-700 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400 font-medium transition cursor-pointer notranslate"
                   aria-label="Select Language"
+                  translate="no"
                 >
                   <Globe className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />
-                  <span>{languages.find(l => l.code === currentLang)?.name || 'English'}</span>
+                  <span className="notranslate" translate="no">{languages.find(l => l.code === currentLang)?.name || 'English'}</span>
                   <ChevronDown className={`w-3 h-3 text-slate-500 dark:text-slate-400 transition-transform duration-200 ${langDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {langDropdownOpen && (
-                  <div className="absolute right-0 mt-1.5 w-36 rounded-lg shadow-lg border py-1 z-50 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 animate-in fade-in duration-100">
-                    <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 mb-1">
+                  <div
+                    className="absolute right-0 mt-1.5 w-36 rounded-lg shadow-lg border py-1 z-50 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 animate-in fade-in duration-100 notranslate"
+                    translate="no"
+                  >
+                    <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 mb-1 notranslate" translate="no">
                       Language
                     </div>
                     {languages.map((lang) => (
                       <button
+                        type="button"
                         key={lang.code}
                         onClick={() => {
                           switchLanguage(lang.code);
                           setLangDropdownOpen(false);
                         }}
-                        className={`w-full px-3 py-1.5 text-left text-xs flex items-center justify-between hover:bg-blue-50 dark:hover:bg-slate-800 transition cursor-pointer ${
+                        className={`w-full px-3 py-1.5 text-left text-xs flex items-center justify-between hover:bg-blue-50 dark:hover:bg-slate-800 transition cursor-pointer notranslate ${
                           currentLang === lang.code ? 'font-bold text-blue-700 dark:text-blue-400 bg-blue-50/50 dark:bg-slate-800/60' : 'text-slate-700 dark:text-slate-200'
                         }`}
+                        translate="no"
                       >
-                        <span>{lang.name}</span>
+                        <span className="notranslate" translate="no">{lang.name}</span>
                         {currentLang === lang.code && <Check className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 stroke-[2.5]" />}
                       </button>
                     ))}
@@ -261,13 +269,9 @@ const Navbar = ({ fontScale, setFontScale }) => {
         <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-4">
           {/* Left: National Emblem + GeM Compliflix Brand */}
           <Link to="/" className="flex items-center gap-2.5 sm:gap-3 group shrink-0">
-            <img
-              src="/emblem.svg"
-              alt="National Emblem of India"
-              width="40"
-              height="40"
+            <NationalEmblem
+              className="h-9 sm:h-10 w-auto"
               style={{ maxHeight: '40px', width: 'auto' }}
-              className="h-9 sm:h-10 w-auto object-contain shrink-0 drop-shadow-2xs"
             />
             <div className="flex flex-col leading-none">
               <div className="flex items-center text-xl sm:text-[22px] font-black tracking-tight">
@@ -306,18 +310,30 @@ const Navbar = ({ fontScale, setFontScale }) => {
               </Link>
             )}
 
-            {/* My Applications Link (Strictly for Commercial Bidders) */}
+            {/* Document Vault & My Applications Link (Strictly for Commercial Bidders) */}
             {isAuthenticated && !isOfficer && (
-              <Link
-                to="/my-applications"
-                className={`transition-colors py-1 relative ${
-                  location.pathname === '/my-applications'
-                    ? 'text-[#073567] dark:text-blue-400 font-bold after:content-[""] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2.5px] after:bg-[#073567] dark:after:bg-blue-500 after:rounded-full'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400'
-                }`}
-              >
-                My Applications
-              </Link>
+              <>
+                <Link
+                  to="/bidder-dashboard"
+                  className={`transition-colors py-1 relative ${
+                    location.pathname === '/bidder-dashboard'
+                      ? 'text-[#073567] dark:text-blue-400 font-bold after:content-[""] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2.5px] after:bg-[#073567] dark:after:bg-blue-500 after:rounded-full'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400'
+                  }`}
+                >
+                  Document Vault
+                </Link>
+                <Link
+                  to="/my-applications"
+                  className={`transition-colors py-1 relative ${
+                    location.pathname === '/my-applications'
+                      ? 'text-[#073567] dark:text-blue-400 font-bold after:content-[""] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2.5px] after:bg-[#073567] dark:after:bg-blue-500 after:rounded-full'
+                      : 'text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400'
+                  }`}
+                >
+                  My Applications
+                </Link>
+              </>
             )}
 
             <Link
@@ -430,14 +446,24 @@ const Navbar = ({ fontScale, setFontScale }) => {
                           <span>Dashboard</span>
                         </Link>
                       ) : (
-                        <Link
-                          to="/my-applications"
-                          onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/70 rounded-lg transition"
-                        >
-                          <FileText className="w-4 h-4 text-[#0a2e5c] dark:text-blue-400" />
-                          <span>My Applications</span>
-                        </Link>
+                        <>
+                          <Link
+                            to="/bidder-dashboard"
+                            onClick={() => setUserDropdownOpen(false)}
+                            className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/70 rounded-lg transition"
+                          >
+                            <LayoutDashboard className="w-4 h-4 text-[#0a2e5c] dark:text-blue-400" />
+                            <span>Document Vault &amp; Bids</span>
+                          </Link>
+                          <Link
+                            to="/my-applications"
+                            onClick={() => setUserDropdownOpen(false)}
+                            className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/70 rounded-lg transition"
+                          >
+                            <FileText className="w-4 h-4 text-[#0a2e5c] dark:text-blue-400" />
+                            <span>My Applications</span>
+                          </Link>
+                        </>
                       )}
 
                       {/* Settings */}
@@ -557,17 +583,30 @@ const Navbar = ({ fontScale, setFontScale }) => {
                 </Link>
               )}
               {isAuthenticated && !isOfficer && (
-                <Link
-                  to="/my-applications"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`py-1.5 px-3 rounded-lg transition ${
-                    location.pathname === '/my-applications'
-                      ? 'bg-blue-50 dark:bg-blue-950/60 font-bold text-blue-700 dark:text-blue-400'
-                      : 'hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  My Applications
-                </Link>
+                <>
+                  <Link
+                    to="/bidder-dashboard"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`py-1.5 px-3 rounded-lg transition ${
+                      location.pathname === '/bidder-dashboard'
+                        ? 'bg-blue-50 dark:bg-blue-950/60 font-bold text-blue-700 dark:text-blue-400'
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    Document Vault &amp; Bids
+                  </Link>
+                  <Link
+                    to="/my-applications"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`py-1.5 px-3 rounded-lg transition ${
+                      location.pathname === '/my-applications'
+                        ? 'bg-blue-50 dark:bg-blue-950/60 font-bold text-blue-700 dark:text-blue-400'
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    My Applications
+                  </Link>
+                </>
               )}
               <Link
                 to="/tenders"

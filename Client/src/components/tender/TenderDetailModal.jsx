@@ -18,11 +18,13 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context';
+import { isOfficerUser } from '../../utils/roleUtils';
 import { isTenderClosed } from '../../utils';
 
 const TenderDetailModal = ({ tender, onClose }) => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const isOfficer = Boolean(isAuthenticated && isOfficerUser(user));
   const isClosed = isTenderClosed(tender);
 
   useEffect(() => {
@@ -219,39 +221,68 @@ const TenderDetailModal = ({ tender, onClose }) => {
             </div>
           </div>
 
-          {/* Quick AI Verification Banner */}
-          <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-slate-900 border border-blue-200 dark:border-blue-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-start gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#073567] dark:bg-blue-600 text-white flex items-center justify-center shrink-0 mt-0.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          {/* Quick AI Verification Banner - Strictly Role-Aware */}
+          {!isOfficer ? (
+            <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-slate-900 border border-blue-200 dark:border-blue-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#073567] dark:bg-blue-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                    Verify Bid Qualification for {tender.referenceNo}
+                  </span>
+                  <span className="text-[11px] text-slate-600 dark:text-slate-400">
+                    Pre-screen your bidder documents against this tender's GFR 2017 &amp; MII local content rules.
+                  </span>
+                </div>
               </div>
-              <div>
-                <span className="text-xs font-bold text-slate-900 dark:text-white block">
-                  Verify Bid Qualification for {tender.referenceNo}
-                </span>
-                <span className="text-[11px] text-slate-600 dark:text-slate-400">
-                  Pre-screen your bidder documents against this tender's GFR 2017 & MII local content rules.
-                </span>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (!isAuthenticated) {
+                    navigate('/login', {
+                      state: { redirectTo: `/verification?tenderId=${tender.id}` },
+                    });
+                  } else {
+                    navigate(`/verification?tenderId=${tender.id}`);
+                  }
+                }}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#073567] hover:bg-[#05284f] dark:bg-blue-600 dark:hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition shrink-0 cursor-pointer"
+              >
+                <span>Verify This Tender</span>
+                <ExternalLink className="w-3 h-3" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                if (!isAuthenticated) {
-                  navigate('/login', {
-                    state: { redirectTo: `/verification?tenderId=${tender.id}` },
-                  });
-                } else {
-                  navigate(`/verification?tenderId=${tender.id}`);
-                }
-              }}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#073567] hover:bg-[#05284f] dark:bg-blue-600 dark:hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition shrink-0 cursor-pointer"
-            >
-              <span>Verify This Tender</span>
-              <ExternalLink className="w-3 h-3" />
-            </button>
-          </div>
+          ) : (
+            <div className="p-3.5 rounded-xl bg-gradient-to-r from-indigo-50 to-slate-50 dark:from-indigo-950/40 dark:to-slate-900 border border-indigo-200 dark:border-indigo-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-700 dark:bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-300" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                    Officer Evaluation &amp; Scrutiny: {tender.referenceNo}
+                  </span>
+                  <span className="text-[11px] text-slate-600 dark:text-slate-400">
+                    Review vendor submissions, autonomous compliance scoring, and statutory checklists.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  navigate('/dashboard?tab=compliance');
+                }}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-700 hover:bg-indigo-800 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white text-xs font-bold shadow-2xs transition shrink-0 cursor-pointer"
+              >
+                <span>View Compliance</span>
+                <ExternalLink className="w-3 h-3" />
+              </button>
+            </div>
+          )}
 
           {/* Eligibility Criteria */}
           <div>
@@ -311,27 +342,41 @@ const TenderDetailModal = ({ tender, onClose }) => {
           </button>
           <div className="flex items-center gap-2">
             {!isClosed ? (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  if (!isAuthenticated) {
-                    navigate('/login', {
-                      state: { redirectTo: `/verification?tenderId=${tender.id}` },
-                    });
-                  } else {
-                    navigate(`/verification?tenderId=${tender.id}`);
-                  }
-                }}
-                className="inline-flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-[#073567] hover:bg-[#05284f] dark:bg-blue-600 dark:hover:bg-blue-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md transition hover:scale-[1.02] cursor-pointer"
-              >
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>Apply for this tender</span>
-              </button>
+              isOfficer ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    navigate('/dashboard?tab=compliance');
+                  }}
+                  className="inline-flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-indigo-700 hover:bg-indigo-800 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md transition hover:scale-[1.02] cursor-pointer"
+                >
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Officer Evaluation Portal</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    if (!isAuthenticated) {
+                      navigate('/login', {
+                        state: { redirectTo: `/verification?tenderId=${tender.id}` },
+                      });
+                    } else {
+                      navigate(`/verification?tenderId=${tender.id}`);
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-[#073567] hover:bg-[#05284f] dark:bg-blue-600 dark:hover:bg-blue-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md transition hover:scale-[1.02] cursor-pointer"
+                >
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Apply for this tender</span>
+                </button>
+              )
             ) : (
               <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-semibold border border-slate-200 dark:border-slate-700 select-none">
                 <Lock className="w-3.5 h-3.5 text-slate-400" />
-                <span>Tender Closed &bull; Verification Unavailable</span>
+                <span>Tender Closed &bull; Submissions Unavailable</span>
               </div>
             )}
           </div>

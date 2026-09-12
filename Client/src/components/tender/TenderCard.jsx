@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context';
+import { isOfficerUser } from '../../utils/roleUtils';
 import { isTenderClosed } from '../../utils';
 import {
   Building2,
@@ -16,7 +17,8 @@ import {
 
 const TenderCard = ({ tender, onViewDetails }) => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const isOfficer = Boolean(isAuthenticated && isOfficerUser(user));
   const isClosed = isTenderClosed(tender);
   const isClosingSoon = tender.status === 'Closing Soon';
   const isEvaluation = tender.status === 'Under Evaluation';
@@ -103,7 +105,7 @@ const TenderCard = ({ tender, onViewDetails }) => {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {!isClosed && (
+            {!isClosed && !isOfficer && (
               <button
                 type="button"
                 onClick={handleVerify}
@@ -112,6 +114,20 @@ const TenderCard = ({ tender, onViewDetails }) => {
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                 <span>Verify</span>
+              </button>
+            )}
+            {isOfficer && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate('/dashboard?tab=compliance');
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/70 dark:bg-indigo-950/40 text-[#073567] dark:text-indigo-300 hover:bg-indigo-100/70 dark:hover:bg-indigo-900/50 text-xs font-semibold transition cursor-pointer"
+                title="View Officer Compliance Matrix"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Compliance</span>
               </button>
             )}
             <button

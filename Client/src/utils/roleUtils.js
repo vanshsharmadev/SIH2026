@@ -8,14 +8,18 @@ export const isOfficerUser = (user) => {
   const designation = (user.designation || '').toLowerCase();
   const email = (user.email || '').toLowerCase();
 
-  // Project owner / admin / developer account access
-  if (email.includes('vansh') || email.includes('admin') || email.includes('officer')) {
-    return true;
+  // Commercial Bidder / Vendor identities check first
+  if (
+    role.includes('bidder') ||
+    (role.includes('vendor') && !role.includes('officer')) ||
+    Boolean(user.gstNumber || user.gstin || user.legalName || user.companyName)
+  ) {
+    return false;
   }
 
-  // Commercial Bidder / Vendor identities
-  if (role.includes('bidder') || (role.includes('vendor') && !role.includes('officer'))) {
-    return false;
+  // Project owner / admin / official account access
+  if (email.includes('officer') || email.includes('admin') || email.includes('pwd.gov') || email.includes('gem.gov')) {
+    return true;
   }
 
   // Check official government domains and officer roles
@@ -25,12 +29,10 @@ export const isOfficerUser = (user) => {
     role === 'evaluating officer' ||
     role === 'compliance administrator' ||
     role.includes('officer') ||
-    role.includes('admin') ||
     designation.includes('officer') ||
     designation.includes('under secretary') ||
     email.endsWith('.gov.in') ||
-    email.endsWith('.nic.in') ||
-    !role // Default to officer view if unassigned
+    email.endsWith('.nic.in')
   );
 };
 
