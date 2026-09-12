@@ -20,7 +20,7 @@ async function processBidderController(req, res) {
       bidderId,
       documentId,
       documentType,
-    //   pdfUrl,
+      pdfUrl,
       publicId
     } = req.body;
 
@@ -55,34 +55,34 @@ async function processBidderController(req, res) {
       });
     }
 
-    // if (!pdfUrl) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: "pdfUrl is required"
-    //   });
-    // }
+    if (!pdfUrl) {
+      return res.status(400).json({
+        success: false,
+        message: "pdfUrl is required"
+      });
+    }
 
 
-    // Download PDF from Cloudinary
+   // Download PDF from Cloudinary
 
-    // const filePath = await downloadPdf(
-    //   pdfUrl,
-    //   documentId
-    // );
+    const filePath = await downloadPdf(
+      pdfUrl,
+      documentId
+    );
 
     // console.log(
     //   `Using bidder PDF: ${filePath}`
     // );
 
 
-    const filePath = path.join(
-        __dirname,
-         "../test-data/test-bidder.pdf"
-      );
+    // const filePath = path.join(
+    //     __dirname,
+    //      "../test-data/test-bidder.pdf"
+    //   );
   
-      console.log(
-        `Using local tender PDF: ${filePath}`
-      );
+    //   console.log(
+    //     `Using local tender PDF: ${filePath}`
+    //   );
   
 
 

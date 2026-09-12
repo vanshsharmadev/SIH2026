@@ -16,7 +16,7 @@ async function processTenderController(req, res) {
     const {
       tenderId,
       title,
-      // pdfUrl,
+      pdfUrl,
       publicId
     } = req.body;
 
@@ -27,28 +27,28 @@ async function processTenderController(req, res) {
       });
     }
 
-    // if (!pdfUrl) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: "pdfUrl is required"
-    //   });
-    // }
+    if (!pdfUrl) {
+      return res.status(400).json({
+        success: false,
+        message: "pdfUrl is required"
+      });
+    }
 
-    // // Download PDF
-    // const filePath = await downloadPdf(
-    //   pdfUrl,
-    //   tenderId
+    // Download PDF
+    const filePath = await downloadPdf(
+      pdfUrl,
+      tenderId
+    );
+
+
+    // const filePath = path.join(
+    //   __dirname,
+    //    "../test-data/test-tender.pdf"
     // );
 
-
-    const filePath = path.join(
-      __dirname,
-       "../test-data/test-tender.pdf"
-    );
-
-    console.log(
-      `Using local tender PDF: ${filePath}`
-    );
+    // console.log(
+    //   `Using local tender PDF: ${filePath}`
+    // );
 
 
     // Parse → chunk → embed

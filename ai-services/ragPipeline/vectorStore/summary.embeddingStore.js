@@ -63,7 +63,7 @@ async function saveSummaryEmbeddings(
           bidderId,
           tenderId,
           chunk.chunkIndex,
-          chunk.text,
+          chunk.content,
           JSON.stringify(chunk.embedding),
           JSON.stringify({
             bidderId,

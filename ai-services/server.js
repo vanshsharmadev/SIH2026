@@ -4,7 +4,7 @@ require("dotenv").config();
 
 const tenderRoutes = require("./routes/tender.routes");
 const bidderRoutes = require("./routes/bidder.routes");
-// const summaryRoutes = require("./routes/summary.routes");
+const summaryRoutes = require("./routes/summary.routes");
 const bidderTenderChatRoutes = require("./routes/bidderTenderChat.routes");
 
 
@@ -25,7 +25,7 @@ app.get("/health", (req, res) => {
 // Routes
 app.use("/api/ai/tender", tenderRoutes);
 app.use("/api/ai/bidder", bidderRoutes);
-// app.use("/api/ai/summary", summaryRoutes);
+app.use("/api/ai/summary", summaryRoutes);
 app.use(
   "/api/ai/bidder-tender-chat",
   bidderTenderChatRoutes

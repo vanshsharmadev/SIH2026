@@ -15,8 +15,8 @@ async function processSummary({
     throw new Error("bidderId is required");
   }
 
-  if (!summary) {
-    throw new Error("ML summary is required");
+  if (!summary || typeof summary !== "object") {
+    throw new Error("Valid ML summary object is required");
   }
 
   // Convert ML JSON into RAG-friendly text
