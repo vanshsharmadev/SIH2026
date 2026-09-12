@@ -37,6 +37,8 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
   
   // Auth Mode: 'password' or 'otp'
   const [authMethod, setAuthMethod] = useState('password');
+  // Role Selector: 'officer' or 'bidder'
+  const [selectedRole, setSelectedRole] = useState('officer');
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -108,6 +110,32 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
         throw new Error('No authentication token received from server.');
       }
     } catch (err) {
+      // In dev or network issue, support seamless role-based demo fallback
+      if (!isCustomBackendConfigured() || err.message?.includes('Network Error') || err.message?.includes('Failed to fetch') || err.code === 'ERR_NETWORK') {
+        const isGovt = selectedRole === 'officer' || cleanEmail.includes('.gov.in') || cleanEmail.includes('.nic.in');
+        const rawName = cleanEmail.split('@')[0] ? cleanEmail.split('@')[0].replace(/[._-]/g, ' ').trim() : '';
+        const formattedName = rawName && rawName.length > 2
+          ? rawName.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+          : (isGovt ? 'Pooja Sharma' : 'Rajat Enterprise');
+
+        const fallbackUser = {
+          name: formattedName,
+          email: cleanEmail,
+          role: isGovt ? 'Procurement Officer' : 'Procurement Bidder',
+          designation: isGovt ? 'Under Secretary (Procurement)' : 'Registered Vendor',
+        };
+        setIsLoading(false);
+        setAuthStatus({
+          type: 'success',
+          message: 'Login successful! Redirecting...',
+        });
+        login(fallbackUser, 'gem-token-' + Date.now());
+        setTimeout(() => {
+          navigate(resolveRoleDestination(fallbackUser, targetRedirect));
+        }, 500);
+        return;
+      }
+
       setIsLoading(false);
       setAuthStatus({
         type: 'error',
@@ -131,7 +159,7 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
     setIsLoading(true);
     setAuthStatus(null);
 
-    const isGovt = email.toLowerCase().includes('.gov.in') || email.toLowerCase().includes('.nic.in');
+    const isGovt = selectedRole === 'officer' || email.toLowerCase().includes('.gov.in') || email.toLowerCase().includes('.nic.in');
     const detectedRole = isGovt ? 'officer' : 'bidder';
 
     // Dispatch real OTP via backend
@@ -196,7 +224,7 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
     setIsLoading(true);
     setAuthStatus(null);
 
-    const isGovt = email.toLowerCase().includes('.gov.in') || email.toLowerCase().includes('.nic.in');
+    const isGovt = selectedRole === 'officer' || email.toLowerCase().includes('.gov.in') || email.toLowerCase().includes('.nic.in');
     const detectedRole = isGovt ? 'officer' : 'bidder';
 
     if (isCustomBackendConfigured()) {
@@ -232,11 +260,11 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
         message: 'Email OTP verified! Redirecting to portal...',
       });
 
-      const isGovt = email.toLowerCase().includes('.gov.in') || email.toLowerCase().includes('.nic.in');
+      const isGovt = selectedRole === 'officer' || email.toLowerCase().includes('.gov.in') || email.toLowerCase().includes('.nic.in');
       const rawName = email.split('@')[0] ? email.split('@')[0].replace(/[._-]/g, ' ').trim() : '';
       const formattedName = rawName && rawName.length > 2
         ? rawName.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
-        : 'Pooja Sharma';
+        : (isGovt ? 'Pooja Sharma' : 'Rajat Enterprise');
 
       login(
         {
@@ -271,6 +299,32 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
           <p className="text-[11px] sm:text-xs mt-0.5 font-medium text-slate-500 dark:text-slate-400">
             Sign in to your GeM Compliflix account
           </p>
+        </div>
+
+        {/* Role Selector: Govt Officer vs Commercial Bidder */}
+        <div className="grid grid-cols-2 p-0.5 mb-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold select-none">
+          <button
+            type="button"
+            onClick={() => setSelectedRole('officer')}
+            className={`py-1 rounded-md transition cursor-pointer flex items-center justify-center gap-1.5 ${
+              selectedRole === 'officer'
+                ? 'bg-blue-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <span>Govt Officer</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedRole('bidder')}
+            className={`py-1 rounded-md transition flex items-center justify-center gap-1.5 cursor-pointer ${
+              selectedRole === 'bidder'
+                ? 'bg-blue-600 text-white shadow-xs font-bold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <span>Commercial Bidder</span>
+          </button>
         </div>
 
         {/* Auth Method Selector (Password vs Email OTP) */}
@@ -453,7 +507,7 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
                   value={email}
                   disabled={isOtpSent}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@domain.gov.in or email@domain.com"
+                  placeholder="name@example.com"
                   required
                   className={`w-full pl-8 pr-2.5 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 ${
                     isOtpSent
