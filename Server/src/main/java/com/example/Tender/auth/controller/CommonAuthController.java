@@ -31,6 +31,20 @@ public class CommonAuthController {
     private final OfficerAuthService officerAuthService;
 
     /**
+     * Public Health Check endpoint for keep-alive pingers and uptime monitoring.
+     * Accessible at GET /auth, GET /auth/health, GET /api/auth, and GET /api/auth/health.
+     */
+    @GetMapping({"", "/", "/health"})
+    public ResponseEntity<Map<String, Object>> healthCheck() {
+        return ResponseEntity.ok(Map.of(
+                "status", "UP",
+                "service", "SIH2026 Tender Backend",
+                "message", "Auth service is running and healthy",
+                "timestamp", System.currentTimeMillis()
+        ));
+    }
+
+    /**
      * Unified Login endpoint for both Officer and Bidder.
      * Accessible at POST /auth/login and POST /api/auth/login.
      */

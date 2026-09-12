@@ -34,11 +34,11 @@ COPY --from=builder --chown=spring:spring /build/target/*.jar /app/app.jar
 # Expose Spring Boot default port
 EXPOSE 8080
 
-# Production JVM Performance & Memory Tuning
-ENV JAVA_OPTS="-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom -Djava.net.preferIPv4Stack=true"
+# Production JVM Performance & Memory Tuning (optimized for 512MB RAM containers)
+ENV JAVA_OPTS="-Xms128m -Xmx280m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC -Djava.security.egd=file:/dev/./urandom -Djava.net.preferIPv4Stack=true"
 
-# Health check endpoint
-HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost:${PORT:-8080}/api/officer/tenders/document-types || exit 1
+# Health check endpoint using fast lightweight /health endpoint
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost:${PORT:-8080}/health || exit 1
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]

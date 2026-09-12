@@ -83,7 +83,7 @@ public class OfficerSecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/auth/**", "/api/auth/**").permitAll()
+                        .requestMatchers("/", "/health", "/auth", "/auth/**", "/api/auth", "/api/auth/**").permitAll()
                         .requestMatchers("/api/officer/auth/**").permitAll()
                         .requestMatchers("/api/officer/identity/**").permitAll()
                         .requestMatchers("/api/bidder/auth/**").permitAll()
