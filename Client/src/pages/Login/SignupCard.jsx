@@ -96,8 +96,6 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
       newErrors.email = 'Email address is required.';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address.';
-    } else if (role === 'officer' && !formData.email.endsWith('.gov.in') && !formData.email.endsWith('.nic.in')) {
-      newErrors.email = 'Government officers must use official @gov.in or @nic.in email.';
     }
 
     if (!formData.phone.trim()) {
@@ -602,7 +600,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                 {/* Email Address */}
                 <div>
                   <label className="block text-[11px] font-semibold mb-0.5 text-slate-700">
-                    {role === 'bidder' ? 'Official Business Email' : 'Official Govt Email (@gov.in / @nic.in)'} <span className="text-red-500 font-bold ml-0.5">*</span>
+                    {role === 'bidder' ? 'Official Business Email' : 'Official Govt Email'} <span className="text-red-500 font-bold ml-0.5">*</span>
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
@@ -612,7 +610,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                       type="email"
                       value={formData.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
-                      placeholder={role === 'bidder' ? 'officer@company.com' : 'officer.dept@gov.in'}
+                      placeholder={role === 'bidder' ? 'officer@company.com' : 'officer.dept@email.com'}
                       className={`w-full pl-8 pr-2.5 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white placeholder-slate-400 ${
                         errors.email ? 'border-rose-300 text-rose-900' : 'border-slate-200 text-slate-900 focus:border-blue-600'
                       }`}
