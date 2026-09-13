@@ -13,6 +13,7 @@ public class AuthUserDto {
 
     private Object id;
     private String name;
+    private String companyName;
     private String email;
     private String role;
 }

@@ -242,6 +242,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(response);
     }
 
+    @ExceptionHandler(BidderChatException.class)
+    public ResponseEntity<BidderErrorResponse> handleBidderChatException(
+            BidderChatException ex, HttpServletRequest request) {
+
+        log.error("Bidder Chat error at path '{}' [status={}]: {}", request.getRequestURI(), ex.getStatus(), ex.getMessage());
+
+        BidderErrorResponse response = BidderErrorResponse.of(
+                ex.getStatus().value(),
+                ex.getError() != null ? ex.getError() : "AI Service Error",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(ex.getStatus()).body(response);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<BidderErrorResponse> handleGlobalException(
             Exception ex, HttpServletRequest request) {

@@ -97,9 +97,14 @@ public class BidderAuthService {
         String tempToken = UUID.randomUUID().toString().replace("-", "");
 
         // 5. Save in BidderTempRegistration (Verified via government bidder_verification database)
+        String effectiveCompanyName = StringUtils.hasText(request.getCompanyName())
+                ? request.getCompanyName().trim()
+                : verificationRecord.get().getName();
+
         BidderTempRegistration tempRegistration = BidderTempRegistration.builder()
                 .tempToken(tempToken)
                 .legalName(verificationRecord.get().getName())
+                .companyName(effectiveCompanyName)
                 .email(normalizedEmail)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .phone(request.getPhone() != null ? request.getPhone().trim() : null)
@@ -122,6 +127,7 @@ public class BidderAuthService {
                 .tempToken(tempToken)
                 .email(normalizedEmail)
                 .legalName(tempRegistration.getLegalName())
+                .companyName(tempRegistration.getCompanyName())
                 .gstNumber(normalizedGst)
                 .message("Bidder verified successfully against government records! Verification OTP sent to " + normalizedEmail)
                 .build();
@@ -343,6 +349,7 @@ public class BidderAuthService {
         // Create Permanent Bidder Record
         Bidder bidder = Bidder.builder()
                 .legalName(temp.getLegalName())
+                .companyName(temp.getCompanyName() != null ? temp.getCompanyName() : temp.getLegalName())
                 .email(temp.getEmail())
                 .password(temp.getPassword()) // already hashed
                 .phone(temp.getPhone())
@@ -383,6 +390,7 @@ public class BidderAuthService {
                 .bidderId(savedBidder.getId())
                 .email(savedBidder.getEmail())
                 .legalName(savedBidder.getLegalName())
+                .companyName(savedBidder.getCompanyName())
                 .phone(savedBidder.getPhone())
                 .gstNumber(savedBidder.getGstNumber())
                 .isVerified(savedBidder.isVerified())
@@ -443,6 +451,7 @@ public class BidderAuthService {
                 .bidderId(bidder.getId())
                 .email(bidder.getEmail())
                 .legalName(bidder.getLegalName())
+                .companyName(bidder.getCompanyName())
                 .phone(bidder.getPhone())
                 .gstNumber(bidder.getGstNumber())
                 .isVerified(bidder.isVerified())
@@ -618,6 +627,7 @@ public class BidderAuthService {
                                 .bidderId(bidder.getId())
                                 .email(bidder.getEmail())
                                 .legalName(bidder.getLegalName())
+                                .companyName(bidder.getCompanyName())
                                 .gstNumber(bidder.getGstNumber())
                                 .phone(bidder.getPhone())
                                 .isVerified(bidder.isVerified())
@@ -640,6 +650,7 @@ public class BidderAuthService {
                             .tokenType("TEMP_TOKEN")
                             .email(temp.getEmail())
                             .legalName(temp.getLegalName())
+                            .companyName(temp.getCompanyName())
                             .gstNumber(temp.getGstNumber())
                             .phone(temp.getPhone())
                             .isVerified(true)
@@ -673,6 +684,7 @@ public class BidderAuthService {
                             .tokenType("TEMP_TOKEN")
                             .email(temp.getEmail())
                             .legalName(temp.getLegalName())
+                            .companyName(temp.getCompanyName())
                             .gstNumber(temp.getGstNumber())
                             .phone(temp.getPhone())
                             .isVerified(true)

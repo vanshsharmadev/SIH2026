@@ -8,6 +8,7 @@ import lombok.Setter;
 public class UpdateBidderRequest {
 
     private String legalName;
+    private String companyName;
     private String panNumber;
     private String gstNumber;
     private String udyamNumber;

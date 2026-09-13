@@ -99,11 +99,48 @@ class BidderAuthServiceTest {
         assertNotNull(response.getTempToken());
         assertEquals("bidder@acme.com", response.getEmail());
         assertEquals("ACME INFRASTRUCTURE LTD", response.getLegalName());
+        assertEquals("ACME INFRASTRUCTURE LTD", response.getCompanyName());
         assertEquals("27ABCDE1234F1Z5", response.getGstNumber());
 
         verify(tempRegistrationRepository).deleteByEmail("bidder@acme.com");
         verify(tempRegistrationRepository).save(any(BidderTempRegistration.class));
         verify(otpRepository).save(any(BidderEmailOtp.class));
+    }
+
+    @Test
+    @DisplayName("1b. Signup with explicit companyName persists and returns companyName")
+    void testSignup_WithExplicitCompanyName() {
+        BidderSignupRequest request = BidderSignupRequest.builder()
+                .legalName("ACME INFRASTRUCTURE LTD")
+                .companyName("Acme Global Technologies")
+                .email("info@acme.com")
+                .password("Password@123")
+                .gstNumber("27ABCDE1234F1Z5")
+                .build();
+
+        BidderVerification verifiedRecord = BidderVerification.builder()
+                .id(2L)
+                .name("ACME INFRASTRUCTURE LTD")
+                .email("info@acme.com")
+                .gstNumber("27ABCDE1234F1Z5")
+                .build();
+
+        when(bidderVerificationRepository.findByNameAndEmailAndGstNumberIgnoreCase(
+                "ACME INFRASTRUCTURE LTD",
+                "info@acme.com",
+                "27ABCDE1234F1Z5"
+        )).thenReturn(Optional.of(verifiedRecord));
+
+        when(bidderRepository.existsByEmail("info@acme.com")).thenReturn(false);
+        when(bidderRepository.existsByGstNumber("27ABCDE1234F1Z5")).thenReturn(false);
+        when(passwordEncoder.encode("Password@123")).thenReturn("hashedPassword");
+
+        BidderInitiateResponse response = bidderAuthService.signup(request);
+
+        assertNotNull(response);
+        assertEquals("info@acme.com", response.getEmail());
+        assertEquals("ACME INFRASTRUCTURE LTD", response.getLegalName());
+        assertEquals("Acme Global Technologies", response.getCompanyName());
     }
 
     @Test

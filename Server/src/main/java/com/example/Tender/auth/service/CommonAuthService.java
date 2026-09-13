@@ -105,6 +105,7 @@ public class CommonAuthService {
                         .user(AuthUserDto.builder()
                                 .id(bidder.getId())
                                 .name(bidder.getLegalName())
+                                .companyName(bidder.getCompanyName())
                                 .email(bidder.getEmail())
                                 .role(role)
                                 .build())
@@ -140,6 +141,7 @@ public class CommonAuthService {
             return AuthUserDto.builder()
                     .id(bidderPrincipal.getId())
                     .name(bidderPrincipal.getLegalName())
+                    .companyName(bidderPrincipal.getCompanyName())
                     .email(bidderPrincipal.getEmail())
                     .role("BIDDER")
                     .build();
@@ -162,6 +164,7 @@ public class CommonAuthService {
                 return AuthUserDto.builder()
                         .id(bidder.get().getId())
                         .name(bidder.get().getLegalName())
+                        .companyName(bidder.get().getCompanyName())
                         .email(bidder.get().getEmail())
                         .role("BIDDER")
                         .build();

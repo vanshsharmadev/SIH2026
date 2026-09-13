@@ -16,12 +16,14 @@ public class BidderPrincipal implements UserDetails {
     private final String email;
     private final String password;
     private final String legalName;
+    private final String companyName;
 
     public BidderPrincipal(Bidder bidder) {
         this.id = bidder.getId();
         this.email = bidder.getEmail();
         this.password = bidder.getPassword();
         this.legalName = bidder.getLegalName();
+        this.companyName = bidder.getCompanyName();
     }
 
     @Override
