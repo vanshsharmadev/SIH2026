@@ -6,7 +6,7 @@ const tenderRoutes = require("./routes/tender.routes");
 const bidderRoutes = require("./routes/bidder.routes");
 const summaryRoutes = require("./routes/summary.routes");
 const bidderTenderChatRoutes = require("./routes/bidderTenderChat.routes");
-
+const compareRoutes = require("./routes/compare.routes");
 
 const app = express();
 
@@ -30,7 +30,7 @@ app.use(
   "/api/ai/bidder-tender-chat",
   bidderTenderChatRoutes
 );
-
+app.use("/api/ai/compare", compareRoutes);
 
 // Port
 const PORT = process.env.PORT || 5000;
