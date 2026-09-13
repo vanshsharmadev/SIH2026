@@ -27,13 +27,12 @@ async function answerBidderQueryAboutTender({
     // Retrieve context from source
     // --------------------------------
 
-    const
-        tenderResults
-            = await retrieveBidderTenderContext(
-                tenderId,
-                query,
-                5
-            );
+    const { tenderResults } =
+    await retrieveBidderTenderContext(
+        tenderId,
+        query,
+        5
+    );
 
     // --------------------------------
     // Prepare tender context
