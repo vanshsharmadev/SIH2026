@@ -7,6 +7,7 @@ const bidderRoutes = require("./routes/bidder.routes");
 const summaryRoutes = require("./routes/summary.routes");
 const bidderTenderChatRoutes = require("./routes/bidderTenderChat.routes");
 const compareRoutes = require("./routes/compare.routes");
+const bidderChatForTenderRoutes = require("./routes/bidderChatForTender.route");
 
 const app = express();
 
@@ -27,10 +28,15 @@ app.use("/api/ai/tender", tenderRoutes);
 app.use("/api/ai/bidder", bidderRoutes);
 app.use("/api/ai/summary", summaryRoutes);
 app.use(
-  "/api/ai/bidder-tender-chat",
+  "/api/ai/bidder-tender-chat", // for officer chat 
   bidderTenderChatRoutes
 );
 app.use("/api/ai/compare", compareRoutes);
+app.use(
+  "/api/ai/bidder-chat",
+  bidderChatForTenderRoutes
+);
+
 
 // Port
 const PORT = process.env.PORT || 5000;
