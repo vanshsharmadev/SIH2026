@@ -13,6 +13,7 @@ public class BidderInitiateResponse {
     private String tempToken;
     private String email;
     private String legalName;
+    private String companyName;
     private String gstNumber;
     private String message;
 }

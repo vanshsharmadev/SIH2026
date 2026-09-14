@@ -35,6 +35,10 @@
     {
       "name": "ML Pre-Submission Audit & Taxpayer Intelligence",
       "description": "Pre-Submission CIS Scoring, pyHanko Cryptographic Signature Checks, Live GST Portal Inquiries, Autonomous GFR 173(i) MSE Waivers, Batch Audits, and RAG Dossiers."
+    },
+    {
+      "name": "Bidder Tender Chatbot AI",
+      "description": "Bidder tender RAG chatbot integration. Securely queries tender requirements, scope, criteria, and terms using Gemini LLM and pgvector embeddings."
     }
   ],
   "paths": {
@@ -51,6 +55,7 @@
                 "$ref": "#/components/schemas/BidderSignupRequest"
               },
               "example": {
+                "companyName": "ACME Infrastructure Pvt Ltd",
                 "legalName": "Arnav Tyagi",
                 "email": "arnav24169006@gmail.com",
                 "password": "Password@123",
@@ -71,6 +76,7 @@
                 "example": {
                   "tempToken": "93162d76aa9141d8950d9e7905ab3d5c",
                   "email": "arnav24169006@gmail.com",
+                  "companyName": "ACME Infrastructure Pvt Ltd",
                   "legalName": "Arnav Tyagi",
                   "gstNumber": "09ARNAV9012H3Z7",
                   "message": "Bidder verified successfully against government records! Verification OTP sent to arnav24169006@gmail.com"
@@ -1450,6 +1456,116 @@
           }
         }
       }
+    },
+    "/api/bidder/chat": {
+      "post": {
+        "tags": ["Bidder Tender Chatbot AI"],
+        "summary": "28. Ask Bidder Tender Chatbot",
+        "description": "Intermediates bidder queries regarding a specific tender with the Node AI RAG service (pgvector + Gemini 1.5). Protected by ROLE_BIDDER.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BidderChatRequest"
+              },
+              "example": {
+                "tenderId": "TND-9041",
+                "query": "What are the minimum annual turnover and EMD requirements for this tender?"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chatbot response generated successfully with source citations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderChatResponse"
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "answer": "According to Section 4.2 of the tender document, the minimum average annual turnover required is INR 50 Lakhs over the last 3 financial years. The EMD requirement is INR 50,000, with an exemption available for registered MSEs under GFR 173(i).",
+                    "sources": {
+                      "tenderId": "TND-9041",
+                      "tenderChunks": [
+                        {
+                          "chunkIndex": 12,
+                          "score": 0.884,
+                          "contentSnippet": "4.2 Financial Criteria: Minimum average annual turnover of INR 50 Lakhs..."
+                        }
+                      ],
+                      "bidderChunks": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Validation failure: tenderId or query is blank" },
+          "401": { "description": "Unauthorized: Valid Bidder Bearer JWT required" },
+          "403": { "description": "Forbidden: Requires ROLE_BIDDER" },
+          "502": { "description": "Bad Gateway: Downstream AI RAG service timeout or connection error" }
+        }
+      }
+    },
+    "/api/bidder/chat/ask": {
+      "post": {
+        "tags": ["Bidder Tender Chatbot AI"],
+        "summary": "29. Ask Bidder Tender Chatbot (Alias Endpoint)",
+        "description": "Alias endpoint for /api/bidder/chat, providing backward compatibility for frontend clients.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BidderChatRequest"
+              },
+              "example": {
+                "tenderId": "TND-9041",
+                "query": "What are the required documents for bidder qualification?"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chatbot response generated successfully with source citations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidderChatResponse"
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "answer": "The tender requires: 1. Valid GST Registration, 2. PAN Card, 3. Audited Financial Statements for 3 years, 4. Past performance certificates for similar supplies.",
+                    "sources": {
+                      "tenderId": "TND-9041",
+                      "tenderChunks": [
+                        {
+                          "chunkIndex": 5,
+                          "score": 0.912,
+                          "contentSnippet": "Required Qualification Documents: PAN, GST, 3 Years Balance Sheet..."
+                        }
+                      ],
+                      "bidderChunks": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Validation failure: tenderId or query is blank" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "502": { "description": "Bad Gateway: Downstream AI RAG service error" }
+        }
+      }
     }
   },
   "components": {
@@ -1466,6 +1582,11 @@
         "type": "object",
         "required": ["legalName", "email", "password", "gstNumber"],
         "properties": {
+          "companyName": {
+            "type": "string",
+            "description": "Registered company or organization name. Optional; defaults/syncs with legalName",
+            "example": "ACME Infrastructure Pvt Ltd"
+          },
           "legalName": {
             "type": "string",
             "description": "Official registered legal business name or proprietor name matching government records",

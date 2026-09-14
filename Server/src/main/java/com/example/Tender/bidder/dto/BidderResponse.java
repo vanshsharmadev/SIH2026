@@ -13,6 +13,7 @@ public class BidderResponse {
 
     private Long id;
     private String legalName;
+    private String companyName;
     private String panNumber;
     private String gstNumber;
     private String udyamNumber;

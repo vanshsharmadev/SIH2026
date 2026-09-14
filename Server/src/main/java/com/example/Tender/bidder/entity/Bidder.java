@@ -21,6 +21,13 @@ public class Bidder {
     @Column(nullable = false)
     private String legalName;
 
+    @Column(name = "company_name")
+    private String companyName;
+
+    public String getCompanyName() {
+        return (companyName != null && !companyName.trim().isEmpty()) ? companyName : legalName;
+    }
+
     @Column(unique = true, nullable = true)
     private String panNumber;
 

@@ -399,4 +399,29 @@ class ComprehensiveEndpointsAuditTest {
                 .andExpect(jsonPath("$.success", is(true)))
                 .andExpect(jsonPath("$.data.email", is(OFFICER_EMAIL)));
     }
+
+    // =========================================================================
+    // SECTION 6: BIDDER CHAT SECURITY
+    // =========================================================================
+
+    @Test
+    @DisplayName("POST /api/bidder/chat - Unauthenticated request is rejected by Spring Security")
+    void testBidderChat_Unauthenticated_Rejected() throws Exception {
+        mockMvc.perform(post("/api/bidder/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tenderId\":\"TND-1\",\"query\":\"What is turnover?\"}"))
+                .andExpect(status().is(isOneOf(401, 403)));
+    }
+
+    @Test
+    @DisplayName("POST /api/bidder/chat - Authenticated bidder token is authorized through Spring Security")
+    void testBidderChat_WithBidderToken_Authorized() throws Exception {
+        // Validation failure proves request passed Spring Security ROLE_BIDDER filter
+        mockMvc.perform(post("/api/bidder/chat")
+                        .header("Authorization", "Bearer " + bidderToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tenderId\":\"\",\"query\":\"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error", is("Validation Failed")));
+    }
 }

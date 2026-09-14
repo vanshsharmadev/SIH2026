@@ -1,57 +1,228 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "🏛️ SIH 2026 Tender Management & GeM ML Intelligence Platform - Full API Specification",
-    "description": "Complete consolidated OpenAPI 3.1 REST API specification for the SIH 2026 Platform. Encompasses Bidder Authentication, Officer Authentication, DigiLocker Verification, Cloudinary Tender Document Storage, and the complete 13-Endpoint GeM ML Microservice v2.0.0 suite.",
-    "version": "2.0.0"
+    "title": "🏛️ Tender Management Platform & GeM ML Intelligence Backend — Complete API Specification",
+    "description": "Comprehensive consolidated OpenAPI 3.1 REST API specification for the entire backend ecosystem. Covers Unified Auth, Bidder Self-Service & Documents, Bidder Tender Chatbot AI, Officer DigiLocker Verification, Tender Management, Node AI RAG Microservice, and the 13-Endpoint GeM ML Microservice (v2.0.0).",
+    "version": "2.1.0",
+    "contact": {
+      "name": "SIH 2026 GeM CompliFlix Engineering Team"
+    }
   },
   "servers": [
     {
       "url": "http://localhost:8080",
-      "description": "Local Spring Boot Server"
+      "description": "Local Spring Boot Server Gateway"
     },
     {
       "url": "https://sih2026-83r4.onrender.com",
-      "description": "Production Render Backend Server"
+      "description": "Production Spring Boot Backend Gateway (Render)"
     },
     {
       "url": "http://20.40.44.184",
-      "description": "Production GeM Python ML Microservice (v2.0.0)"
+      "description": "Production Python GeM ML Microservice (Azure VM)"
+    },
+    {
+      "url": "https://sih2026-86kl.onrender.com",
+      "description": "Production Node AI RAG Microservice (Render)"
     }
   ],
   "tags": [
     {
-      "name": "1. Bidder Authentication",
-      "description": "Bidder Registration, Government Record Pre-Validation, Email OTP, and JWT Authentication."
+      "name": "1. Unified Authentication Gateway",
+      "description": "Cross-role login, user profile resolution, and unified registration."
     },
     {
-      "name": "2. Bidder Management",
-      "description": "Bidder Profile Retrieval, Update, and Management."
+      "name": "2. Bidder Authentication & Management",
+      "description": "Bidder sign-up (with companyName sync), government registry pre-validation, OTP verification, login, password reset, and profile CRUD."
     },
     {
-      "name": "3. Officer Authentication & DigiLocker",
-      "description": "Officer Login, JWT Session Verification, and DigiLocker / MeriPehchaan OAuth Flow."
+      "name": "3. Bidder Tender Chatbot AI",
+      "description": "Bidder tender RAG chatbot integration. Securely query tender requirements, scope, criteria, and terms using Gemini LLM and pgvector embeddings."
     },
     {
-      "name": "4. Tender Management & Cloudinary",
-      "description": "Tender Document Upload, Cloudinary Secure Storage, and Bidder Evaluation."
+      "name": "4. Bidder Compliance Documents & AI Intelligence",
+      "description": "Document ingestion to Cloudinary, pyHanko digital signature verification, pyzbar QR scanning, CIS self-check, and autonomous GFR 173(i) audits."
     },
     {
-      "name": "5. GeM ML v2.0.0 Master Endpoints",
-      "description": "13 Production ML Endpoints: OCR, pyHanko Signatures, Live GSTIN/PAN Verification, Autonomous Audits, RAG Dossier, and Model Inference."
+      "name": "5. Officer Authentication & DigiLocker Identity",
+      "description": "Officer onboarding, MeriPehchaan/DigiLocker OAuth simulation, government identity validation, OTP verification, and profile management."
+    },
+    {
+      "name": "6. Officer Tender Management & Bidder Comparison",
+      "description": "Parallel tender ingestion (Cloudinary + Python ML + Node RAG), metadata retrieval, and AI multi-bidder comparative evaluation."
+    },
+    {
+      "name": "7. Node AI RAG & Gemini Chatbot Gateway",
+      "description": "Semantic search in pgvector, tender/bidder document chunking & vectorization, and Gemini 1.5 Pro inference with source citations."
+    },
+    {
+      "name": "8. GeM ML Microservice v2.0.0 Endpoints",
+      "description": "13 Production ML Endpoints: Unified health, taxonomy, single intake, batch upload audit, dossier synthesis, card tampering, live GSTIN verification, and retraining."
     }
   ],
   "paths": {
-    "/api/bidder/auth/signup": {
+    "/auth/login": {
       "post": {
-        "tags": ["1. Bidder Authentication"],
-        "summary": "Initiate Bidder Signup & Verify Against Government Records",
-        "description": "Checks database for duplicate email/GST, validates legalName and GSTIN against government records, creates a temporary session, and dispatches an OTP via Brevo.",
+        "tags": ["1. Unified Authentication Gateway"],
+        "summary": "Unified Login for Officer and Bidder",
+        "description": "Authenticates credentials against both Officer and Bidder repositories, automatically detects user role, and returns unified JWT Bearer token. Also accessible at /api/auth/login.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string", "format": "email", "example": "bidder@example.com" },
+                  "password": { "type": "string", "example": "Password@123" }
+                },
+                "required": ["email", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Login successful",
+                  "token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJiaWRkZXJAZXhhbXBsZS5jb20iLCJ1c2VySWQiOjEsInJvbGUiOiJCSUVERVIifQ...",
+                  "user": {
+                    "id": 1,
+                    "name": "ACME Infrastructure Pvt Ltd",
+                    "email": "bidder@example.com",
+                    "role": "BIDDER"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Invalid email or password" },
+          "403": { "description": "Account not verified or registration rejected" }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["1. Unified Authentication Gateway"],
+        "summary": "Get Authenticated User Profile & Role",
+        "description": "Resolves user profile and role from the active Security Context. Also accessible at /api/auth/me.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Authenticated user profile",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Authenticated user profile",
+                  "user": {
+                    "id": 1,
+                    "name": "ACME Infrastructure Pvt Ltd",
+                    "email": "bidder@example.com",
+                    "role": "BIDDER"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "User is not authenticated" }
+        }
+      }
+    },
+    "/auth/signup": {
+      "post": {
+        "tags": ["1. Unified Authentication Gateway"],
+        "summary": "Unified Officer Signup Initiation",
+        "description": "Initiates officer registration and returns DigiLocker verification URL. Also accessible at /api/auth/signup.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "example": {
+                "name": "Rajesh Sharma",
+                "email": "rajesh.sharma@gov.in",
+                "password": "Password@123",
+                "department": "Public Works Department",
+                "governmentId": "GOV-PWD-2026-9041",
+                "phone": "9876543210"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Signup initiated",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Signup initiated. Please verify identity via DigiLocker.",
+                  "data": {
+                    "tempToken": "b6a88b1f-7bbf-4d92-b435-08197e4e1a49",
+                    "verificationUrl": "http://localhost:8080/api/officer/identity/mock-verify?token=b6a88b1f-7bbf-4d92-b435-08197e4e1a49"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/verify-otp": {
+      "post": {
+        "tags": ["1. Unified Authentication Gateway"],
+        "summary": "Unified Registration OTP Verification",
+        "description": "Validates the OTP sent to email and completes registration. Also accessible at /api/auth/verify-otp.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "email": "rajesh.sharma@gov.in",
+                "otp": "123456",
+                "tempToken": "b6a88b1f-7bbf-4d92-b435-08197e4e1a49"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Email verified successfully, registration complete" }
+        }
+      }
+    },
+    "/auth/resend-otp": {
+      "post": {
+        "tags": ["1. Unified Authentication Gateway"],
+        "summary": "Unified Resend OTP",
+        "description": "Resends verification OTP to email. Also accessible at /api/auth/resend-otp.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": { "email": "rajesh.sharma@gov.in" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OTP resent successfully" }
+        }
+      }
+    },
+    "/api/bidder/auth/signup": {
+      "post": {
+        "tags": ["2. Bidder Authentication & Management"],
+        "summary": "Step 1: Initiate Bidder Signup & Verify Registry",
+        "description": "Checks database for duplicate email/GST, validates legalName and GSTIN against government records, creates a temporary session, and dispatches an OTP via Brevo. Accepts companyName (defaults/syncs with legalName).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "companyName": "ACME Infrastructure Pvt Ltd",
                 "legalName": "Arnav Tyagi",
                 "email": "arnav24169006@gmail.com",
                 "gstNumber": "09ARNAV9012H3Z7",
@@ -69,6 +240,7 @@
                 "example": {
                   "tempToken": "93162d76aa9141d8950d9e7905ab3d5c",
                   "email": "arnav24169006@gmail.com",
+                  "companyName": "ACME Infrastructure Pvt Ltd",
                   "legalName": "Arnav Tyagi",
                   "gstNumber": "09ARNAV9012H3Z7",
                   "message": "Bidder verified successfully against government records! Verification OTP sent to arnav24169006@gmail.com"
@@ -76,15 +248,15 @@
               }
             }
           },
-          "409": { "description": "Email or GSTIN is already registered" },
-          "400": { "description": "Invalid credentials or mismatch with government record" }
+          "409": { "description": "Email or GSTIN already registered" },
+          "429": { "description": "Rate limit exceeded (5 requests per 60s)" }
         }
       }
     },
     "/api/bidder/auth/verify-otp": {
       "post": {
-        "tags": ["1. Bidder Authentication"],
-        "summary": "Verify Email OTP & Finalize Registration",
+        "tags": ["2. Bidder Authentication & Management"],
+        "summary": "Step 2: Verify Email OTP & Finalize Registration",
         "description": "Validates the 6-digit OTP, creates the permanent Bidder entity in PostgreSQL, and generates a JWT Bearer token.",
         "requestBody": {
           "required": true,
@@ -108,6 +280,7 @@
                   "type": "Bearer",
                   "bidderId": 1,
                   "email": "arnav24169006@gmail.com",
+                  "companyName": "ACME Infrastructure Pvt Ltd",
                   "legalName": "Arnav Tyagi",
                   "phone": "9876500103",
                   "gstNumber": "09ARNAV9012H3Z7",
@@ -123,36 +296,24 @@
     },
     "/api/bidder/auth/resend-otp": {
       "post": {
-        "tags": ["1. Bidder Authentication"],
-        "summary": "Resend Verification OTP",
-        "description": "Generates and sends a new 6-digit verification OTP to the bidder's email.",
+        "tags": ["2. Bidder Authentication & Management"],
+        "summary": "Resend Bidder Verification OTP",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "example": {
-                "email": "arnav24169006@gmail.com"
-              }
+              "example": { "email": "arnav24169006@gmail.com" }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Fresh OTP dispatched successfully",
-            "content": {
-              "application/json": {
-                "example": {
-                  "message": "A fresh OTP has been sent to arnav24169006@gmail.com"
-                }
-              }
-            }
-          }
+          "200": { "description": "Fresh OTP dispatched successfully" }
         }
       }
     },
     "/api/bidder/auth/login": {
       "post": {
-        "tags": ["1. Bidder Authentication"],
+        "tags": ["2. Bidder Authentication & Management"],
         "summary": "Bidder Login",
         "description": "Authenticates verified bidder and issues a 24-hour JWT Bearer token.",
         "requestBody": {
@@ -167,123 +328,800 @@
           }
         },
         "responses": {
-          "200": { "description": "Login successful, returns JWT token" },
+          "200": {
+            "description": "Login successful, returns JWT token",
+            "content": {
+              "application/json": {
+                "example": {
+                  "token": "eyJhbGciOiJIUzI1NiJ9...",
+                  "type": "Bearer",
+                  "bidderId": 1,
+                  "email": "arnav24169006@gmail.com",
+                  "companyName": "ACME Infrastructure Pvt Ltd",
+                  "legalName": "Arnav Tyagi",
+                  "isVerified": true,
+                  "message": "Login successful"
+                }
+              }
+            }
+          },
           "401": { "description": "Invalid email or password" },
           "403": { "description": "Account not verified" }
         }
       }
     },
-    "/api/bidder/auth/me": {
-      "get": {
-        "tags": ["1. Bidder Authentication"],
-        "summary": "Get Current Authenticated Bidder Profile",
-        "description": "Retrieves the full profile and verification status of the currently authenticated bidder.",
-        "security": [{ "bearerAuth": [] }],
+    "/api/bidder/auth/verify-token": {
+      "post": {
+        "tags": ["2. Bidder Authentication & Management"],
+        "summary": "Verify JWT or Temporary Registration Token",
+        "description": "Validates token passed in Authorization header, request body, or query param.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": { "token": "eyJhbGciOiJIUzI1NiJ9..." }
+            }
+          }
+        },
         "responses": {
-          "200": { "description": "Profile retrieved successfully" },
-          "401": { "description": "Unauthorized: Missing or invalid Bearer token" }
+          "200": {
+            "description": "Token verification response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "valid": true,
+                  "email": "arnav24169006@gmail.com",
+                  "bidderId": 1,
+                  "companyName": "ACME Infrastructure Pvt Ltd",
+                  "legalName": "Arnav Tyagi",
+                  "role": "BIDDER",
+                  "isVerified": true,
+                  "tokenType": "JWT"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["2. Bidder Authentication & Management"],
+        "summary": "Verify Token via Query Parameters",
+        "parameters": [
+          { "name": "token", "in": "query", "schema": { "type": "string" } },
+          { "name": "tempToken", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Token validity status" }
         }
       }
     },
-    "/api/bidder/auth/verify-token": {
-      "post": {
-        "tags": ["1. Bidder Authentication"],
-        "summary": "Verify JWT or Temporary Registration Token",
-        "description": "Validates token passed in Authorization header, request body, or query param."
+    "/api/bidder/auth/me": {
+      "get": {
+        "tags": ["2. Bidder Authentication & Management"],
+        "summary": "Get Current Authenticated Bidder Profile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Profile retrieved successfully" },
+          "401": { "description": "Unauthorized" }
+        }
       }
     },
     "/api/bidder/auth/forgot-password": {
       "post": {
-        "tags": ["1. Bidder Authentication"],
-        "summary": "Initiate Forgot Password",
-        "description": "Sends a password reset OTP to the bidder's registered email."
+        "tags": ["2. Bidder Authentication & Management"],
+        "summary": "Initiate Password Reset",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": { "email": "arnav24169006@gmail.com" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Password reset OTP sent to email" }
+        }
       }
     },
     "/api/bidder/auth/verify-forgot-password-otp": {
       "post": {
-        "tags": ["1. Bidder Authentication"],
+        "tags": ["2. Bidder Authentication & Management"],
         "summary": "Verify Password Reset OTP",
-        "description": "Validates the reset OTP and generates a secure resetToken."
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": { "email": "arnav24169006@gmail.com", "otp": "123456" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP verified, returns resetToken",
+            "content": {
+              "application/json": {
+                "example": { "message": "OTP verified successfully.", "resetToken": "c47f98e1-51ee-48c2-a42e-13c88019ab54" }
+              }
+            }
+          }
+        }
       }
     },
     "/api/bidder/auth/reset-password": {
       "post": {
-        "tags": ["1. Bidder Authentication"],
+        "tags": ["2. Bidder Authentication & Management"],
         "summary": "Reset Password",
-        "description": "Updates bidder's password using the verified resetToken."
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": { "resetToken": "c47f98e1-51ee-48c2-a42e-13c88019ab54", "newPassword": "NewPassword@123" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Password reset successfully" }
+        }
       }
     },
-    "/api/bidders": {
-      "get": {
-        "tags": ["2. Bidder Management"],
-        "summary": "Get All Bidders",
-        "security": [{ "bearerAuth": [] }]
-      }
-    },
-    "/api/bidders/{id}": {
-      "get": {
-        "tags": ["2. Bidder Management"],
-        "summary": "Get Bidder By ID",
-        "security": [{ "bearerAuth": [] }]
-      },
-      "put": {
-        "tags": ["2. Bidder Management"],
-        "summary": "Update Bidder Profile",
-        "security": [{ "bearerAuth": [] }]
-      },
-      "delete": {
-        "tags": ["2. Bidder Management"],
-        "summary": "Delete Bidder",
-        "security": [{ "bearerAuth": [] }]
-      }
-    },
-    "/api/officer/auth/login": {
+    "/api/bidder/auth/verify-taxpayer-ml": {
       "post": {
-        "tags": ["3. Officer Authentication & DigiLocker"],
-        "summary": "Officer Login",
-        "description": "Authenticate an officer using Employee ID / Email and password.",
+        "tags": ["2. Bidder Authentication & Management"],
+        "summary": "Public Taxpayer Pre-Verification via ML",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "example": {
-                "email": "officer@pwd.gov.in",
+                "identifier": "07AABCB1234F1Z2",
+                "identifierType": "gstin",
+                "expectedLegalName": "ACME Enterprise",
+                "stateCode": "07",
+                "useLivePortal": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Taxpayer verification result" }
+        }
+      }
+    },
+    "/api/bidder": {
+      "get": {
+        "tags": ["2. Bidder Management"],
+        "summary": "Get All Bidders",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of all registered bidders" }
+        }
+      }
+    },
+    "/api/bidder/{id}": {
+      "get": {
+        "tags": ["2. Bidder Management"],
+        "summary": "Get Bidder By ID",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Bidder profile details" },
+          "404": { "description": "Bidder not found" }
+        }
+      },
+      "put": {
+        "tags": ["2. Bidder Management"],
+        "summary": "Update Bidder Profile",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "companyName": "ACME Industries Limited",
+                "legalName": "ACME Industries Limited",
+                "phone": "9876543210",
+                "gstNumber": "07AABCB1234F1Z2",
+                "panNumber": "AABCB1234F"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Bidder profile updated successfully" }
+        }
+      },
+      "delete": {
+        "tags": ["2. Bidder Management"],
+        "summary": "Delete Bidder Profile",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "204": { "description": "Bidder deleted successfully" }
+        }
+      }
+    },
+    "/api/bidder/documents/upload": {
+      "post": {
+        "tags": ["3. Bidder Compliance Documents & AI Intelligence"],
+        "summary": "Upload Compliance Document & Run Anti-Forgery Intake",
+        "description": "Uploads PDF/Image to Cloudinary, runs pyHanko digital signature check, pyzbar QR verification, and OCR entity extraction.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "documentType": { "type": "string", "default": "generic", "example": "gst_certificate" }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Document uploaded and analyzed successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": 14,
+                  "bidderId": 1,
+                  "fileName": "gst_registration_cert.pdf",
+                  "documentType": "gst_certificate",
+                  "fileUrl": "https://res.cloudinary.com/dxyz/raw/upload/v174152/bidders/gst_registration_cert.pdf",
+                  "ocrConfidence": 94.2,
+                  "authenticityScore": 98.0,
+                  "isAuthentic": true,
+                  "authenticityVerdict": "AUTHENTIC",
+                  "status": "VERIFIED"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/documents": {
+      "get": {
+        "tags": ["3. Bidder Compliance Documents & AI Intelligence"],
+        "summary": "List All Uploaded Compliance Documents",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of bidder documents" }
+        }
+      }
+    },
+    "/api/bidder/documents/{id}": {
+      "get": {
+        "tags": ["3. Bidder Compliance Documents & AI Intelligence"],
+        "summary": "Get Single Document Details & Forensic Report",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Document analysis response" }
+        }
+      },
+      "delete": {
+        "tags": ["3. Bidder Compliance Documents & AI Intelligence"],
+        "summary": "Delete Document from Cloudinary and DB",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "204": { "description": "Document deleted successfully" }
+        }
+      }
+    },
+    "/api/bidder/documents/check-cis": {
+      "post": {
+        "tags": ["3. Bidder Compliance Documents & AI Intelligence"],
+        "summary": "Pre-Submission CIS Score Self-Check",
+        "description": "Evaluates uploaded documents against tender criteria and forecasts clearance likelihood.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "tenderType": "goods",
+                "requiredDocuments": ["pan_card", "gst_certificate", "audited_balance_sheet"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "CIS score and recommendation report",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "cisScore": 0.94,
+                  "riskClassification": "low_risk",
+                  "clearanceEligibility": "ELIGIBLE_SINGLE_CLICK",
+                  "documentsAnalyzed": 3,
+                  "missingDocuments": []
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bidder/documents/scan-taxpayer": {
+      "post": {
+        "tags": ["3. Bidder Compliance Documents & AI Intelligence"],
+        "summary": "Instant Taxpayer Document Scanner",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "useLivePortal": { "type": "boolean", "default": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OCR and live GST validation report" }
+        }
+      }
+    },
+    "/api/bidder/documents/verify-taxpayer": {
+      "post": {
+        "tags": ["3. Bidder Compliance Documents & AI Intelligence"],
+        "summary": "Live Taxpayer Identifier Verification",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "identifier": "07AABCB1234F1Z2",
+                "identifierType": "gstin",
+                "expectedLegalName": "ACME Enterprise",
+                "useLivePortal": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Taxpayer verification response" }
+        }
+      }
+    },
+    "/api/bidder/documents/audit-submission": {
+      "post": {
+        "tags": ["3. Bidder Compliance Documents & AI Intelligence"],
+        "summary": "Master Autonomous Audit for Bidder",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "tender_specification": {
+                  "tender_type": "goods",
+                  "required_categories": ["pan_card", "gst_certificate", "msme_udyam"]
+                },
+                "bidder_profile": {
+                  "is_msme": true,
+                  "is_startup": false,
+                  "annual_turnover": 4500000.0
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Autonomous audit result" }
+        }
+      }
+    },
+    "/api/bidder/documents/batch-audit-files": {
+      "post": {
+        "tags": ["3. Bidder Compliance Documents & AI Intelligence"],
+        "summary": "Batch Upload Autonomous Audit for Bidder",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "files": { "type": "array", "items": { "type": "string", "format": "binary" } },
+                  "tender_file": { "type": "string", "format": "binary" },
+                  "is_msme": { "type": "boolean", "default": false },
+                  "is_startup": { "type": "boolean", "default": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Batch audit result" }
+        }
+      }
+    },
+    "/api/bidder/documents/overall-summary": {
+      "get": {
+        "tags": ["3. Bidder Compliance Documents & AI Intelligence"],
+        "summary": "Bidder Comprehensive Dossier & RAG Markdown",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "tender_type", "in": "query", "schema": { "type": "string", "default": "goods" } },
+          { "name": "use_live_portal", "in": "query", "schema": { "type": "boolean", "default": false } },
+          { "name": "include_rag_context", "in": "query", "schema": { "type": "boolean", "default": true } }
+        ],
+        "responses": {
+          "200": { "description": "Dossier synthesis response" }
+        }
+      }
+    },
+    "/api/bidder/documents/tender-requirements": {
+      "post": {
+        "tags": ["3. Bidder Compliance Documents & AI Intelligence"],
+        "summary": "Dynamic Tender Requirements Parsing",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "tender_type": "works",
+                "tender_text": "Mandatory: PAN, GST, 3 Years Balance Sheet, EMD INR 50000",
+                "is_msme": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "6-pillar compliance checklist" }
+        }
+      }
+    },
+    "/api/bidder/documents/predict-compliance": {
+      "post": {
+        "tags": ["3. Bidder Compliance Documents & AI Intelligence"],
+        "summary": "Direct Random Forest Compliance Verdict Predictor",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "feature_dict": {
+                  "raw_cis_score": 0.95,
+                  "mandatory_coverage_ratio": 1.0,
+                  "authenticity_score": 0.98,
+                  "financial_ratio": 1.0,
+                  "statutory_tax_score": 1.0,
+                  "past_performance_score": 0.9,
+                  "is_fake_detected": 0.0,
+                  "tampering_detected": 0.0,
+                  "msme_exemption_boost": 0.0
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Prediction result" }
+        }
+      }
+    },
+    "/api/bidder/chat": {
+      "post": {
+        "tags": ["3. Bidder Tender Chatbot AI"],
+        "summary": "Ask Bidder Tender Chatbot",
+        "description": "Submits questions regarding a specific tender's requirements, eligibility, terms, or specifications. Intermediates with the Node AI RAG service (pgvector + Gemini 1.5). Protected by ROLE_BIDDER.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tenderId": { "type": "string", "example": "TND-9041" },
+                  "query": { "type": "string", "example": "What are the minimum annual turnover and EMD requirements for this tender?" }
+                },
+                "required": ["tenderId", "query"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chatbot response generated successfully with source citations",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "answer": "According to Section 4.2 of the tender document, the minimum average annual turnover required is INR 50 Lakhs over the last 3 financial years. The EMD requirement is INR 50,000, with an exemption available for registered MSEs under GFR 173(i).",
+                    "sources": {
+                      "tenderId": "TND-9041",
+                      "tenderChunks": [
+                        {
+                          "chunkIndex": 12,
+                          "score": 0.884,
+                          "contentSnippet": "4.2 Financial Criteria: Minimum average annual turnover of INR 50 Lakhs..."
+                        }
+                      ],
+                      "bidderChunks": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Validation failure: tenderId or query is blank" },
+          "401": { "description": "Unauthorized: Valid Bidder Bearer JWT required" },
+          "403": { "description": "Forbidden: Requires ROLE_BIDDER" },
+          "502": { "description": "Bad Gateway: Downstream AI RAG service timeout or connection error" }
+        }
+      }
+    },
+    "/api/bidder/chat/ask": {
+      "post": {
+        "tags": ["3. Bidder Tender Chatbot AI"],
+        "summary": "Ask Bidder Tender Chatbot (Alias Endpoint)",
+        "description": "Alias endpoint for /api/bidder/chat, providing backward compatibility for frontend clients.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tenderId": { "type": "string", "example": "TND-9041" },
+                  "query": { "type": "string", "example": "What are the required documents for bidder qualification?" }
+                },
+                "required": ["tenderId", "query"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chatbot response generated successfully with source citations",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "answer": "The tender requires: 1. Valid GST Registration, 2. PAN Card, 3. Audited Financial Statements for 3 years, 4. Past performance certificates for similar supplies.",
+                    "sources": {
+                      "tenderId": "TND-9041",
+                      "tenderChunks": [
+                        {
+                          "chunkIndex": 5,
+                          "score": 0.912,
+                          "contentSnippet": "Required Qualification Documents: PAN, GST, 3 Years Balance Sheet..."
+                        }
+                      ],
+                      "bidderChunks": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Validation failure: tenderId or query is blank" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "502": { "description": "Bad Gateway: Downstream AI RAG service error" }
+        }
+      }
+    },
+    "/api/officer/auth/signup": {
+      "post": {
+        "tags": ["4. Officer Authentication & DigiLocker Identity"],
+        "summary": "Step 1: Officer Signup Initiation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "name": "Dr. Sunita Rao",
+                "email": "sunita.rao@pwd.delhi.gov.in",
+                "password": "Password@123",
+                "department": "Public Works Department",
+                "governmentId": "DL-PWD-OFF-8821",
+                "phone": "9811223344"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Signup initiated, returns tempToken and DigiLocker URL",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Signup initiated. Please verify identity via DigiLocker.",
+                  "data": {
+                    "tempToken": "7b89d421-41ee-48c2-a42e-13c88019ab54",
+                    "verificationUrl": "http://localhost:8080/api/officer/identity/mock-verify?token=7b89d421-41ee-48c2-a42e-13c88019ab54"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/officer/auth/initiate": {
+      "post": {
+        "tags": ["4. Officer Authentication & DigiLocker Identity"],
+        "summary": "Step 3: Explicit Initiate DigiLocker Verification",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": { "tempToken": "7b89d421-41ee-48c2-a42e-13c88019ab54" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Verification URL response" }
+        }
+      }
+    },
+    "/api/officer/auth/mock-verify": {
+      "post": {
+        "tags": ["4. Officer Authentication & DigiLocker Identity"],
+        "summary": "Step 4: Mock DigiLocker Identity Authorization (POST)",
+        "description": "Simulates DigiLocker OAuth token exchange, validates Aadhaar/PAN against registry, and dispatches email OTP.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "tempToken": "7b89d421-41ee-48c2-a42e-13c88019ab54",
+                "aadhaarNumber": "999988887777",
+                "panNumber": "ABCDE1234F"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Identity verified, OTP dispatched",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Identity verified successfully",
+                  "data": {
+                    "tempToken": "7b89d421-41ee-48c2-a42e-13c88019ab54",
+                    "status": "IDENTITY_VERIFIED",
+                    "nameMatchScore": 100.0,
+                    "otpSent": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["4. Officer Authentication & DigiLocker Identity"],
+        "summary": "Step 4 (Alt): Mock DigiLocker Authorization via URL Redirect",
+        "parameters": [
+          { "name": "token", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Identity verified successfully" }
+        }
+      }
+    },
+    "/api/officer/auth/verify-otp": {
+      "post": {
+        "tags": ["4. Officer Authentication & DigiLocker Identity"],
+        "summary": "Step 6: Verify Email OTP & Issue Officer JWT",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "email": "sunita.rao@pwd.delhi.gov.in",
+                "otp": "123456",
+                "tempToken": "7b89d421-41ee-48c2-a42e-13c88019ab54"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Registration complete, returns JWT token",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Email verified successfully! Registration complete.",
+                  "data": {
+                    "token": "eyJhbGciOiJIUzI1NiJ9...",
+                    "type": "Bearer",
+                    "officerId": 3,
+                    "email": "sunita.rao@pwd.delhi.gov.in",
+                    "name": "Dr. Sunita Rao",
+                    "role": "ROLE_OFFICER"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/officer/auth/resend-otp": {
+      "post": {
+        "tags": ["4. Officer Authentication & DigiLocker Identity"],
+        "summary": "Resend Officer Email OTP",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": { "email": "sunita.rao@pwd.delhi.gov.in" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OTP resent successfully" }
+        }
+      }
+    },
+    "/api/officer/auth/login": {
+      "post": {
+        "tags": ["4. Officer Authentication & DigiLocker Identity"],
+        "summary": "Officer Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "email": "sunita.rao@pwd.delhi.gov.in",
                 "password": "Password@123"
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Login successful, returns JWT Bearer token" },
+          "200": { "description": "Officer authenticated successfully" },
           "401": { "description": "Invalid credentials" }
         }
       }
     },
-    "/api/officer/auth/verify-token": {
-      "post": {
-        "tags": ["3. Officer Authentication & DigiLocker"],
-        "summary": "Verify Officer JWT Token"
-      }
-    },
-    "/api/officer/auth/digilocker/initiate": {
+    "/api/officer/auth/me": {
       "get": {
-        "tags": ["3. Officer Authentication & DigiLocker"],
-        "summary": "Initiate DigiLocker OAuth Verification",
-        "description": "Generates DigiLocker MeriPehchaan OAuth authorization URL."
-      }
-    },
-    "/api/officer/auth/digilocker/callback": {
-      "get": {
-        "tags": ["3. Officer Authentication & DigiLocker"],
-        "summary": "DigiLocker OAuth Callback",
-        "description": "Exchanges OAuth code for access token and retrieves verified government employee profile."
+        "tags": ["4. Officer Authentication & DigiLocker Identity"],
+        "summary": "Get Current Officer Profile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Current officer details" }
+        }
       }
     },
     "/api/officer/tenders/upload": {
       "post": {
-        "tags": ["4. Tender Management & Cloudinary"],
-        "summary": "Upload & Process Tender Document",
-        "description": "Uploads tender PDF/Image to Cloudinary, forwards to GeM ML Service for OCR, Layout, and Classification, and saves metadata into PostgreSQL.",
+        "tags": ["5. Officer Tender Management & Bidder Comparison"],
+        "summary": "Upload Tender Notice (Parallel Processing Pipeline)",
+        "description": "Uploads tender PDF/Image to Cloudinary, forwards concurrently to Python ML Service for OCR/Authenticity and Node AI RAG for text chunking/vectorization, then persists into PostgreSQL.",
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
           "required": true,
@@ -303,127 +1141,487 @@
           }
         },
         "responses": {
-          "201": { "description": "Tender document uploaded and analyzed successfully" }
-        }
-      }
-    },
-    "/api/officer/tenders": {
-      "get": {
-        "tags": ["4. Tender Management & Cloudinary"],
-        "summary": "Get All Tenders for Authenticated Officer",
-        "security": [{ "bearerAuth": [] }]
-      }
-    },
-    "/api/officer/tenders/{id}": {
-      "get": {
-        "tags": ["4. Tender Management & Cloudinary"],
-        "summary": "Get Tender Details & ML Intelligence by ID",
-        "security": [{ "bearerAuth": [] }]
-      }
-    },
-    "/api/officer/tenders/{id}/compare-bidders": {
-      "post": {
-        "tags": ["4. Tender Management & Cloudinary"],
-        "summary": "Compare Bidders Against Tender Requirements",
-        "security": [{ "bearerAuth": [] }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "example": {
-                "bidders_data": [
-                  { "bidder_id": 1, "bidder_name": "L&T Construction", "bid_amount": 142000000, "experience_years": 15, "financial_rating": "AAA" },
-                  { "bidder_id": 2, "bidder_name": "Afcons Infra", "bid_amount": 148000000, "experience_years": 12, "financial_rating": "AA+" }
-                ],
-                "tender_requirements": { "max_budget": 150000000, "min_experience_years": 10 }
+          "201": {
+            "description": "Tender document uploaded and analyzed successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Tender document uploaded and analyzed successfully",
+                  "data": {
+                    "tenderId": 5,
+                    "title": "Construction of 6-Lane Expressway Corridor",
+                    "fileUrl": "https://res.cloudinary.com/dxyz/raw/upload/v174152/tenders/expressway_nit.pdf",
+                    "ocrConfidence": 96.5,
+                    "authenticityScore": 99.0,
+                    "ragIndexed": true
+                  }
+                }
               }
             }
           }
         }
       }
     },
+    "/api/officer/tenders": {
+      "get": {
+        "tags": ["5. Officer Tender Management & Bidder Comparison"],
+        "summary": "Get All Tenders for Authenticated Officer",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of tenders" }
+        }
+      }
+    },
+    "/api/officer/tenders/{id}": {
+      "get": {
+        "tags": ["5. Officer Tender Management & Bidder Comparison"],
+        "summary": "Get Tender Details & ML Metadata by ID",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Tender details" }
+        }
+      }
+    },
+    "/api/officer/tenders/{id}/compare-bidders": {
+      "post": {
+        "tags": ["5. Officer Tender Management & Bidder Comparison"],
+        "summary": "Compare Bidders Against Tender Requirements",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "bidders_data": [
+                  { "bidder_id": 1, "bidder_name": "Larsen & Toubro", "bid_amount": 142000000.0, "experience_years": 15, "financial_rating": "AAA" },
+                  { "bidder_id": 2, "bidder_name": "Afcons Infra", "bid_amount": 148000000.0, "experience_years": 12, "financial_rating": "AA+" }
+                ],
+                "tender_requirements": { "max_budget": 150000000.0, "min_experience_years": 10 }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Comparative evaluation report" }
+        }
+      }
+    },
+    "/api/officer/tenders/{id}/chat": {
+      "post": {
+        "tags": ["6. Node AI RAG & Gemini Chatbot Gateway"],
+        "summary": "Query Bidder-Tender Chatbot (Path Tender ID)",
+        "description": "Performs semantic vector retrieval across tender specifications and bidder submissions in pgvector, then generates answers grounded in source citations via Gemini 1.5 Pro.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "bidderId": "BID-007",
+                "query": "Does this bidder meet the minimum annual turnover requirement of INR 10 Crores?"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chatbot response with citations",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "message": "Chatbot response generated successfully",
+                  "data": {
+                    "answer": "Yes, bidder BID-007 satisfies the criteria with average turnover of INR 14.5 Crores.",
+                    "sources": [
+                      {
+                        "documentType": "FINANCIAL_STATEMENT",
+                        "fileName": "financial_audit.pdf",
+                        "pageNumber": 3,
+                        "matchedSnippet": "Annual Turnover FY24: INR 14,50,00,000"
+                      }
+                    ],
+                    "tenderId": "5",
+                    "bidderId": "BID-007"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/officer/tenders/chat": {
+      "post": {
+        "tags": ["6. Node AI RAG & Gemini Chatbot Gateway"],
+        "summary": "Query Bidder-Tender Chatbot (General Endpoint)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "tenderId": "5",
+                "bidderId": "BID-007",
+                "query": "Provide a complete compliance summary and risk evaluation for this bidder."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Chatbot response" }
+        }
+      }
+    },
+    "/api/officer/tenders/rag-health": {
+      "get": {
+        "tags": ["6. Node AI RAG & Gemini Chatbot Gateway"],
+        "summary": "Check Node AI RAG Service Health",
+        "responses": {
+          "200": {
+            "description": "RAG service health status",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "UP",
+                  "service": "node-ai-rag-service",
+                  "vectorDatabase": "pgvector (Neon DB)",
+                  "embeddingModel": "text-embedding-004",
+                  "llmModel": "gemini-1.5-pro"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/health": {
+      "get": {
+        "tags": ["6. Node AI RAG & Gemini Chatbot Gateway"],
+        "summary": "Direct Proxy Health Check",
+        "responses": {
+          "200": { "description": "Proxy health status" }
+        }
+      }
+    },
+    "/api/ai/tender/process": {
+      "post": {
+        "tags": ["6. Node AI RAG & Gemini Chatbot Gateway"],
+        "summary": "Ingest Tender PDF into pgvector",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "tenderId": "5",
+                "title": "Expressway Tender NIT",
+                "pdfUrl": "https://res.cloudinary.com/dxyz/raw/upload/v174152/tenders/nit.pdf",
+                "publicId": "tenders/nit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Chunking and vectorization complete" }
+        }
+      }
+    },
+    "/api/ai/bidder/process": {
+      "post": {
+        "tags": ["6. Node AI RAG & Gemini Chatbot Gateway"],
+        "summary": "Ingest Bidder PDF into pgvector",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "tenderId": "5",
+                "bidderId": "1",
+                "documentId": "14",
+                "documentType": "gst_certificate",
+                "pdfUrl": "https://res.cloudinary.com/dxyz/raw/upload/v174152/bidders/gst.pdf",
+                "publicId": "bidders/gst"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Bidder document indexed into pgvector" }
+        }
+      }
+    },
+    "/api/ai/bidder-tender-chat/ask": {
+      "post": {
+        "tags": ["6. Node AI RAG & Gemini Chatbot Gateway"],
+        "summary": "Direct Proxy LLM Chat Query",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "tenderId": "5",
+                "bidderId": "1",
+                "query": "Evaluate financial strength and turnover."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "LLM response with source snippets" }
+        }
+      }
+    },
     "/api/officer/tenders/ml-health": {
       "get": {
-        "tags": ["5. GeM ML v2.0.0 Master Endpoints"],
-        "summary": "1. Unified Health & Live GST Portal Connectivity Check (GET /health)",
-        "description": "Returns operational health of gem-ml-service v2.0.0 and live connectivity to services.gst.gov.in."
+        "tags": ["7. GeM ML Microservice v2.0.0 Endpoints"],
+        "summary": "1. Unified Health & Live GST Portal Check",
+        "responses": {
+          "200": {
+            "description": "ML service and GST portal health",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "healthy",
+                  "service": "gem-ml-service",
+                  "version": "2.0.0",
+                  "gst_portal": {
+                    "portal": "https://services.gst.gov.in/services/searchtp",
+                    "reachable": true,
+                    "status_code": 200,
+                    "status": "active",
+                    "response_time_ms": 204
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/officer/tenders/document-types": {
       "get": {
-        "tags": ["5. GeM ML v2.0.0 Master Endpoints"],
-        "summary": "2. Procurement Document Taxonomy & Weights (GET /api/ml/document-types)",
-        "description": "Master taxonomy of all 18 Indian procurement document categories and dynamic CIS weights."
+        "tags": ["7. GeM ML Microservice v2.0.0 Endpoints"],
+        "summary": "2. Procurement Document Taxonomy (18 Categories)",
+        "responses": {
+          "200": { "description": "Document taxonomy and weights" }
+        }
       }
     },
     "/api/officer/tenders/ml/process-document": {
       "post": {
-        "tags": ["5. GeM ML v2.0.0 Master Endpoints"],
-        "summary": "3. Single-File Consolidated Intake (POST /api/ml/process-document)",
-        "description": "Consolidated single-call intake (OCR + Layout + Classification + NER + Forgery)."
+        "tags": ["7. GeM ML Microservice v2.0.0 Endpoints"],
+        "summary": "3. Single-File Consolidated Intake",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "document_type": { "type": "string" },
+                  "full_analysis": { "type": "boolean", "default": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Consolidated extraction result" }
+        }
       }
     },
     "/api/officer/tenders/ml/automate-all": {
       "post": {
-        "tags": ["5. GeM ML v2.0.0 Master Endpoints"],
-        "summary": "4. Master Autonomous Tender Audit - JSON Intake (POST /api/ml/automate-all)",
-        "description": "Autonomous multi-document tender audit with GFR 173(i) MSME/Startup statutory exemptions and ML verdict."
+        "tags": ["7. GeM ML Microservice v2.0.0 Endpoints"],
+        "summary": "4. Master Autonomous Tender Audit (JSON Intake)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "documents": [
+                  { "document_type": "pan_card", "ocr_text": "GOVT OF INDIA ABCDE1234F", "entities": { "pan": "ABCDE1234F" } },
+                  { "document_type": "gst_certificate", "ocr_text": "FORM GST REG-06 07ABCDE1234F1Z5", "entities": { "gstin": "07ABCDE1234F1Z5" } }
+                ],
+                "tender_specification": { "tender_type": "goods", "required_categories": ["pan_card", "gst_certificate"] },
+                "bidder_profile": { "is_msme": true, "is_startup": false, "annual_turnover": 4500000.0 }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Master audit result" }
+        }
       }
     },
     "/api/officer/tenders/ml/automate-all-files": {
       "post": {
-        "tags": ["5. GeM ML v2.0.0 Master Endpoints"],
-        "summary": "5. Master Batch Multipart File Audit (POST /api/ml/automate-all-files)",
-        "description": "Autonomous tender audit accepting batch multipart uploads of bidder documents and tender NIT."
+        "tags": ["7. GeM ML Microservice v2.0.0 Endpoints"],
+        "summary": "5. Master Multipart Batch File Upload Audit",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "files": { "type": "array", "items": { "type": "string", "format": "binary" } },
+                  "tender_file": { "type": "string", "format": "binary" },
+                  "is_msme": { "type": "boolean", "default": false },
+                  "is_startup": { "type": "boolean", "default": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Batch file audit response" }
+        }
       }
     },
     "/api/officer/tenders/ml/overall-summary": {
       "get": {
-        "tags": ["5. GeM ML v2.0.0 Master Endpoints"],
-        "summary": "6. Consolidated Comprehensive Dossier & RAG Synthesis (GET /api/ml/overall-summary)",
-        "description": "Single merged JSON dossier combining all ML, statutory, forensic, & RAG markdown chunks."
+        "tags": ["7. GeM ML Microservice v2.0.0 Endpoints"],
+        "summary": "6. Consolidated Dossier & RAG Synthesis",
+        "parameters": [
+          { "name": "bid_id", "in": "query", "schema": { "type": "string" } },
+          { "name": "identifier", "in": "query", "schema": { "type": "string" } },
+          { "name": "tender_type", "in": "query", "schema": { "type": "string", "default": "goods" } },
+          { "name": "use_live_portal", "in": "query", "schema": { "type": "boolean", "default": false } },
+          { "name": "include_rag_context", "in": "query", "schema": { "type": "boolean", "default": true } }
+        ],
+        "responses": {
+          "200": { "description": "Consolidated dossier retrieved" }
+        }
       }
     },
     "/api/officer/tenders/ml/verify-document": {
       "post": {
-        "tags": ["5. GeM ML v2.0.0 Master Endpoints"],
-        "summary": "7. Unified Forensic Verification & Anti-Tampering (POST /api/ml/verify-document)",
-        "description": "pyHanko CCA digital signatures, QR codes, OpenCV rubber stamps, and card tampering analysis. Accepts Multipart File or JSON."
+        "tags": ["7. GeM ML Microservice v2.0.0 Endpoints"],
+        "summary": "7. Unified Forensic Verification & Anti-Tampering",
+        "description": "Inspects pyHanko digital signatures, QR codes, and tamper flags. Accepts multipart file or JSON.",
+        "responses": {
+          "200": { "description": "Forensic report" }
+        }
       }
     },
     "/api/officer/tenders/ml/verify-taxpayer": {
       "post": {
-        "tags": ["5. GeM ML v2.0.0 Master Endpoints"],
-        "summary": "8. Unified Statutory Taxpayer Verification (POST /api/ml/verify-taxpayer)",
-        "description": "Validates GSTIN, PAN, and UIN format, Mod-36 checksum, and live portal lookup."
+        "tags": ["7. GeM ML Microservice v2.0.0 Endpoints"],
+        "summary": "8. Unified Statutory Taxpayer Verification",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "identifier": "07AABCB1234F1Z2",
+                "identifier_type": "gstin",
+                "state_code": "07",
+                "use_live_portal": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Taxpayer verification result" }
+        }
       }
     },
     "/api/officer/tenders/ml/tender-requirements": {
       "post": {
-        "tags": ["5. GeM ML v2.0.0 Master Endpoints"],
-        "summary": "9. Dynamic Tender Requirements & Checklist (POST /api/ml/tender-requirements)",
-        "description": "Parses NIT and BQC clauses with GFR 173(i) MSME waivers and 6-pillar cover checklist."
+        "tags": ["7. GeM ML Microservice v2.0.0 Endpoints"],
+        "summary": "9. Dynamic Tender Requirements Parsing",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "tender_type": "works",
+                "tender_text": "Mandatory: PAN, GST, 3 Years Balance Sheet, EMD INR 50000",
+                "is_msme": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Parsed tender requirements" }
+        }
       }
     },
     "/api/officer/tenders/ml/process-clearance": {
       "post": {
-        "tags": ["5. GeM ML v2.0.0 Master Endpoints"],
-        "summary": "10. Procurement Clearance Decision Engine (POST /api/ml/process-clearance)",
-        "description": "Single-click executive clearance decision based on CIS score and ML verdict."
+        "tags": ["7. GeM ML Microservice v2.0.0 Endpoints"],
+        "summary": "10. Procurement Clearance Decision Engine",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "cis_score": 0.96,
+                "authenticity_score": 95.0,
+                "risk_level": "low_risk"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Clearance decision processed" }
+        }
       }
     },
     "/api/officer/tenders/ml/compliance-predict": {
       "post": {
-        "tags": ["5. GeM ML v2.0.0 Master Endpoints"],
-        "summary": "11. Direct ML Compliance Verdict & Score Predictor (POST /api/ml/compliance/predict)",
-        "description": "Direct inference using trained AutomatedComplianceScorer (Random Forest Classifier + Regressor)."
+        "tags": ["7. GeM ML Microservice v2.0.0 Endpoints"],
+        "summary": "11. Direct ML Compliance Verdict & Score Predictor",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "feature_dict": {
+                  "raw_cis_score": 0.95,
+                  "mandatory_coverage_ratio": 1.0,
+                  "authenticity_score": 0.98,
+                  "financial_ratio": 1.0,
+                  "statutory_tax_score": 1.0,
+                  "past_performance_score": 0.9,
+                  "is_fake_detected": 0.0,
+                  "tampering_detected": 0.0,
+                  "msme_exemption_boost": 0.0
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Predicted compliance score and verdict" }
+        }
       }
     },
     "/api/officer/tenders/ml/train-all": {
       "post": {
-        "tags": ["5. GeM ML v2.0.0 Master Endpoints"],
-        "summary": "12. Unified ML Retraining Pipeline (POST /api/ml/train/all)",
-        "description": "Retrains Document Classifier, Forgery Detector, and Compliance Scorer with hot reloading."
+        "tags": ["7. GeM ML Microservice v2.0.0 Endpoints"],
+        "summary": "12. Unified ML Retraining Pipeline",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": { "retrain_all": true, "classifier_epochs": 10 }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Model retraining triggered" }
+        }
       }
     }
   },

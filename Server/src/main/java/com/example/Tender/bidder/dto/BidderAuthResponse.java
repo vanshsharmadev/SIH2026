@@ -17,6 +17,7 @@ public class BidderAuthResponse {
     private Long bidderId;
     private String email;
     private String legalName;
+    private String companyName;
     private String phone;
     private String gstNumber;
     private boolean isVerified;

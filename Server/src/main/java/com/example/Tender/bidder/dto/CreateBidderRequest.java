@@ -12,6 +12,8 @@ public class CreateBidderRequest {
     @NotBlank(message = "Legal name is required")
     private String legalName;
 
+    private String companyName;
+
     @NotBlank(message = "PAN number is required")
     private String panNumber;
 

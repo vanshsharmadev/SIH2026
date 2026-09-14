@@ -15,6 +15,7 @@ public class BidderTokenVerifyResponse {
     private Long bidderId;
     private String email;
     private String legalName;
+    private String companyName;
     private String gstNumber;
     private String phone;
     private Boolean isVerified;
