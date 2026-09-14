@@ -18,6 +18,8 @@ public class OfficerAuthResponse {
     private String type = "Bearer";
     private Long id;
     private String name;
+    private Integer departmentId;
+    private String departmentName;
     private String email;
     private String mobile;
     private OfficerRole role;

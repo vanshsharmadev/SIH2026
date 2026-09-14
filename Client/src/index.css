@@ -1,0 +1,331 @@
+@import "tailwindcss";
+
+/* Enable class-based dark mode (toggled via a `.dark` class on the app shell) */
+@variant dark (&:where(.dark, .dark *));
+
+
+@layer base {
+  :root {
+    --font-sans: 'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    color: #1e293b;
+    background-color: #f0f4f9;
+    margin: 0;
+    padding: 0;
+    overflow-x: clip;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
+
+@keyframes toastShrink {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+/* ── Theme Tokens (Soft Black Dark Theme) ─────────────────────────── */
+:root {
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-raised: #f8fafc;
+  --surface-hover: #f1f5f9;
+  --border: #e2e8f0;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  --primary: #008bdc;
+  --primary-hover: #0077bd;
+
+  --success: #059669;
+  --warning: #d97706;
+}
+
+:root[data-theme="dark"],
+html.dark {
+  --background: #121212;
+  --surface: #181818;
+  --surface-raised: #202020;
+  --surface-hover: #282828;
+  --border: #343434;
+
+  --text-primary: #eeeeee;
+  --text-secondary: #b8b8b8;
+  --text-muted: #858585;
+
+  --primary: #4da3ff;
+  --primary-hover: #76b8ff;
+
+  --success: #38d39f;
+  --warning: #f0a429;
+}
+
+/* Global Dark Mode / High Contrast Styling */
+html.dark,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+html.dark body,
+body[data-theme="dark"] {
+  background-color: var(--background, #121212) !important;
+  color: var(--text-primary, #eeeeee) !important;
+}
+
+/* Custom scrollbar in dark mode */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+html.dark ::-webkit-scrollbar-track,
+:root[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: #181818;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+html.dark ::-webkit-scrollbar-thumb,
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #343434;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+html.dark ::-webkit-scrollbar-thumb:hover,
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #444444;
+}
+
+/* Dedicated Sidebar Scrollbar */
+.sidebar-scroll {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
+}
+.sidebar-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 9999px;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* ── Softer Black Overrides for UI Elements ────────────────────────── */
+html.dark .top-bar,
+html.dark .header,
+html.dark header {
+  background-color: rgba(24, 24, 24, 0.96) !important;
+  border-color: #303030 !important;
+}
+
+html.dark header .bg-\[\#f8fafc\],
+html.dark header .bg-slate-50 {
+  background-color: #181818 !important;
+  border-color: #303030 !important;
+}
+
+/* Application specific styles recommended by user */
+html.dark .application-list {
+  background: #181818 !important;
+}
+
+html.dark .application-item {
+  background: #202020 !important;
+  border-color: #303030 !important;
+}
+
+html.dark .application-item:hover {
+  background: #282828 !important;
+}
+
+html.dark .badge,
+html.dark .status,
+html.dark .metadata {
+  background: #242424 !important;
+  color: #d0d0d0 !important;
+}
+
+/* Surfaces & Containers */
+html.dark .bg-white {
+  background-color: #181818 !important;
+}
+
+html.dark .bg-\[\#f8fafc\],
+html.dark .bg-\[\#f0f4f9\],
+html.dark .bg-slate-50 {
+  background-color: #121212 !important;
+}
+
+html.dark .bg-slate-100 {
+  background-color: #242424 !important;
+}
+
+html.dark .bg-slate-800,
+html.dark .bg-slate-900 {
+  background-color: #202020 !important;
+}
+
+html.dark .border-slate-200,
+html.dark .border-slate-300,
+html.dark .border-slate-100 {
+  border-color: #303030 !important;
+}
+
+html.dark .border-slate-700,
+html.dark .border-slate-800 {
+  border-color: #343434 !important;
+}
+
+/* Text Colors */
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-\[\#0A2540\],
+html.dark .text-\[\#073567\],
+html.dark .text-\[\#071D37\],
+html.dark .text-\[\#071d37\],
+html.dark .text-\[\#0c396d\],
+html.dark .text-\[\#0a2e5c\],
+html.dark .text-\[\#1e3a5f\] {
+  color: #eeeeee !important;
+}
+
+html.dark .fill-slate-700,
+html.dark .fill-\[\#073567\],
+html.dark .fill-\[\#071D37\] {
+  fill: #eeeeee !important;
+}
+
+html.dark .text-slate-700,
+html.dark .text-slate-600 {
+  color: #b8b8b8 !important;
+}
+
+html.dark .text-slate-500 {
+  color: #9e9e9e !important;
+}
+
+html.dark .text-slate-400 {
+  color: #858585 !important;
+}
+
+html.dark .text-\[\#3b5998\] {
+  color: #76b8ff !important;
+}
+
+html.dark .hover\:bg-blue-50:hover {
+  background-color: #282828 !important;
+}
+
+/* Hero Section Scrim in Dark Mode */
+html.dark .hero-daylight-scrim {
+  background: linear-gradient(90deg, rgba(18, 18, 18, 0.98) 0%, rgba(18, 18, 18, 0.95) 35%, rgba(18, 18, 18, 0.85) 50%, rgba(18, 18, 18, 0.4) 68%, rgba(18, 18, 18, 0.08) 85%, transparent 100%) !important;
+}
+
+html.dark .hero-bottom-fade {
+  background: linear-gradient(to top, #181818 0%, transparent 100%) !important;
+}
+
+/* Cards & Badges in Dark Mode */
+html.dark .bg-white\/95 {
+  background-color: rgba(24, 24, 24, 0.95) !important;
+  border-color: #303030 !important;
+}
+
+/* Inputs in Dark Mode */
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #1a1a1a !important;
+  color: #eeeeee !important;
+  border-color: #343434 !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #858585 !important;
+}
+
+/* Hover States in Dark Mode */
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-slate-100:hover,
+html.dark .hover\:bg-slate-200:hover,
+html.dark .hover\:bg-slate-800:hover {
+  background-color: #282828 !important;
+}
+
+/* Subtle animation pulses */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 120s linear infinite;
+}
+
+@keyframes progress {
+  0% {
+    width: 0%;
+    margin-left: 0%;
+  }
+  50% {
+    width: 65%;
+    margin-left: 20%;
+  }
+  100% {
+    width: 100%;
+    margin-left: 100%;
+  }
+}
+
+/* Hide Google Translate top banner, popup frames and highlight */
+.goog-te-banner-frame,
+.goog-te-banner-frame.skiptranslate,
+iframe.goog-te-banner-frame {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+}
+
+body {
+  top: 0px !important;
+  position: static !important;
+}
+
+#google_translate_element,
+.skiptranslate:not(#custom-translator) {
+  display: none !important;
+}
+
+.goog-tooltip,
+.goog-tooltip:hover {
+  display: none !important;
+}
+
+.goog-text-highlight {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}

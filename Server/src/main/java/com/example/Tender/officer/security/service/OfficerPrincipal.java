@@ -21,6 +21,8 @@ public class OfficerPrincipal implements UserDetails {
 
     private Long id;
     private String name;
+    private Integer departmentId;
+    private String departmentName;
     private String email;
     private String mobile;
 
@@ -39,6 +41,8 @@ public class OfficerPrincipal implements UserDetails {
         return new OfficerPrincipal(
                 officer.getId(),
                 officer.getName(),
+                officer.getDepartmentId(),
+                officer.getDepartmentName(),
                 officer.getEmail(),
                 officer.getMobile(),
                 officer.getPassword(),

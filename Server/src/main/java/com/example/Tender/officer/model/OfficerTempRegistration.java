@@ -27,6 +27,12 @@ public class OfficerTempRegistration {
     @Column(nullable = false, length = 100)
     private String name;
 
+    @Column(name = "department_id")
+    private Integer departmentId;
+
+    @Column(name = "department_name", length = 150)
+    private String departmentName;
+
     @Column(nullable = false, length = 100)
     private String email;
 

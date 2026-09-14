@@ -15,3 +15,4 @@ public class DigiLockerInitiateResponse {
     private String authorizationUrl;
     private String message;
 }
+

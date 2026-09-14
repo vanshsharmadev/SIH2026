@@ -4,10 +4,13 @@ import com.example.Tender.bidder.dto.*;
 import com.example.Tender.bidder.entity.Bidder;
 import com.example.Tender.bidder.entity.BidderEmailOtp;
 import com.example.Tender.bidder.entity.BidderTempRegistration;
+import com.example.Tender.bidder.entity.BidderVerification;
+import com.example.Tender.bidder.exception.*;
 import com.example.Tender.bidder.provider.MockBusinessVerificationProvider;
 import com.example.Tender.bidder.repository.BidderEmailOtpRepository;
 import com.example.Tender.bidder.repository.BidderRepository;
 import com.example.Tender.bidder.repository.BidderTempRegistrationRepository;
+import com.example.Tender.bidder.repository.BidderVerificationRepository;
 import com.example.Tender.bidder.security.BidderPrincipal;
 import com.example.Tender.bidder.security.service.jwt.BidderJwtUtils;
 import com.example.Tender.officer.service.BrevoEmailService;
@@ -24,6 +27,7 @@ import org.springframework.util.StringUtils;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -34,6 +38,7 @@ public class BidderAuthService {
     private final BidderRepository bidderRepository;
     private final BidderTempRegistrationRepository tempRegistrationRepository;
     private final BidderEmailOtpRepository otpRepository;
+    private final BidderVerificationRepository bidderVerificationRepository;
     private final PasswordEncoder passwordEncoder;
     private final BidderJwtUtils bidderJwtUtils;
     private final BrevoEmailService brevoEmailService;
@@ -45,61 +50,86 @@ public class BidderAuthService {
     private final SecureRandom secureRandom = new SecureRandom();
 
     /**
-     * STEP 1: INITIATE SIGNUP
-     * Validates input, saves pending details in BidderTempRegistration, and returns temporary token.
+     * STEP 1: INITIATE SIGNUP & VERIFY AGAINST DATABASE
+     * Checks bidder_verification table for legalName, email, and gstNumber.
+     * On match: saves in BidderTempRegistration, marks verified, and dispatches Brevo Email OTP.
+     * On mismatch: rejects with invalid credentials error.
      */
     @Transactional
     public BidderInitiateResponse signup(BidderSignupRequest request) {
         String normalizedEmail = request.getEmail().trim().toLowerCase();
-        String normalizedPan = request.getPanNumber().trim().toUpperCase();
         String normalizedGst = request.getGstNumber().trim().toUpperCase();
-        String normalizedUdyam = StringUtils.hasText(request.getUdyamNumber()) ? request.getUdyamNumber().trim().toUpperCase() : null;
+        String normalizedName = request.getLegalName().trim();
+        String derivedPan = (normalizedGst.length() >= 12) ? normalizedGst.substring(2, 12) : normalizedGst;
 
-        // 1. Check for duplicates in permanent repository
+        // 1. Check if user/bidder is already registered in the permanent database
         if (bidderRepository.existsByEmail(normalizedEmail)) {
-            throw new IllegalArgumentException("Error: Email is already registered and verified!");
-        }
-        if (bidderRepository.existsByPanNumber(normalizedPan)) {
-            throw new IllegalArgumentException("Error: PAN number is already registered!");
+            throw new BidderAlreadyExistsException("User with email '" + normalizedEmail + "' is already registered! Please log in instead.");
         }
         if (bidderRepository.existsByGstNumber(normalizedGst)) {
-            throw new IllegalArgumentException("Error: GSTIN is already registered!");
+            throw new BidderAlreadyExistsException("A bidder with GSTIN '" + normalizedGst + "' is already registered! Please log in instead.");
         }
 
-        // 2. Clear any previous unverified temp registration for this email
+        // 2. Verify against pre-verified government bidder_verification table
+        Optional<BidderVerification> verificationRecord = bidderVerificationRepository.findByNameAndEmailAndGstNumberIgnoreCase(
+                normalizedName,
+                normalizedEmail,
+                normalizedGst
+        );
+
+        if (verificationRecord.isEmpty()) {
+            Optional<BidderVerification> byGst = bidderVerificationRepository.findByGstNumberIgnoreCase(normalizedGst);
+            Optional<BidderVerification> byEmail = bidderVerificationRepository.findByEmailIgnoreCase(normalizedEmail);
+
+            if (byGst.isEmpty() && byEmail.isEmpty()) {
+                throw new BidderVerificationException("Invalid credentials: No verified bidder record found for GST '" + normalizedGst + "' or Email '" + normalizedEmail + "'.");
+            } else if (byGst.isPresent() && !byGst.get().getEmail().equalsIgnoreCase(normalizedEmail)) {
+                throw new BidderVerificationException("Invalid credentials: Email does not match the registered GST record.");
+            } else {
+                throw new BidderVerificationException("Invalid credentials: Legal name '" + normalizedName + "' does not match the registered bidder name for this GST/Email.");
+            }
+        }
+
+        // 3. Clear any previous unverified temp registration for this email
         tempRegistrationRepository.deleteByEmail(normalizedEmail);
 
-        // 3. Generate unique temporary token
+        // 4. Generate unique temporary token
         String tempToken = UUID.randomUUID().toString().replace("-", "");
 
-        // 4. Save in BidderTempRegistration
+        // 5. Save in BidderTempRegistration (Verified via government bidder_verification database)
+        String effectiveCompanyName = StringUtils.hasText(request.getCompanyName())
+                ? request.getCompanyName().trim()
+                : verificationRecord.get().getName();
+
         BidderTempRegistration tempRegistration = BidderTempRegistration.builder()
                 .tempToken(tempToken)
-                .legalName(request.getLegalName().trim())
+                .legalName(verificationRecord.get().getName())
+                .companyName(effectiveCompanyName)
                 .email(normalizedEmail)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .phone(request.getPhone() != null ? request.getPhone().trim() : null)
-                .address(request.getAddress() != null ? request.getAddress().trim() : null)
-                .panNumber(normalizedPan)
+                .panNumber(derivedPan)
                 .gstNumber(normalizedGst)
-                .udyamNumber(normalizedUdyam)
-                .registrationNumber(request.getRegistrationNumber() != null ? request.getRegistrationNumber().trim() : null)
-                .panVerified(false)
-                .gstVerified(false)
-                .udyamVerified(false)
+                .panVerified(true)
+                .gstVerified(true)
+                .udyamVerified(true)
+                .panVerifiedAt(LocalDateTime.now())
+                .gstVerifiedAt(LocalDateTime.now())
                 .expiryTime(LocalDateTime.now().plusMinutes(30))
                 .build();
 
         tempRegistrationRepository.save(tempRegistration);
 
+        // 6. Automatically dispatch Brevo Email OTP to verified email
+        generateAndSendEmailOtp(normalizedEmail, tempRegistration.getLegalName());
+
         return BidderInitiateResponse.builder()
                 .tempToken(tempToken)
                 .email(normalizedEmail)
                 .legalName(tempRegistration.getLegalName())
-                .panNumber(normalizedPan)
+                .companyName(tempRegistration.getCompanyName())
                 .gstNumber(normalizedGst)
-                .udyamNumber(normalizedUdyam)
-                .message("Signup initiated. Please complete business verification (PAN, GSTIN, Udyam) to receive Email OTP.")
+                .message("Bidder verified successfully against government records! Verification OTP sent to " + normalizedEmail)
                 .build();
     }
 
@@ -123,7 +153,7 @@ public class BidderAuthService {
             temp.setPanVerified(false);
             temp.setPanVerifiedAt(null);
             tempRegistrationRepository.save(temp);
-            throw new IllegalArgumentException("PAN verification failed: " + result.getMessage());
+            throw new BidderVerificationException("PAN verification failed: " + result.getMessage());
         }
 
         temp.setPanNumber(panToVerify);
@@ -157,7 +187,7 @@ public class BidderAuthService {
             temp.setGstVerified(false);
             temp.setGstVerifiedAt(null);
             tempRegistrationRepository.save(temp);
-            throw new IllegalArgumentException("GSTIN verification failed: " + result.getMessage());
+            throw new BidderVerificationException("GSTIN verification failed: " + result.getMessage());
         }
 
         temp.setGstNumber(gstToVerify);
@@ -194,7 +224,7 @@ public class BidderAuthService {
             temp.setUdyamVerified(false);
             temp.setUdyamVerifiedAt(null);
             tempRegistrationRepository.save(temp);
-            throw new IllegalArgumentException("Udyam verification failed: " + result.getMessage());
+            throw new BidderVerificationException("Udyam verification failed: " + result.getMessage());
         }
 
         temp.setUdyamNumber(udyamToVerify);
@@ -223,7 +253,7 @@ public class BidderAuthService {
                 request.getSimulateFailure()
         );
         if (!"VALID".equalsIgnoreCase(panResult.getStatus()) || !panResult.isNameMatched()) {
-            throw new IllegalArgumentException("PAN verification failed: " + panResult.getMessage());
+            throw new BidderVerificationException("PAN verification failed: " + panResult.getMessage());
         }
 
         // 2. Verify GSTIN
@@ -235,7 +265,7 @@ public class BidderAuthService {
                 request.getSimulateFailure()
         );
         if (!"ACTIVE".equalsIgnoreCase(gstResult.getStatus()) || !gstResult.isNameMatched() || !gstResult.isPanConsistent()) {
-            throw new IllegalArgumentException("GSTIN verification failed: " + gstResult.getMessage());
+            throw new BidderVerificationException("GSTIN verification failed: " + gstResult.getMessage());
         }
 
         // 3. Verify Udyam (if provided)
@@ -247,7 +277,7 @@ public class BidderAuthService {
                     request.getSimulateFailure()
             );
             if (!"VERIFIED".equalsIgnoreCase(udyamResult.getStatus()) || !udyamResult.isNameMatched()) {
-                throw new IllegalArgumentException("Udyam verification failed: " + udyamResult.getMessage());
+                throw new BidderVerificationException("Udyam verification failed: " + udyamResult.getMessage());
             }
             temp.setUdyamVerified(true);
             temp.setUdyamVerifiedAt(LocalDateTime.now());
@@ -271,18 +301,28 @@ public class BidderAuthService {
      */
     @Transactional
     public BidderAuthResponse verifyOtp(BidderVerifyOtpRequest request) {
-        String normalizedEmail = request.getEmail().trim().toLowerCase();
+        final String normalizedEmail;
+        if (StringUtils.hasText(request.getEmail())) {
+            normalizedEmail = request.getEmail().trim().toLowerCase();
+        } else if (StringUtils.hasText(request.getTempToken())) {
+            BidderTempRegistration tempReg = tempRegistrationRepository.findByTempToken(request.getTempToken().trim())
+                    .orElseThrow(() -> new InvalidTokenException("Error: Invalid or expired temporary token."));
+            normalizedEmail = tempReg.getEmail().toLowerCase();
+        } else {
+            throw new IllegalArgumentException("Error: Email or tempToken is required to verify OTP.");
+        }
+
         String enteredOtp = request.getOtp().trim();
 
         if (bidderRepository.existsByEmail(normalizedEmail)) {
-            throw new IllegalArgumentException("Error: Email is already registered and verified.");
+            throw new BidderAlreadyExistsException("Error: Email is already registered and verified.");
         }
 
         BidderTempRegistration temp = tempRegistrationRepository.findTopByEmailOrderByCreatedAtDesc(normalizedEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Error: No pending signup found for " + normalizedEmail + ". Please initiate signup first."));
 
         if (temp.getExpiryTime().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Error: Temporary registration session has expired. Please restart signup.");
+            throw new InvalidTokenException("Error: Temporary registration session has expired. Please restart signup.");
         }
 
         boolean udyamPending = StringUtils.hasText(temp.getUdyamNumber()) && !temp.isUdyamVerified();
@@ -291,14 +331,14 @@ public class BidderAuthService {
         }
 
         BidderEmailOtp activeOtp = otpRepository.findTopByEmailAndVerifiedFalseOrderByCreatedAtDesc(normalizedEmail)
-                .orElseThrow(() -> new IllegalArgumentException("Error: No active OTP found for this email. Please request a new OTP."));
+                .orElseThrow(() -> new InvalidOtpException("Error: No active OTP found for this email. Please request a new OTP."));
 
         if (activeOtp.getExpiryTime().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Error: OTP has expired. Please request a new OTP.");
+            throw new OtpExpiredException("Error: OTP has expired. Please request a new OTP.");
         }
 
         if (!activeOtp.getOtp().equals(enteredOtp)) {
-            throw new IllegalArgumentException("Error: Invalid OTP entered!");
+            throw new InvalidOtpException("Error: Invalid OTP entered!");
         }
 
         activeOtp.setVerified(true);
@@ -309,6 +349,7 @@ public class BidderAuthService {
         // Create Permanent Bidder Record
         Bidder bidder = Bidder.builder()
                 .legalName(temp.getLegalName())
+                .companyName(temp.getCompanyName() != null ? temp.getCompanyName() : temp.getLegalName())
                 .email(temp.getEmail())
                 .password(temp.getPassword()) // already hashed
                 .phone(temp.getPhone())
@@ -349,10 +390,9 @@ public class BidderAuthService {
                 .bidderId(savedBidder.getId())
                 .email(savedBidder.getEmail())
                 .legalName(savedBidder.getLegalName())
+                .companyName(savedBidder.getCompanyName())
                 .phone(savedBidder.getPhone())
-                .panNumber(savedBidder.getPanNumber())
                 .gstNumber(savedBidder.getGstNumber())
-                .udyamNumber(savedBidder.getUdyamNumber())
                 .isVerified(savedBidder.isVerified())
                 .message("Registration completed successfully! Bidder account created and verified.")
                 .build();
@@ -366,7 +406,7 @@ public class BidderAuthService {
         String normalizedEmail = request.getEmail().trim().toLowerCase();
 
         if (bidderRepository.existsByEmail(normalizedEmail)) {
-            throw new IllegalArgumentException("Error: Account is already verified and registered in the main database!");
+            throw new BidderAlreadyExistsException("Error: Account is already verified and registered in the main database!");
         }
 
         BidderTempRegistration temp = tempRegistrationRepository.findTopByEmailOrderByCreatedAtDesc(normalizedEmail)
@@ -393,7 +433,7 @@ public class BidderAuthService {
         }
 
         if (!bidder.isVerified()) {
-            throw new IllegalArgumentException("Account is not verified. Please complete verification.");
+            throw new BidderNotVerifiedException("Account is not verified. Please complete verification.");
         }
 
         BidderPrincipal bidderPrincipal = new BidderPrincipal(bidder);
@@ -411,10 +451,9 @@ public class BidderAuthService {
                 .bidderId(bidder.getId())
                 .email(bidder.getEmail())
                 .legalName(bidder.getLegalName())
+                .companyName(bidder.getCompanyName())
                 .phone(bidder.getPhone())
-                .panNumber(bidder.getPanNumber())
                 .gstNumber(bidder.getGstNumber())
-                .udyamNumber(bidder.getUdyamNumber())
                 .isVerified(bidder.isVerified())
                 .message("Bidder logged in successfully!")
                 .build();
@@ -422,10 +461,10 @@ public class BidderAuthService {
 
     private BidderTempRegistration getValidTempRegistration(String tempToken) {
         BidderTempRegistration temp = tempRegistrationRepository.findByTempToken(tempToken)
-                .orElseThrow(() -> new IllegalArgumentException("Error: Invalid or expired temporary token."));
+                .orElseThrow(() -> new InvalidTokenException("Error: Invalid or expired temporary token."));
 
         if (temp.getExpiryTime().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Error: Temporary registration session has expired. Please restart signup.");
+            throw new InvalidTokenException("Error: Temporary registration session has expired. Please restart signup.");
         }
         return temp;
     }
@@ -449,27 +488,24 @@ public class BidderAuthService {
 
         otpRepository.save(emailOtp);
 
-        brevoEmailService.sendOtpEmail(email, legalName, otp, otpExpirationMinutes);
+        log.info("=================================================================");
+        log.info("[BIDDER OTP] Verification OTP generated for {}: {}", email, otp);
+        log.info("=================================================================");
+
+        boolean sent = brevoEmailService.sendBidderOtpEmail(email, legalName, otp, otpExpirationMinutes);
+        if (!sent) {
+            throw new IllegalStateException("Failed to deliver OTP verification email to " + email + ". Please check email service configuration or try again later.");
+        }
     }
 
     private BidderVerificationStatusResponse buildStatusResponse(BidderTempRegistration temp, String message) {
-        boolean udyamCheck = !StringUtils.hasText(temp.getUdyamNumber()) || temp.isUdyamVerified();
-        boolean allVerified = temp.isPanVerified() && temp.isGstVerified() && udyamCheck;
-
         return BidderVerificationStatusResponse.builder()
                 .tempToken(temp.getTempToken())
                 .legalName(temp.getLegalName())
                 .email(temp.getEmail())
-                .panNumber(temp.getPanNumber())
                 .gstNumber(temp.getGstNumber())
-                .udyamNumber(temp.getUdyamNumber())
-                .panVerified(temp.isPanVerified())
                 .gstVerified(temp.isGstVerified())
-                .udyamVerified(temp.isUdyamVerified())
-                .allBusinessVerified(allVerified)
-                .panVerifiedAt(temp.getPanVerifiedAt())
                 .gstVerifiedAt(temp.getGstVerifiedAt())
-                .udyamVerifiedAt(temp.getUdyamVerifiedAt())
                 .message(message)
                 .build();
     }
@@ -479,7 +515,7 @@ public class BidderAuthService {
         String normalizedEmail = request.getEmail().trim().toLowerCase();
 
         Bidder bidder = bidderRepository.findByEmail(normalizedEmail)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new BidderNotFoundException(
                         "Error: No bidder account found with this email."
                 ));
 
@@ -496,24 +532,24 @@ public class BidderAuthService {
         String enteredOtp = request.getOtp().trim();
 
         Bidder bidder = bidderRepository.findByEmail(normalizedEmail)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new BidderNotFoundException(
                         "Error: No bidder account found with this email."
                 ));
 
         BidderEmailOtp activeOtp = otpRepository
                 .findTopByEmailAndVerifiedFalseOrderByCreatedAtDesc(normalizedEmail)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new InvalidOtpException(
                         "Error: No active OTP found. Please request a new OTP."
                 ));
 
         if (activeOtp.getExpiryTime().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException(
+            throw new OtpExpiredException(
                     "Error: OTP has expired. Please request a new OTP."
             );
         }
 
         if (!activeOtp.getOtp().equals(enteredOtp)) {
-            throw new IllegalArgumentException("Error: Invalid OTP entered!");
+            throw new InvalidOtpException("Error: Invalid OTP entered!");
         }
 
         String resetToken = UUID.randomUUID().toString().replace("-", "");
@@ -532,7 +568,7 @@ public class BidderAuthService {
 
         BidderEmailOtp resetOtp = otpRepository
                 .findByResetToken(request.getResetToken())
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new InvalidTokenException(
                         "Error: Invalid reset token."
                 ));
 
@@ -544,13 +580,13 @@ public class BidderAuthService {
 
         if (resetOtp.getResetTokenExpiry() == null ||
                 resetOtp.getResetTokenExpiry().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException(
+            throw new InvalidTokenException(
                     "Error: Reset token has expired. Please restart the password reset process."
             );
         }
 
         Bidder bidder = bidderRepository.findByEmail(resetOtp.getEmail())
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new BidderNotFoundException(
                         "Error: Bidder account not found."
                 ));
 
@@ -561,5 +597,117 @@ public class BidderAuthService {
         otpRepository.delete(resetOtp);
 
         return "Password reset successfully. You can now login with your new password.";
+    }
+
+    /**
+     * Verifies a JWT token or temporary session token.
+     */
+    public BidderTokenVerifyResponse verifyToken(String tokenHeader, String bodyToken, String tempToken, String queryToken) {
+        String token = null;
+
+        if (StringUtils.hasText(tokenHeader) && tokenHeader.startsWith("Bearer ")) {
+            token = tokenHeader.substring(7).trim();
+        } else if (StringUtils.hasText(bodyToken)) {
+            token = bodyToken.trim();
+        } else if (StringUtils.hasText(queryToken)) {
+            token = queryToken.trim();
+        }
+
+        // 1. Check if token is a valid JWT
+        if (StringUtils.hasText(token)) {
+            if (bidderJwtUtils.validateJwtToken(token)) {
+                try {
+                    String username = bidderJwtUtils.getUsernameFromJwtToken(token);
+                    Optional<Bidder> bidderOpt = bidderRepository.findByEmail(username);
+                    if (bidderOpt.isPresent()) {
+                        Bidder bidder = bidderOpt.get();
+                        return BidderTokenVerifyResponse.builder()
+                                .valid(true)
+                                .tokenType("JWT")
+                                .bidderId(bidder.getId())
+                                .email(bidder.getEmail())
+                                .legalName(bidder.getLegalName())
+                                .companyName(bidder.getCompanyName())
+                                .gstNumber(bidder.getGstNumber())
+                                .phone(bidder.getPhone())
+                                .isVerified(bidder.isVerified())
+                                .message("JWT token is valid and active.")
+                                .build();
+                    }
+                } catch (Exception e) {
+                    log.error("Error reading claims from valid JWT: {}", e.getMessage());
+                }
+            }
+
+            // Check if token string happens to be a tempToken
+            Optional<BidderTempRegistration> tempOpt = tempRegistrationRepository.findByTempToken(token);
+            if (tempOpt.isPresent()) {
+                BidderTempRegistration temp = tempOpt.get();
+                if (temp.getExpiryTime().isAfter(LocalDateTime.now())) {
+                    generateAndSendEmailOtp(temp.getEmail(), temp.getLegalName());
+                    return BidderTokenVerifyResponse.builder()
+                            .valid(true)
+                            .tokenType("TEMP_TOKEN")
+                            .email(temp.getEmail())
+                            .legalName(temp.getLegalName())
+                            .companyName(temp.getCompanyName())
+                            .gstNumber(temp.getGstNumber())
+                            .phone(temp.getPhone())
+                            .isVerified(true)
+                            .message("Temporary token verified successfully! Verification OTP sent to " + temp.getEmail())
+                            .build();
+                } else {
+                    return BidderTokenVerifyResponse.builder()
+                            .valid(false)
+                            .tokenType("TEMP_TOKEN")
+                            .message("Temporary registration token has expired.")
+                            .build();
+                }
+            }
+
+            return BidderTokenVerifyResponse.builder()
+                    .valid(false)
+                    .tokenType("JWT")
+                    .message("Invalid or expired JWT token.")
+                    .build();
+        }
+
+        // 2. Check explicit tempToken parameter
+        if (StringUtils.hasText(tempToken)) {
+            Optional<BidderTempRegistration> tempOpt = tempRegistrationRepository.findByTempToken(tempToken.trim());
+            if (tempOpt.isPresent()) {
+                BidderTempRegistration temp = tempOpt.get();
+                if (temp.getExpiryTime().isAfter(LocalDateTime.now())) {
+                    generateAndSendEmailOtp(temp.getEmail(), temp.getLegalName());
+                    return BidderTokenVerifyResponse.builder()
+                            .valid(true)
+                            .tokenType("TEMP_TOKEN")
+                            .email(temp.getEmail())
+                            .legalName(temp.getLegalName())
+                            .companyName(temp.getCompanyName())
+                            .gstNumber(temp.getGstNumber())
+                            .phone(temp.getPhone())
+                            .isVerified(true)
+                            .message("Temporary token verified successfully! Verification OTP sent to " + temp.getEmail())
+                            .build();
+                } else {
+                    return BidderTokenVerifyResponse.builder()
+                            .valid(false)
+                            .tokenType("TEMP_TOKEN")
+                            .message("Temporary registration token has expired.")
+                            .build();
+                }
+            }
+            return BidderTokenVerifyResponse.builder()
+                    .valid(false)
+                    .tokenType("TEMP_TOKEN")
+                    .message("Invalid temporary token.")
+                    .build();
+        }
+
+        return BidderTokenVerifyResponse.builder()
+                .valid(false)
+                .message("No token provided.")
+                .build();
     }
 }

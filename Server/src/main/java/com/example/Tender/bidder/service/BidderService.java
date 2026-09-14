@@ -8,7 +8,6 @@ import com.example.Tender.bidder.exception.BidderNotFoundException;
 import com.example.Tender.bidder.repository.BidderRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
 import java.util.List;
 
 @Service
@@ -38,6 +37,9 @@ public class BidderService {
                 .orElseThrow(() -> new BidderNotFoundException("Bidder not found"));
 
         bidder.setLegalName(request.getLegalName());
+        if (request.getCompanyName() != null) {
+            bidder.setCompanyName(request.getCompanyName());
+        }
         bidder.setPanNumber(request.getPanNumber());
         bidder.setGstNumber(request.getGstNumber());
         bidder.setUdyamNumber(request.getUdyamNumber());
@@ -66,6 +68,7 @@ public class BidderService {
 
         response.setId(bidder.getId());
         response.setLegalName(bidder.getLegalName());
+        response.setCompanyName(bidder.getCompanyName());
         response.setPanNumber(bidder.getPanNumber());
         response.setGstNumber(bidder.getGstNumber());
         response.setUdyamNumber(bidder.getUdyamNumber());

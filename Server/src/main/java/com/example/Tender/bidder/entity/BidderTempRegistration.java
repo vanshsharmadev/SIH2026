@@ -24,6 +24,9 @@ public class BidderTempRegistration {
     @Column(nullable = false)
     private String legalName;
 
+    @Column(name = "company_name")
+    private String companyName;
+
     @Column(nullable = false)
     private String email;
 
@@ -34,7 +37,7 @@ public class BidderTempRegistration {
 
     private String address;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String panNumber;
 
     @Column(nullable = false)

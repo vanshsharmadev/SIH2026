@@ -64,6 +64,7 @@ class OfficerAuthServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(officerAuthService, "otpExpirationMinutes", 10);
+        lenient().when(brevoEmailService.sendOtpEmail(any(), any(), any(), anyInt())).thenReturn(true);
     }
 
     @Test
@@ -150,6 +151,7 @@ class OfficerAuthServiceTest {
 
         OfficerMockVerifyRequest request = OfficerMockVerifyRequest.builder()
                 .tempToken(token)
+                .simulatedName("Different Person")
                 .build();
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -423,5 +425,44 @@ class OfficerAuthServiceTest {
         // No second OTP generated or sent
         verify(otpRepository, never()).save(any());
         verify(brevoEmailService, never()).sendOtpEmail(any(), any(), any(), anyInt());
+    }
+
+    @Test
+    @DisplayName("TEST 10: Email OTP delivery failure throws IllegalStateException and does not report success")
+    void test10_otpDeliveryFailure_throwsIllegalStateException() {
+        String token = "temp-token-fail";
+        OfficerTempRegistration temp = OfficerTempRegistration.builder()
+                .id(1L)
+                .name("Arnav Tyagi")
+                .email("arnav@example.com")
+                .tempToken(token)
+                .identityVerified(false)
+                .expiryTime(LocalDateTime.now().plusMinutes(30))
+                .build();
+
+        when(tempRegistrationRepository.findByTempToken(token)).thenReturn(Optional.of(temp));
+        when(digiLockerProvider.fetchIdentity(eq(token), any())).thenReturn(
+                new DigiLockerProvider.DigiLockerIdentity(
+                        "DL-DEMO-001",
+                        "Arnav Tyagi",
+                        LocalDate.of(2003, 5, 15),
+                        "M",
+                        "DIGILOCKER_MOCK",
+                        "VERIFIED",
+                        LocalDateTime.now()
+                )
+        );
+
+        when(brevoEmailService.sendOtpEmail(eq("arnav@example.com"), eq("Arnav Tyagi"), anyString(), anyInt()))
+                .thenReturn(false);
+
+        OfficerMockVerifyRequest request = OfficerMockVerifyRequest.builder()
+                .tempToken(token)
+                .build();
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> officerAuthService.verifyMockIdentity(request));
+
+        assertTrue(ex.getMessage().contains("Failed to deliver OTP verification email"));
     }
 }

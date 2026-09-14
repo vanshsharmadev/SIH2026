@@ -21,13 +21,20 @@ public class Bidder {
     @Column(nullable = false)
     private String legalName;
 
-    @Column(unique = true)
+    @Column(name = "company_name")
+    private String companyName;
+
+    public String getCompanyName() {
+        return (companyName != null && !companyName.trim().isEmpty()) ? companyName : legalName;
+    }
+
+    @Column(unique = true, nullable = true)
     private String panNumber;
 
     @Column(unique = true)
     private String gstNumber;
 
-    @Column(unique = true)
+    @Column(unique = true, nullable = true)
     private String udyamNumber;
 
     private String registrationNumber;
@@ -44,6 +51,14 @@ public class Bidder {
 
     @Column(columnDefinition = "TEXT")
     private String profileMetadata;
+
+    @Builder.Default
+    @Column(name = "role", length = 20, nullable = true)
+    private String role = "BIDDER";
+
+    public String getRole() {
+        return (role != null && !role.trim().isEmpty()) ? role : "BIDDER";
+    }
 
     @Builder.Default
     private boolean isVerified = false;

@@ -77,6 +77,8 @@ public class OfficerAuthService {
         // 5. Store pending signup in OfficerTempRegistration (without role/verificationStatus from client)
         OfficerTempRegistration tempRegistration = OfficerTempRegistration.builder()
                 .name(request.getName().trim())
+                .departmentId(request.getDepartmentId())
+                .departmentName(request.getDepartmentName())
                 .email(normalizedEmail)
                 .mobile(normalizedMobile)
                 .password(passwordEncoder.encode(request.getPassword()))
@@ -151,10 +153,10 @@ public class OfficerAuthService {
                 request.getAuthCode()
         );
 
-        // Allow tester override for simulation if provided
+        // Allow tester override for simulation if provided; otherwise default to registered name in mock mode
         String verifiedName = StringUtils.hasText(request.getSimulatedName())
                 ? request.getSimulatedName().trim()
-                : providerIdentity.fullName();
+                : (StringUtils.hasText(temp.getName()) ? temp.getName().trim() : providerIdentity.fullName());
 
         String digilockerId = StringUtils.hasText(request.getSimulatedDigilockerId())
                 ? request.getSimulatedDigilockerId().trim()
@@ -245,6 +247,8 @@ public class OfficerAuthService {
         // 12. Create Permanent Officer Entity
         Officer officer = Officer.builder()
                 .name(temp.getName())
+                .departmentId(temp.getDepartmentId())
+                .departmentName(temp.getDepartmentName())
                 .email(temp.getEmail())
                 .mobile(temp.getMobile())
                 .password(temp.getPassword()) // already hashed
@@ -271,6 +275,8 @@ public class OfficerAuthService {
                 .type("Bearer")
                 .id(savedOfficer.getId())
                 .name(savedOfficer.getName())
+                .departmentId(savedOfficer.getDepartmentId())
+                .departmentName(savedOfficer.getDepartmentName())
                 .email(savedOfficer.getEmail())
                 .mobile(savedOfficer.getMobile())
                 .role(savedOfficer.getRole())
@@ -327,6 +333,8 @@ public class OfficerAuthService {
                     .type("Bearer")
                     .id(officerPrincipal.getId())
                     .name(officerPrincipal.getName())
+                    .departmentId(officerPrincipal.getDepartmentId())
+                    .departmentName(officerPrincipal.getDepartmentName())
                     .email(officerPrincipal.getEmail())
                     .mobile(officerPrincipal.getMobile())
                     .role(officerPrincipal.getRole())
@@ -350,6 +358,13 @@ public class OfficerAuthService {
 
         otpRepository.save(emailOtp);
 
-        brevoEmailService.sendOtpEmail(email, name, otp, otpExpirationMinutes);
+        log.info("=================================================================");
+        log.info("[OFFICER OTP] Verification OTP generated for {}: {}", email, otp);
+        log.info("=================================================================");
+
+        boolean sent = brevoEmailService.sendOtpEmail(email, name, otp, otpExpirationMinutes);
+        if (!sent) {
+            throw new IllegalStateException("Failed to deliver OTP verification email to " + email + ". Please check email service configuration or try again later.");
+        }
     }
 }

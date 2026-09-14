@@ -1,0 +1,166 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+		"name": "SIH 2026 — Officer & AI Chatbot API",
+		"description": "Clean, unified API collection covering Officer Authentication, Tender Management, and the AI RAG Chatbot (Single Bidder Evaluation & Multi-Bidder Compare with AI).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Officer Auth & KYC",
+			"item": [
+				{
+					"name": "1.1 Officer SignUp (Step 1)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Arnav Tyagi\",\n  \"email\": \"officer.arnav@gem.gov.in\",\n  \"mobile\": \"9876543210\",\n  \"password\": \"Officer@1234\",\n  \"departmentId\": \"DEP-RAILWAYS-01\",\n  \"departmentName\": \"Ministry of Railways\"\n}"
+						},
+						"url": {
+							"raw": "{{serverUrl}}/api/officer/auth/signup",
+							"host": ["{{serverUrl}}"],
+							"path": ["api", "officer", "auth", "signup"]
+						},
+						"description": "Step 1: Officer signs up. Returns tempToken and DigiLocker URL."
+					},
+					"response": []
+				},
+				{
+					"name": "1.2 DigiLocker Mock KYC (Step 2)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tempToken\": \"{{tempToken}}\"\n}"
+						},
+						"url": {
+							"raw": "{{serverUrl}}/api/officer/identity/mock-verify",
+							"host": ["{{serverUrl}}"],
+							"path": ["api", "officer", "identity", "mock-verify"]
+						},
+						"description": "Step 2: Simulates DigiLocker Aadhaar/KYC name verification and auto-triggers Email OTP."
+					},
+					"response": []
+				},
+				{
+					"name": "1.3 Verify Email OTP & Finalize (Step 3)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"officer.arnav@gem.gov.in\",\n  \"otp\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{serverUrl}}/api/auth/verify-otp",
+							"host": ["{{serverUrl}}"],
+							"path": ["api", "auth", "verify-otp"]
+						},
+						"description": "Step 3: Verifies 6-digit OTP sent to officer's email. Creates permanent account and returns JWT token."
+					},
+					"response": []
+				},
+				{
+					"name": "1.4 Officer Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"emailOrMobile\": \"officer.arnav@gem.gov.in\",\n  \"password\": \"Officer@1234\"\n}"
+						},
+						"url": {
+							"raw": "{{serverUrl}}/api/officer/auth/login",
+							"host": ["{{serverUrl}}"],
+							"path": ["api", "officer", "auth", "login"]
+						},
+						"description": "Officer login with email/mobile and password. Returns JWT token."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "2. Officer AI Chatbot (RAG)",
+			"item": [
+				{
+					"name": "2.1 Multi-Bidder Compare with AI (Officer Chatbot)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tenderId\": \"TND-001\",\n  \"bidderIds\": [\n    \"BID-001\",\n    \"BID-002\",\n    \"BID-003\"\n  ],\n  \"query\": \"Which bidder has the strongest evidence for meeting the annual turnover requirement?\"\n}"
+						},
+						"url": {
+							"raw": "{{aiUrl}}/api/ai/compare/chat",
+							"host": ["{{aiUrl}}"],
+							"path": ["api", "ai", "compare", "chat"]
+						},
+						"description": "Compares shortlisted bidders against tender rules using pgvector embeddings and Gemini LLM."
+					},
+					"response": []
+				},
+				{
+					"name": "2.2 Single Bidder Evaluation Chatbot",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tenderId\": \"TND-001\",\n  \"bidderId\": \"BID-001\",\n  \"query\": \"Is the GSTIN active and does this bidder meet all mandatory technical criteria?\"\n}"
+						},
+						"url": {
+							"raw": "{{aiUrl}}/api/ai/bidder-tender-chat/ask",
+							"host": ["{{aiUrl}}"],
+							"path": ["api", "ai", "bidder-tender-chat", "ask"]
+						},
+						"description": "Deep-dive evaluation of a specific bidder proposal against tender requirements with cited source snippets."
+					},
+					"response": []
+				},
+				{
+					"name": "2.3 AI RAG Service Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{aiUrl}}/health",
+							"host": ["{{aiUrl}}"],
+							"path": ["health"]
+						},
+						"description": "Checks if Node AI RAG service, pgvector database, and Gemini connection are healthy."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "serverUrl",
+			"value": "https://sih2026-83r4.onrender.com",
+			"type": "string"
+		},
+		{
+			"key": "aiUrl",
+			"value": "https://sih2026-86kl.onrender.com",
+			"type": "string"
+		}
+	]
+}

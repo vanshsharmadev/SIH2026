@@ -2,20 +2,43 @@ package com.example.Tender.bidder.controller;
 
 import com.example.Tender.bidder.dto.*;
 import com.example.Tender.bidder.service.BidderAuthService;
+import com.example.Tender.bidder.security.BidderPrincipal;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+import com.example.Tender.bidder.dto.ml.BidderTaxpayerVerifyRequest;
+import com.example.Tender.bidder.dto.ml.BidderTaxpayerVerifyResponse;
+import com.example.Tender.bidder.provider.MlBusinessVerificationProvider;
+
 @RestController
 @RequestMapping("/api/bidder/auth")
-@RequiredArgsConstructor
+@CrossOrigin(
+        originPatterns = {"https://gem-compliflix.vercel.app", "https://*.vercel.app", "http://localhost:[*]", "http://127.0.0.1:[*]", "*"},
+        allowedHeaders = "*",
+        allowCredentials = "true",
+        maxAge = 3600
+)
 public class BidderAuthController {
 
     private final BidderAuthService bidderAuthService;
+    private final MlBusinessVerificationProvider mlBusinessVerificationProvider;
+
+    public BidderAuthController(BidderAuthService bidderAuthService) {
+        this.bidderAuthService = bidderAuthService;
+        this.mlBusinessVerificationProvider = null;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public BidderAuthController(BidderAuthService bidderAuthService, MlBusinessVerificationProvider mlBusinessVerificationProvider) {
+        this.bidderAuthService = bidderAuthService;
+        this.mlBusinessVerificationProvider = mlBusinessVerificationProvider;
+    }
 
     /**
      * STEP 1: Initiate signup, creates pending registration, returns temporary token.
@@ -28,43 +51,7 @@ public class BidderAuthController {
     }
 
     /**
-     * STEP 2a: Verify PAN with fake/mock ITD NSDL provider.
-     */
-    @PostMapping("/verify-pan")
-    public ResponseEntity<BidderVerificationStatusResponse> verifyPan(
-            @Valid @RequestBody BidderVerifyPanRequest request) {
-        return ResponseEntity.ok(bidderAuthService.verifyPan(request));
-    }
-
-    /**
-     * STEP 2b: Verify GSTIN with fake/mock GSTN provider.
-     */
-    @PostMapping("/verify-gst")
-    public ResponseEntity<BidderVerificationStatusResponse> verifyGst(
-            @Valid @RequestBody BidderVerifyGstRequest request) {
-        return ResponseEntity.ok(bidderAuthService.verifyGst(request));
-    }
-
-    /**
-     * STEP 2c: Verify Udyam MSME registration number.
-     */
-    @PostMapping("/verify-udyam")
-    public ResponseEntity<BidderVerificationStatusResponse> verifyUdyam(
-            @Valid @RequestBody BidderVerifyUdyamRequest request) {
-        return ResponseEntity.ok(bidderAuthService.verifyUdyam(request));
-    }
-
-    /**
-     * STEP 2 (Unified): Verify all business credentials (PAN, GSTIN, Udyam) in one call & send Email OTP.
-     */
-    @PostMapping("/verify-business")
-    public ResponseEntity<BidderVerificationStatusResponse> verifyBusiness(
-            @Valid @RequestBody BidderVerifyBusinessRequest request) {
-        return ResponseEntity.ok(bidderAuthService.verifyBusiness(request));
-    }
-
-    /**
-     * STEP 3: Verify Email OTP and finalize permanent Bidder registration.
+     * STEP 2: Verify Email OTP and finalize permanent Bidder registration.
      */
     @PostMapping("/verify-otp")
     public ResponseEntity<BidderAuthResponse> verifyOtp(
@@ -91,6 +78,44 @@ public class BidderAuthController {
         return ResponseEntity.ok(bidderAuthService.login(request));
     }
 
+    /**
+     * Verify JWT or temporary registration token (POST).
+     * Accepts token in Authorization header (Bearer <token>), request body ({"token": "..."} / {"tempToken": "..."}), or ?token= query param.
+     */
+    @PostMapping("/verify-token")
+    public ResponseEntity<BidderTokenVerifyResponse> verifyToken(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody(required = false) BidderTokenVerifyRequest request,
+            @RequestParam(value = "token", required = false) String queryToken) {
+        String bodyToken = request != null ? request.getToken() : null;
+        String tempToken = request != null ? request.getTempToken() : null;
+        return ResponseEntity.ok(bidderAuthService.verifyToken(authHeader, bodyToken, tempToken, queryToken));
+    }
+
+    /**
+     * Verify JWT or temporary registration token (GET).
+     */
+    @GetMapping("/verify-token")
+    public ResponseEntity<BidderTokenVerifyResponse> verifyTokenGet(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestParam(value = "token", required = false) String queryToken,
+            @RequestParam(value = "tempToken", required = false) String tempToken) {
+        return ResponseEntity.ok(bidderAuthService.verifyToken(authHeader, null, tempToken, queryToken));
+    }
+
+    /**
+     * Get Current Authenticated Bidder Profile (Requires Bearer token).
+     */
+    @GetMapping("/me")
+    public ResponseEntity<BidderTokenVerifyResponse> getCurrentBidder(
+            @AuthenticationPrincipal BidderPrincipal bidderPrincipal,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        if (org.springframework.util.StringUtils.hasText(authHeader)) {
+            return ResponseEntity.ok(bidderAuthService.verifyToken(authHeader, null, null, null));
+        }
+        return ResponseEntity.ok(bidderAuthService.verifyToken(null, null, null, null));
+    }
+
     @PostMapping("/forgot-password")
     public ResponseEntity<Map<String, String>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request) {
@@ -113,5 +138,22 @@ public class BidderAuthController {
             @Valid @RequestBody ResetPasswordRequest request) {
         String message = bidderAuthService.resetPassword(request);
         return ResponseEntity.ok(Map.of("message", message));
+    }
+
+    /**
+     * Public Taxpayer Intelligence Pre-Verification:
+     * Verifies GSTIN or PAN against ML engine & live portal before registration.
+     */
+    @PostMapping("/verify-taxpayer-ml")
+    public ResponseEntity<BidderTaxpayerVerifyResponse> verifyTaxpayerMl(
+            @Valid @RequestBody BidderTaxpayerVerifyRequest request) {
+        BidderTaxpayerVerifyResponse response = mlBusinessVerificationProvider.verifyTaxpayer(
+                request.getIdentifier(),
+                request.getIdentifierType(),
+                request.getExpectedLegalName(),
+                request.getStateCode(),
+                request.getUseLivePortal()
+        );
+        return ResponseEntity.ok(response);
     }
 }

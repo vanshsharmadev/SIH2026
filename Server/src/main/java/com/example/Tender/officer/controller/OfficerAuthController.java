@@ -11,9 +11,14 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping({"/api/officer/identity", "/api/officer/auth", "/api/auth"})
+@RequestMapping({"/api/officer/identity", "/api/officer/auth"})
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(
+        originPatterns = {"https://gem-compliflix.vercel.app", "https://*.vercel.app", "http://localhost:[*]", "http://127.0.0.1:[*]", "*"},
+        allowedHeaders = "*",
+        allowCredentials = "true",
+        maxAge = 3600
+)
 public class OfficerAuthController {
 
     private final OfficerAuthService officerAuthService;
