@@ -1,0 +1,18 @@
+{
+  "overall_compliance_score": 87,
+  "is_valid": true,
+  "forensic_check": {
+    "ela_tampering_detected": false,
+    "confidence": 0.12,
+    "flagged_region": null
+  },
+  "extraction_check": {
+    "gstin_regex_passed": true,
+    "pan_regex_passed": true,
+    "signature_present": true
+  },
+  "logical_rules": {
+    "turnover_meets_tender_min": true,
+    "reason": "Bidder turnover exceeds the minimum tender requirement."
+  }
+}
