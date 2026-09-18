@@ -18,40 +18,76 @@ public class Bidder {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    /**
+     * 1. Authorized Person Name (e.g. Rahul Sharma)
+     */
+    @Column(name = "authorized_person_name")
+    private String authorizedPersonName;
+
+    @Column(name = "legal_name", nullable = false)
     private String legalName;
 
+    public String getAuthorizedPersonName() {
+        if (authorizedPersonName != null && !authorizedPersonName.trim().isEmpty()) {
+            return authorizedPersonName;
+        }
+        return legalName;
+    }
+
+    public void setAuthorizedPersonName(String authorizedPersonName) {
+        this.authorizedPersonName = authorizedPersonName;
+        if (this.legalName == null || this.legalName.trim().isEmpty()) {
+            this.legalName = authorizedPersonName;
+        }
+    }
+
+    public void setLegalName(String legalName) {
+        this.legalName = legalName;
+        if (this.authorizedPersonName == null || this.authorizedPersonName.trim().isEmpty()) {
+            this.authorizedPersonName = legalName;
+        }
+    }
+
+    /**
+     * 2. Company / Organization Name (e.g. Apex Infotech Ltd)
+     */
     @Column(name = "company_name")
     private String companyName;
 
     public String getCompanyName() {
-        return (companyName != null && !companyName.trim().isEmpty()) ? companyName : legalName;
+        if (companyName != null && !companyName.trim().isEmpty()) {
+            return companyName;
+        }
+        return getAuthorizedPersonName();
     }
 
-    @Column(unique = true, nullable = true)
-    private String panNumber;
-
-    @Column(unique = true)
-    private String gstNumber;
-
-    @Column(unique = true, nullable = true)
-    private String udyamNumber;
-
-    private String registrationNumber;
-
+    /**
+     * 3. Official Business Email
+     */
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column
-    private String password;
-
+    /**
+     * 4. Mobile Number
+     */
+    @Column(name = "phone")
     private String phone;
 
-    private String address;
+    /**
+     * 5. GSTIN Number (e.g. 09ARNAV9012H3Z7)
+     */
+    @Column(name = "gst_number", unique = true, nullable = false)
+    private String gstNumber;
 
-    @Column(columnDefinition = "TEXT")
-    private String profileMetadata;
+    /**
+     * 6. Password (BCrypt Hashed)
+     */
+    @Column(nullable = false)
+    private String password;
 
+    /**
+     * Role & Essential Status Flags
+     */
     @Builder.Default
     @Column(name = "role", length = 20, nullable = true)
     private String role = "BIDDER";
@@ -64,22 +100,12 @@ public class Bidder {
     private boolean isVerified = false;
 
     @Builder.Default
-    private boolean panVerified = false;
-
-    @Builder.Default
     private boolean gstVerified = false;
-
-    @Builder.Default
-    private boolean udyamVerified = false;
 
     @Builder.Default
     private boolean emailVerified = false;
 
-    private LocalDateTime panVerifiedAt;
-
     private LocalDateTime gstVerifiedAt;
-
-    private LocalDateTime udyamVerifiedAt;
 
     private LocalDateTime emailVerifiedAt;
 
@@ -91,10 +117,76 @@ public class Bidder {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        if (legalName == null && authorizedPersonName != null) {
+            legalName = authorizedPersonName;
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    // -------------------------------------------------------------
+    // Helper accessors for backward-compatibility with services
+    // -------------------------------------------------------------
+    @Transient
+    public String getPanNumber() {
+        if (gstNumber != null && gstNumber.length() >= 12) {
+            return gstNumber.substring(2, 12);
+        }
+        return null;
+    }
+
+    public void setPanNumber(String panNumber) {
+        // Derived from GSTIN, no standalone column needed
+    }
+
+    @Transient
+    public String getUdyamNumber() {
+        return null;
+    }
+
+    public void setUdyamNumber(String udyamNumber) {
+    }
+
+    @Transient
+    public String getRegistrationNumber() {
+        return null;
+    }
+
+    public void setRegistrationNumber(String registrationNumber) {
+    }
+
+    @Transient
+    public String getAddress() {
+        return null;
+    }
+
+    public void setAddress(String address) {
+    }
+
+    @Transient
+    public String getProfileMetadata() {
+        return null;
+    }
+
+    public void setProfileMetadata(String profileMetadata) {
+    }
+
+    @Transient
+    public boolean isPanVerified() {
+        return gstVerified;
+    }
+
+    public void setPanVerified(boolean panVerified) {
+    }
+
+    @Transient
+    public boolean isUdyamVerified() {
+        return false;
+    }
+
+    public void setUdyamVerified(boolean udyamVerified) {
     }
 }

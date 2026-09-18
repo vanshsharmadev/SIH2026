@@ -1,5 +1,6 @@
 package com.example.Tender.bidder.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -12,49 +13,82 @@ import lombok.*;
 @Builder
 public class BidderSignupRequest {
 
-    @NotBlank(message = "Legal company / bidder name is required")
+    /**
+     * 1. Authorized Person Name (e.g. Rahul Sharma)
+     */
+    @JsonAlias({"authorizedPersonName", "authorized_person_name"})
+    private String authorizedPersonName;
+
     private String legalName;
 
+    /**
+     * 2. Company / Organization Name (e.g. Apex Infotech Ltd)
+     */
+    @JsonAlias({"companyName", "company_name", "organizationName", "organization_name"})
     private String companyName;
 
-    @NotBlank(message = "Email is required")
+    /**
+     * 3. Official Business Email
+     */
+    @NotBlank(message = "Official business email is required")
     @Email(message = "Invalid email format")
     private String email;
 
-    @NotBlank(message = "Password is required")
-    @Size(min = 8, max = 40, message = "Password must be between 8 and 40 characters")
-    private String password;
-
-    @NotBlank(message = "GST number is required")
-    private String gstNumber;
-
+    /**
+     * 4. Mobile Number
+     */
+    @JsonAlias({"phone", "mobile", "mobileNumber", "phoneNumber"})
     private String phone;
 
-    public String getLegalName() {
-        if (legalName != null && !legalName.trim().isEmpty()) {
-            return legalName;
+    /**
+     * 5. GSTIN Number (e.g. 09ARNAV9012H3Z7)
+     */
+    @NotBlank(message = "GSTIN number is required")
+    @JsonAlias({"gstNumber", "gstin", "gst_number", "gst"})
+    private String gstNumber;
+
+    /**
+     * 6. Password (Minimum 6 characters as required by frontend)
+     */
+    @NotBlank(message = "Password is required")
+    @Size(min = 6, max = 40, message = "Password must be between 6 and 40 characters")
+    private String password;
+
+    /**
+     * 7. Confirm Password
+     */
+    @JsonAlias({"confirmPassword", "confirm_password"})
+    private String confirmPassword;
+
+    public String getAuthorizedPersonName() {
+        if (authorizedPersonName != null && !authorizedPersonName.trim().isEmpty()) {
+            return authorizedPersonName;
         }
-        return companyName;
+        return legalName;
+    }
+
+    public String getLegalName() {
+        return getAuthorizedPersonName();
+    }
+
+    public void setAuthorizedPersonName(String authorizedPersonName) {
+        this.authorizedPersonName = authorizedPersonName;
+        if (this.legalName == null || this.legalName.trim().isEmpty()) {
+            this.legalName = authorizedPersonName;
+        }
+    }
+
+    public void setLegalName(String legalName) {
+        this.legalName = legalName;
+        if (this.authorizedPersonName == null || this.authorizedPersonName.trim().isEmpty()) {
+            this.authorizedPersonName = legalName;
+        }
     }
 
     public String getCompanyName() {
         if (companyName != null && !companyName.trim().isEmpty()) {
             return companyName;
         }
-        return legalName;
-    }
-
-    public void setLegalName(String legalName) {
-        this.legalName = legalName;
-        if ((this.companyName == null || this.companyName.trim().isEmpty()) && legalName != null) {
-            this.companyName = legalName;
-        }
-    }
-
-    public void setCompanyName(String companyName) {
-        this.companyName = companyName;
-        if ((this.legalName == null || this.legalName.trim().isEmpty()) && companyName != null) {
-            this.legalName = companyName;
-        }
+        return getAuthorizedPersonName();
     }
 }

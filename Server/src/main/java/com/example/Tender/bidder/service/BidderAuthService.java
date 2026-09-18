@@ -348,24 +348,17 @@ public class BidderAuthService {
 
         // Create Permanent Bidder Record
         Bidder bidder = Bidder.builder()
+                .authorizedPersonName(temp.getLegalName())
                 .legalName(temp.getLegalName())
                 .companyName(temp.getCompanyName() != null ? temp.getCompanyName() : temp.getLegalName())
                 .email(temp.getEmail())
                 .password(temp.getPassword()) // already hashed
                 .phone(temp.getPhone())
-                .address(temp.getAddress())
-                .panNumber(temp.getPanNumber())
                 .gstNumber(temp.getGstNumber())
-                .udyamNumber(temp.getUdyamNumber())
-                .registrationNumber(temp.getRegistrationNumber())
                 .isVerified(true)
-                .panVerified(true)
                 .gstVerified(true)
-                .udyamVerified(temp.isUdyamVerified())
                 .emailVerified(true)
-                .panVerifiedAt(temp.getPanVerifiedAt())
                 .gstVerifiedAt(temp.getGstVerifiedAt())
-                .udyamVerifiedAt(temp.getUdyamVerifiedAt())
                 .emailVerifiedAt(now)
                 .build();
 
