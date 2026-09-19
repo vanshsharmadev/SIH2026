@@ -28,6 +28,10 @@ const resolveRoleDestination = (userObj, requestedTarget) => {
   }
 };
 
+// ===========================================================================
+// FEATURE: Unified Authentication & Role Resolution
+// Secure sign-in supporting credentials and seamless redirection by assigned role
+// ===========================================================================
 const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -51,10 +55,94 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
   const [countdown, setCountdown] = useState(0);
   
   const [isLoading, setIsLoading] = useState(false);
-  const [authStatus, setAuthStatus] = useState(null);
+  const [authStatus, setAuthStatus] = useState(() => {
+    if (searchParams.get('session_expired') === 'true') {
+      return {
+        type: 'error',
+        message: 'Your session has expired or is unauthorized. Please sign in again.',
+      };
+    }
+    return null;
+  });
   const [ssoModalOpen, setSsoModalOpen] = useState(false);
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
   const [createAccountModalOpen, setCreateAccountModalOpen] = useState(false);
+
+  // Forgot Password Multi-Step Flow (POST /api/bidder/auth/forgot-password, verify-forgot-password-otp, reset-password)
+  const [forgotStep, setForgotStep] = useState(1); // 1: email, 2: otp, 3: new password
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotResetToken, setForgotResetToken] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+  const [forgotSuccessMsg, setForgotSuccessMsg] = useState('');
+
+  const handleForgotSendOtp = async () => {
+    if (!forgotEmail.trim()) {
+      setForgotError('Please enter your registered official email address.');
+      return;
+    }
+    setForgotLoading(true);
+    setForgotError('');
+    try {
+      await authService.bidderForgotPassword({ email: forgotEmail.trim().toLowerCase() });
+      setForgotStep(2);
+      setForgotSuccessMsg(`Verification OTP sent to ${forgotEmail.trim()}`);
+    } catch (err) {
+      setForgotError(err?.message || 'Failed to send reset OTP. Please check the email address.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleForgotVerifyOtp = async () => {
+    if (!forgotOtp.trim()) {
+      setForgotError('Please enter the 6-digit verification code.');
+      return;
+    }
+    setForgotLoading(true);
+    setForgotError('');
+    try {
+      const res = await authService.bidderVerifyForgotOtp({
+        email: forgotEmail.trim().toLowerCase(),
+        otp: forgotOtp.trim(),
+      });
+      const token = res?.resetToken || res?.token || res?.data?.resetToken || 'TOKEN_VERIFIED';
+      setForgotResetToken(token);
+      setForgotStep(3);
+      setForgotSuccessMsg('Code verified! Enter your new password below.');
+    } catch (err) {
+      setForgotError(err?.message || 'Invalid or expired verification code.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleForgotResetPassword = async () => {
+    if (!forgotNewPassword || forgotNewPassword.length < 6) {
+      setForgotError('New password must be at least 6 characters in length.');
+      return;
+    }
+    setForgotLoading(true);
+    setForgotError('');
+    try {
+      await authService.bidderResetPassword({
+        resetToken: forgotResetToken,
+        newPassword: forgotNewPassword,
+      });
+      setForgotSuccessMsg('Password updated successfully! Redirecting to login...');
+      setTimeout(() => {
+        setForgotModalOpen(false);
+        setForgotStep(1);
+        setEmail(forgotEmail);
+      }, 1500);
+    } catch (err) {
+      setForgotError(err?.message || 'Failed to update password. Please try again.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   // Countdown timer for resending OTP
   useEffect(() => {
@@ -116,7 +204,7 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
         const rawName = cleanEmail.split('@')[0] ? cleanEmail.split('@')[0].replace(/[._-]/g, ' ').trim() : '';
         const formattedName = rawName && rawName.length > 2
           ? rawName.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
-          : (isGovt ? 'Pooja Sharma' : 'Rajat Enterprise');
+          : (isGovt ? 'Procurement Officer' : 'Authorized Vendor');
 
         const fallbackUser = {
           name: formattedName,
@@ -168,15 +256,20 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
         await authService.resendOtp({ email, role: detectedRole });
       } catch (err) {
         console.warn('Backend resend-otp notice:', err.message);
-        // If no pending registration exists on backend, notify user clearly
-        if (String(err.message || '').toLowerCase().includes('no pending signup')) {
-          setIsLoading(false);
+        setIsLoading(false);
+        const errMsg = String(err.message || '').toLowerCase();
+        if (errMsg.includes('no pending') || errMsg.includes('expired') || errMsg.includes('restart signup') || errMsg.includes('cannot send email otp')) {
           setAuthStatus({
             type: 'error',
-            message: 'No pending registration found for this email. Please register first or sign in with Password.',
+            message: 'No active registration session found. Please sign in using your Password or create an account via Signup.',
           });
           return;
         }
+        setAuthStatus({
+          type: 'error',
+          message: err.message || 'Unable to send verification OTP. Please sign in with Password.',
+        });
+        return;
       }
     }
 
@@ -264,7 +357,7 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
       const rawName = email.split('@')[0] ? email.split('@')[0].replace(/[._-]/g, ' ').trim() : '';
       const formattedName = rawName && rawName.length > 2
         ? rawName.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
-        : (isGovt ? 'Pooja Sharma' : 'Rajat Enterprise');
+        : (isGovt ? 'Procurement Officer' : 'Authorized Vendor');
 
       login(
         {
@@ -301,31 +394,6 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
           </p>
         </div>
 
-        {/* Role Selector: Govt Officer vs Commercial Bidder */}
-        <div className="grid grid-cols-2 p-0.5 mb-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold select-none">
-          <button
-            type="button"
-            onClick={() => setSelectedRole('officer')}
-            className={`py-1 rounded-md transition cursor-pointer flex items-center justify-center gap-1.5 ${
-              selectedRole === 'officer'
-                ? 'bg-blue-600 text-white shadow-xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <span>Govt Officer</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedRole('bidder')}
-            className={`py-1 rounded-md transition flex items-center justify-center gap-1.5 cursor-pointer ${
-              selectedRole === 'bidder'
-                ? 'bg-blue-600 text-white shadow-xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <span>Commercial Bidder</span>
-          </button>
-        </div>
 
         {/* Auth Method Selector (Password vs Email OTP) */}
         <div className="grid grid-cols-2 p-0.5 mb-3 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold select-none">
@@ -705,36 +773,157 @@ const LoginCard = ({ onSwitchToSignUp, onPendingVerification }) => {
         </div>
       )}
 
-      {/* Forgot Password Modal with Email OTP Option */}
+      {/* Forgot Password Modal with 3-Step Email OTP Flow */}
       {forgotModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white border border-slate-200 rounded-xl p-5 max-w-sm w-full shadow-2xl">
-            <h3 className="font-bold text-sm text-slate-900 mb-1.5">Reset Password</h3>
-            <p className="text-[11px] text-slate-600 mb-3">
-              Enter your official registered email address to receive a password reset verification link.
-            </p>
-            <input
-              type="email"
-              placeholder="name@domain.gov.in"
-              className="w-full px-3 py-1.5 border rounded-md text-xs mb-3 bg-slate-50 border-slate-200 text-slate-900"
-            />
-            <div className="flex items-center justify-end gap-2">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">
+                    {forgotStep === 1 && 'Recover Account Password'}
+                    {forgotStep === 2 && 'Enter Verification Code'}
+                    {forgotStep === 3 && 'Create New Password'}
+                  </h3>
+                  <span className="text-[10px] text-slate-500">Step {forgotStep} of 3 • GeM Auth</span>
+                </div>
+              </div>
               <button
-                onClick={() => setForgotModalOpen(false)}
-                className="px-3 py-1.5 text-xs font-semibold text-slate-600 cursor-pointer hover:bg-slate-100 rounded-md"
-              >
-                Cancel
-              </button>
-              <button
+                type="button"
                 onClick={() => {
-                  alert('Reset link sent to official email.');
                   setForgotModalOpen(false);
+                  setForgotStep(1);
+                  setForgotError('');
+                  setForgotSuccessMsg('');
                 }}
-                className="px-3 py-1.5 text-xs font-semibold text-white bg-[#0c396d] hover:bg-[#092b54] rounded-md cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 text-xs font-bold"
               >
-                Send Link
+                ✕
               </button>
             </div>
+
+            {forgotError && (
+              <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs">
+                {forgotError}
+              </div>
+            )}
+
+            {forgotSuccessMsg && (
+              <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900 text-emerald-700 dark:text-emerald-300 text-xs">
+                {forgotSuccessMsg}
+              </div>
+            )}
+
+            {forgotStep === 1 && (
+              <div className="space-y-3">
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Enter your registered official email address. A one-time verification passcode will be dispatched.
+                </p>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Registered Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    placeholder="e.g. director@techcorp.in"
+                    className="w-full px-3 py-2 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setForgotModalOpen(false)}
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={forgotLoading}
+                    onClick={handleForgotSendOtp}
+                    className="px-3.5 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer flex items-center gap-1.5 shadow-xs"
+                  >
+                    {forgotLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    <span>{forgotLoading ? 'Sending...' : 'Send OTP'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {forgotStep === 2 && (
+              <div className="space-y-3">
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Enter the 6-digit verification code sent to <strong className="text-slate-800 dark:text-slate-200">{forgotEmail}</strong>.
+                </p>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    6-Digit Passcode
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={forgotOtp}
+                    onChange={(e) => setForgotOtp(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123456"
+                    className="w-full px-3 py-2 border rounded-xl text-center tracking-widest text-base font-bold bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setForgotStep(1)}
+                    className="text-[11px] text-slate-500 hover:underline"
+                  >
+                    ← Change Email
+                  </button>
+                  <button
+                    type="button"
+                    disabled={forgotLoading}
+                    onClick={handleForgotVerifyOtp}
+                    className="px-3.5 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer flex items-center gap-1.5 shadow-xs"
+                  >
+                    {forgotLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    <span>{forgotLoading ? 'Verifying...' : 'Verify Code'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {forgotStep === 3 && (
+              <div className="space-y-3">
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Identity verified. Choose a strong new password for your account.
+                </p>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    value={forgotNewPassword}
+                    onChange={(e) => setForgotNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-3 py-2 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    disabled={forgotLoading}
+                    onClick={handleForgotResetPassword}
+                    className="w-full py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                  >
+                    {forgotLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                    <span>{forgotLoading ? 'Updating Password...' : 'Set New Password & Complete'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

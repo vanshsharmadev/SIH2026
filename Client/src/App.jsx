@@ -15,7 +15,7 @@ function AppContent({ fontScale, setFontScale }) {
   const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
   // Dedicated sidebar-based evaluation console is only rendered for officers
   const isOfficerDashboardPage = isOfficer && (location.pathname === '/dashboard' || location.pathname.startsWith('/dashboard') || location.pathname.startsWith('/officer'));
-  const isWidePage = isLandingPage || isAuthPage || isOfficerDashboardPage || location.pathname === '/my-applications' || location.pathname === '/reports';
+  const isWidePage = isLandingPage || isAuthPage || isOfficerDashboardPage || location.pathname === '/bidder-dashboard' || location.pathname === '/my-applications' || location.pathname === '/reports';
 
   // Initialize Lenis smooth scrolling
   useLenis();
@@ -66,8 +66,8 @@ function AppContent({ fontScale, setFontScale }) {
         />
       )}
 
-      {/* Main Application Content */}
-      <main
+      {/* Main Application Content Area */}
+      <div
         id="main-content"
         tabIndex={-1}
         className={`flex-1 outline-none flex flex-col min-h-0 ${
@@ -77,7 +77,7 @@ function AppContent({ fontScale, setFontScale }) {
         }`}
       >
         <AppRoutes />
-      </main>
+      </div>
 
       {/* Bottom Footer - hidden on Officer Dashboard to match the dedicated interface */}
       {!isOfficerDashboardPage && <Footer />}

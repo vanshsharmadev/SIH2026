@@ -10,3 +10,6 @@ export { default as ChatBox } from './ChatBox';
 export { default as BidderChatBot } from './BidderChatBot';
 export { default as MarkdownRenderer } from './MarkdownRenderer';
 export { default as NationalEmblem } from './NationalEmblem';
+export { default as ErrorBoundary } from './ErrorBoundary';
+export { default as NotificationDropdown } from './NotificationDropdown';
+export { TenderChatbot } from '../tender';

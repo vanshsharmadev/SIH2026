@@ -36,6 +36,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useAuth, useTheme, useLanguage } from '../../context';
+import { mlService, authService } from '../../services';
 
 const nativeLanguages = [
   { code: 'en', label: 'English / अंग्रेज़ी' },
@@ -65,8 +66,8 @@ const Settings = () => {
 
   const [activeTab, setActiveTab] = useState(isOfficer ? 'compliance' : 'profile');
 
-  // Settings State
-  const [settings, setSettings] = useState({
+  // Default fallback values
+  const defaultSettings = {
     rule144xiStrict: true,
     miiThreshold50: true,
     cvcBlacklistAutoScan: true,
@@ -76,13 +77,32 @@ const Settings = () => {
     twoFactorApprovals: true,
     defaultExportFormat: 'PDF_CERTIFIED',
     sessionTimeoutMins: '30',
+  };
+
+  const defaultProfileData = {
+    phone: '',
+    altEmail: '',
+    dispatchCity: '',
+  };
+
+  // Settings State - Hydrated from localStorage
+  const [settings, setSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('gem_user_settings');
+      return saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings;
+    } catch {
+      return defaultSettings;
+    }
   });
 
-  // Profile editable contact info
-  const [profileData, setProfileData] = useState({
-    phone: '+91 98765 43210',
-    altEmail: 'procurement-team@techbharat.com',
-    dispatchCity: 'New Delhi, Delhi (NCR)',
+  // Profile editable contact info - Hydrated from localStorage
+  const [profileData, setProfileData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('gem_user_profile');
+      return saved ? { ...defaultProfileData, ...JSON.parse(saved) } : defaultProfileData;
+    } catch {
+      return defaultProfileData;
+    }
   });
 
   // Save State Tracking
@@ -95,6 +115,20 @@ const Settings = () => {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [tempProfileData, setTempProfileData] = useState({ ...profileData });
   const [show2FAWarning, setShow2FAWarning] = useState(false);
+
+  // Keyboard Escape listener for modals
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (isEditProfileOpen) setIsEditProfileOpen(false);
+        if (show2FAWarning) setShow2FAWarning(false);
+      }
+    };
+    if (isEditProfileOpen || show2FAWarning) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isEditProfileOpen, show2FAWarning]);
 
   // Theme Segmented Mode: 'light', 'dark', 'system'
   const [themePreference, setThemePreference] = useState(() => {
@@ -147,6 +181,52 @@ const Settings = () => {
     markDirty();
   };
 
+  // ML Retraining & Token Diagnostics (POST /api/officer/tenders/ml/train-all & POST /api/officer/auth/verify-token)
+  const [mlTrainLoading, setMlTrainLoading] = useState(false);
+  const [mlTrainResult, setMlTrainResult] = useState(null);
+  const [tokenVerifyLoading, setTokenVerifyLoading] = useState(false);
+  const [tokenVerifyResult, setTokenVerifyResult] = useState(null);
+
+  const handleTriggerRetraining = async () => {
+    setMlTrainLoading(true);
+    setMlTrainResult(null);
+    try {
+      const res = await mlService.triggerRetraining({ epochs: 10, learning_rate: 0.001 });
+      setMlTrainResult({
+        success: true,
+        data: res,
+        message: 'ML models successfully retrained and deployed across pipelines.',
+      });
+    } catch (err) {
+      setMlTrainResult({
+        success: false,
+        message: err?.message || 'Retraining trigger failed.',
+      });
+    } finally {
+      setMlTrainLoading(false);
+    }
+  };
+
+  const handleVerifyOfficerToken = async () => {
+    setTokenVerifyLoading(true);
+    setTokenVerifyResult(null);
+    try {
+      const res = await authService.officerVerifyToken();
+      setTokenVerifyResult({
+        success: true,
+        data: res,
+        message: 'Cryptographic Officer Token is VALID & ACTIVE.',
+      });
+    } catch (err) {
+      setTokenVerifyResult({
+        success: false,
+        message: err?.message || 'Token verification failed or session expired.',
+      });
+    } finally {
+      setTokenVerifyLoading(false);
+    }
+  };
+
   const handleSettingChange = (key, value) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
     markDirty();
@@ -156,6 +236,13 @@ const Settings = () => {
     if (e) e.preventDefault();
     setIsSaving(true);
     setSaveAriaMessage('Saving your changes...');
+
+    try {
+      localStorage.setItem('gem_user_settings', JSON.stringify(settings));
+      localStorage.setItem('gem_user_profile', JSON.stringify(profileData));
+    } catch (err) {
+      console.warn('Failed to persist settings:', err);
+    }
 
     setTimeout(() => {
       setIsSaving(false);
@@ -169,8 +256,14 @@ const Settings = () => {
 
   const handleProfileSave = (e) => {
     e.preventDefault();
-    setProfileData({ ...tempProfileData });
+    const updated = { ...tempProfileData };
+    setProfileData(updated);
     setIsEditProfileOpen(false);
+    try {
+      localStorage.setItem('gem_user_profile', JSON.stringify(updated));
+    } catch (err) {
+      console.warn('Failed to persist profile:', err);
+    }
     markDirty();
   };
 
@@ -476,6 +569,58 @@ const Settings = () => {
                 Engine: <span className="font-mono text-slate-600 dark:text-slate-300 font-bold">GeM-GFR-v4.2-Hybrid</span>
               </div>
             </div>
+
+            {/* Verification Model Optimization */}
+            <div className="p-6 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-[#303030] shadow-2xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                      Verification Model Optimization
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Continuous Model Improvement &amp; Compliance Calibration
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={mlTrainLoading}
+                  onClick={handleTriggerRetraining}
+                  className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-60"
+                >
+                  {mlTrainLoading ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Sliders className="w-3.5 h-3.5" />
+                  )}
+                  <span>{mlTrainLoading ? 'Calibrating Models...' : 'Optimize Verification Models'}</span>
+                </button>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Synchronizes and calibrates all compliance verification models:
+                DSC validation, GST taxpayer verification, GFR Rule 144(xi) classification, and anomaly checks.
+              </p>
+              {mlTrainResult && (
+                <div
+                  className={`p-3 rounded-xl border text-xs ${
+                    mlTrainResult.success
+                      ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-300'
+                      : 'bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300'
+                  }`}
+                >
+                  <p className="font-bold">{mlTrainResult.message}</p>
+                  {mlTrainResult.data && (
+                    <p className="mt-1 text-slate-600 dark:text-slate-300">
+                      Verification models and compliance parameters have been calibrated successfully.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -488,11 +633,11 @@ const Settings = () => {
           <div className="p-6 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-[#303030] shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-[#073567] dark:bg-[#1a2948] text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0 border border-blue-400/20">
-                {user?.name ? user.name.slice(0, 2).toUpperCase() : 'RJ'}
+                {user?.name ? user.name.slice(0, 2).toUpperCase() : (isOfficer ? 'PO' : 'BD')}
               </div>
               <div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                  {user?.name || 'Rajat'}
+                  {user?.name || (isOfficer ? 'Procurement Officer' : 'Authorized Bidder')}
                 </h2>
                 <div className="flex flex-wrap items-center gap-2 text-xs mt-1">
                   <span className="px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold text-[11px] border border-blue-200 dark:border-blue-900/50">
@@ -539,7 +684,7 @@ const Settings = () => {
                     {isOfficer ? 'Authorized Official Name' : 'Authorized Signatory Name'}
                   </span>
                   <p className="text-sm font-bold text-slate-900 dark:text-white">
-                    {user?.name || 'Rajat'}
+                    {user?.name || (isOfficer ? 'Procurement Officer' : 'Authorized Signatory')}
                   </p>
                 </div>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200/80 dark:bg-[#2c2c2c] text-slate-600 dark:text-slate-400">
@@ -554,7 +699,7 @@ const Settings = () => {
                     {isOfficer ? 'Official Govt Email ID' : 'Registered Business Email'}
                   </span>
                   <p className="text-sm font-bold text-slate-900 dark:text-white font-mono">
-                    {user?.email || (isOfficer ? 'officer.nic@gem.gov.in' : 'rajat.enterprise@gmail.com')}
+                    {user?.email || (isOfficer ? 'officer@gem.gov.in' : 'bidder@gem-portal.gov.in')}
                   </p>
                 </div>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/50">
@@ -570,8 +715,8 @@ const Settings = () => {
                   </span>
                   <p className="text-sm font-bold text-slate-900 dark:text-white">
                     {isOfficer
-                      ? (user?.ministry || 'Ministry of Commerce & Industry')
-                      : (user?.legalName || 'TechSolutions Bharat Pvt Ltd')}
+                      ? (user?.ministry || 'Ministry Department')
+                      : (user?.legalName || user?.organization || 'Registered Entity')}
                   </p>
                 </div>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/50">
@@ -587,8 +732,8 @@ const Settings = () => {
                   </span>
                   <p className="text-sm font-bold text-slate-900 dark:text-white font-mono">
                     {isOfficer
-                      ? (user?.designation || 'Deputy Director (Procurement)')
-                      : (user?.gstNumber || '07AAAAA0000A1Z5')}
+                      ? (user?.designation || 'Procurement Official')
+                      : (user?.gstNumber || '—')}
                   </p>
                 </div>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/50">
@@ -603,7 +748,7 @@ const Settings = () => {
                     Primary Contact Mobile
                   </span>
                   <p className="text-sm font-bold text-slate-900 dark:text-white font-mono">
-                    {profileData.phone}
+                    {profileData.phone || '—'}
                   </p>
                 </div>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
@@ -618,7 +763,7 @@ const Settings = () => {
                     Primary Dispatch & Operations Hub
                   </span>
                   <p className="text-sm font-bold text-slate-900 dark:text-white">
-                    {profileData.dispatchCity}
+                    {profileData.dispatchCity || '—'}
                   </p>
                 </div>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200/80 dark:bg-[#2c2c2c] text-slate-600 dark:text-slate-400">
@@ -824,6 +969,57 @@ const Settings = () => {
             </span>
           </div>
 
+          {/* Officer Token Diagnostic Tool (POST /api/officer/auth/verify-token) */}
+          <div className="p-6 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-[#303030] shadow-2xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Session Security &amp; Credential Validation
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Real-time Officer Session &amp; Authentication Check
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={tokenVerifyLoading}
+                onClick={handleVerifyOfficerToken}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-60"
+              >
+                {tokenVerifyLoading ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <KeyRound className="w-3.5 h-3.5" />
+                )}
+                <span>{tokenVerifyLoading ? 'Verifying Session...' : 'Verify Session Security'}</span>
+              </button>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Validates the active session against the signing authority, verifying authorization status and credentials.
+            </p>
+            {tokenVerifyResult && (
+              <div
+                className={`p-3 rounded-xl border text-xs ${
+                  tokenVerifyResult.success
+                    ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-300'
+                    : 'bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300'
+                }`}
+              >
+                <p className="font-bold">{tokenVerifyResult.message}</p>
+                {tokenVerifyResult.data && (
+                  <p className="mt-1 text-slate-600 dark:text-slate-300">
+                    Officer session authorization and credential validity confirmed.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
         </div>
       )}
 
@@ -921,7 +1117,7 @@ const Settings = () => {
                 >
                   <option value="PDF_CERTIFIED">Signed PDF (e-Sign Encrypted)</option>
                   <option value="EXCEL_AUDIT">Excel (.xlsx) with GFR Checklist</option>
-                  <option value="JSON_SCHEMA">Machine-readable JSON (CVC API)</option>
+                  <option value="JSON_SCHEMA">Machine-readable Audit Format (CVC Format)</option>
                 </select>
               </div>
             </div>

@@ -1,10 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Filter,
-  Download,
   Eye,
-  MoreHorizontal,
   X,
   FileText,
   FileSpreadsheet,
@@ -15,176 +13,20 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronLeft,
-  ArrowRight,
   Play,
-  FileCheck,
   ShieldCheck,
-  Building2,
   Sparkles,
-  RefreshCw,
   ExternalLink,
   MessageSquare,
-  Check,
+  ClipboardCheck,
+  Trophy,
 } from 'lucide-react';
 import BidderChatBot from '../../components/common/BidderChatBot';
 import MarkdownRenderer from '../../components/common/MarkdownRenderer';
-import { mlService, recordAuditLog } from '../../services';
+import { AiEvaluationDrawer, ProcurementClearanceModal, TenderDetailModal } from '../../components/tender';
+import { mlService, tenderService, aiService, recordAuditLog } from '../../services';
 
-const INITIAL_SUBMISSIONS = [
-  {
-    id: 'SUB/2024/000346',
-    bidderId: 'BID-007',
-    tenderId: 'GEM/2024/B/5123981',
-    tenderTitle: 'Supply of Office Stationery Items',
-    department: 'Ministry of Education',
-    bidder: 'ABC Enterprises Pvt. Ltd.',
-    submittedOn: '25 May 2024',
-    submittedTime: '10:30 AM',
-    docCount: 18,
-    complianceScore: 92,
-    complianceStatus: 'Compliant',
-    evaluationStatus: 'Pending',
-    documents: [
-      { name: 'Technical Bid.pdf', size: '3.4 MB', type: 'Technical' },
-      { name: 'Financial Bid.pdf', size: '1.2 MB', type: 'Financial' },
-      { name: 'GST Certificate.pdf', size: '640 KB', type: 'Statutory' },
-      { name: 'PAN Card.pdf', size: '420 KB', type: 'Identity' },
-      { name: 'Turnover Auditor Certificate.pdf', size: '890 KB', type: 'Financial' },
-      { name: 'Make In India Declaration.pdf', size: '510 KB', type: 'Policy' },
-      { name: 'Land Border Rule 144(xi) Undertaking.pdf', size: '380 KB', type: 'Policy' },
-    ],
-  },
-  {
-    id: 'SUB/2024/000345',
-    tenderId: 'GEM/2024/B/5123981',
-    tenderTitle: 'Supply of Office Stationery Items',
-    department: 'Ministry of Education',
-    bidder: 'XYZ Solutions',
-    submittedOn: '25 May 2024',
-    submittedTime: '09:45 AM',
-    docCount: 21,
-    complianceScore: 68,
-    complianceStatus: 'Needs Review',
-    evaluationStatus: 'Under Review',
-    documents: [
-      { name: 'Technical Proposal_v2.pdf', size: '4.1 MB', type: 'Technical' },
-      { name: 'BOQ Price Schedule.xlsx', size: '680 KB', type: 'Financial' },
-      { name: 'GST Clearance Certificate.pdf', size: '720 KB', type: 'Statutory' },
-      { name: 'PAN Card.pdf', size: '380 KB', type: 'Identity' },
-      { name: 'Local Content Declaration (45%).pdf', size: '490 KB', type: 'Policy' },
-    ],
-  },
-  {
-    id: 'SUB/2024/000344',
-    tenderId: 'GEM/2024/B/5123981',
-    tenderTitle: 'Supply of Office Stationery Items',
-    department: 'Ministry of Education',
-    bidder: 'Global Traders',
-    submittedOn: '25 May 2024',
-    submittedTime: '09:15 AM',
-    docCount: 16,
-    complianceScore: 45,
-    complianceStatus: 'Non-Compliant',
-    evaluationStatus: 'Pending',
-    documents: [
-      { name: 'Global Bidder Technical Dossier.pdf', size: '2.8 MB', type: 'Technical' },
-      { name: 'Financial Quotation Sheet.pdf', size: '850 KB', type: 'Financial' },
-      { name: 'Subcontractor Disclosures.pdf', size: '920 KB', type: 'Statutory' },
-      { name: 'Land Border Certificate.pdf', size: '310 KB', type: 'Policy' },
-    ],
-  },
-  {
-    id: 'SUB/2024/000343',
-    tenderId: 'GEM/2024/B/5123981',
-    tenderTitle: 'Supply of Office Stationery Items',
-    department: 'Ministry of Education',
-    bidder: 'TechCorp India Pvt. Ltd.',
-    submittedOn: '24 May 2024',
-    submittedTime: '04:20 PM',
-    docCount: 19,
-    complianceScore: 85,
-    complianceStatus: 'Compliant',
-    evaluationStatus: 'Under Review',
-    documents: [
-      { name: 'Hardware & Stationery Specs.pdf', size: '5.2 MB', type: 'Technical' },
-      { name: 'Audited Financial Statements.pdf', size: '2.4 MB', type: 'Financial' },
-      { name: 'GST Certificate.pdf', size: '580 KB', type: 'Statutory' },
-      { name: 'PAN Card.pdf', size: '390 KB', type: 'Identity' },
-    ],
-  },
-  {
-    id: 'SUB/2024/000342',
-    tenderId: 'GEM/2024/B/5123981',
-    tenderTitle: 'Supply of Office Stationery Items',
-    department: 'Ministry of Education',
-    bidder: 'Innovative Supplies',
-    submittedOn: '24 May 2024',
-    submittedTime: '03:10 PM',
-    docCount: 20,
-    complianceScore: 72,
-    complianceStatus: 'Needs Review',
-    evaluationStatus: 'Pending',
-    documents: [
-      { name: 'Technical Compliance Matrix.pdf', size: '3.1 MB', type: 'Technical' },
-      { name: 'Price Schedule.xlsx', size: '480 KB', type: 'Financial' },
-      { name: 'MSME Registration Certificate.pdf', size: '620 KB', type: 'Statutory' },
-    ],
-  },
-  {
-    id: 'SUB/2024/000341',
-    tenderId: 'GEM/2024/B/5123981',
-    tenderTitle: 'Supply of Office Stationery Items',
-    department: 'Ministry of Education',
-    bidder: 'Quick Supplies Co.',
-    submittedOn: '24 May 2024',
-    submittedTime: '02:05 PM',
-    docCount: 17,
-    complianceScore: 88,
-    complianceStatus: 'Compliant',
-    evaluationStatus: 'Under Review',
-    documents: [
-      { name: 'Technical Bid Proposal.pdf', size: '3.6 MB', type: 'Technical' },
-      { name: 'Commercial Bid Breakdown.pdf', size: '1.4 MB', type: 'Financial' },
-      { name: 'Tax Compliance Proof.pdf', size: '740 KB', type: 'Statutory' },
-    ],
-  },
-  {
-    id: 'SUB/2024/000340',
-    tenderId: 'GEM/2024/B/5123981',
-    tenderTitle: 'Supply of Office Stationery Items',
-    department: 'Ministry of Education',
-    bidder: 'Shree Enterprises',
-    submittedOn: '24 May 2024',
-    submittedTime: '11:30 AM',
-    docCount: 14,
-    complianceScore: 35,
-    complianceStatus: 'Non-Compliant',
-    evaluationStatus: 'Pending',
-    documents: [
-      { name: 'Bid Document Package.pdf', size: '2.1 MB', type: 'Technical' },
-      { name: 'Price Quotation.xlsx', size: '510 KB', type: 'Financial' },
-      { name: 'Company Registration.pdf', size: '890 KB', type: 'Statutory' },
-    ],
-  },
-  {
-    id: 'SUB/2024/000339',
-    tenderId: 'GEM/2024/B/5123981',
-    tenderTitle: 'Supply of Office Stationery Items',
-    department: 'Ministry of Education',
-    bidder: 'Premier Distributors',
-    submittedOn: '24 May 2024',
-    submittedTime: '10:00 AM',
-    docCount: 18,
-    complianceScore: 90,
-    complianceStatus: 'Compliant',
-    evaluationStatus: 'Under Review',
-    documents: [
-      { name: 'Technical Proposal Dossier.pdf', size: '4.2 MB', type: 'Technical' },
-      { name: 'Financial Offer Sheet.pdf', size: '1.1 MB', type: 'Financial' },
-      { name: 'GST & PAN Documentation.pdf', size: '920 KB', type: 'Statutory' },
-    ],
-  },
-];
+export const INITIAL_SUBMISSIONS = [];
 
 const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
   // Load dynamic submissions from localStorage merged with defaults
@@ -213,7 +55,9 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
         const existingIds = new Set(formatted.map((f) => f.id));
         return [...formatted, ...INITIAL_SUBMISSIONS.filter((item) => !existingIds.has(item.id))];
       }
-    } catch (e) {}
+    } catch {
+      // Fall back to initial submissions
+    }
     return INITIAL_SUBMISSIONS;
   });
 
@@ -243,7 +87,9 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
           const existingIds = new Set(formatted.map((f) => f.id));
           setSubmissionsList([...formatted, ...INITIAL_SUBMISSIONS.filter((item) => !existingIds.has(item.id))]);
         }
-      } catch (e) {}
+      } catch {
+        // Ignore storage parse error
+      }
     };
     window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('focus', handleStorageUpdate);
@@ -257,7 +103,7 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTab, setSelectedTab] = useState('all'); // all | pending | review | compliant | non_compliant
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterTenderId, setFilterTenderId] = useState('GEM/2024/B/5123981');
+  const [filterTenderId, setFilterTenderId] = useState('');
   const [filterDept, setFilterDept] = useState('');
   const [filterOrg, setFilterOrg] = useState('');
   const [filterCompliance, setFilterCompliance] = useState('');
@@ -266,8 +112,9 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
   const [endDate, setEndDate] = useState('');
 
   // Selected submission for side drawer
-  const [selectedSubmission, setSelectedSubmission] = useState(() => submissionsList[0] || INITIAL_SUBMISSIONS[0]);
-  const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(true);
+  const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
+  const [detailTab, setDetailTab] = useState('overview'); // 'overview' | 'dossier'
   const [viewAllDocs, setViewAllDocs] = useState(false);
 
   // Officer Evaluation & Clearance Engine Modal state
@@ -275,9 +122,152 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
   const [evalVerdict, setEvalVerdict] = useState('CLEARED');
   const [evalRemarks, setEvalRemarks] = useState('');
   const [evalSubmitting, setEvalSubmitting] = useState(false);
+  const [evalError, setEvalError] = useState(null);
+  const [actionToast, setActionToast] = useState(null);
 
   // Bidder chatbot state
   const [chatBotOpen, setChatBotOpen] = useState(false);
+  const [qcbsModalTender, setQcbsModalTender] = useState(null);
+
+  // Contextual AI Evaluation Drawer State (POST /api/officer/tenders/{id}/compare-bidders & POST /api/ai/compare/chat)
+  const [selectedBidderIds, setSelectedBidderIds] = useState([]);
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+  const [aiDrawerBidder, setAiDrawerBidder] = useState(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [comparisonResult, setComparisonResult] = useState(null);
+
+  // Close submission details drawer on Escape key & manage scroll lock
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && detailsDrawerOpen) {
+        setDetailsDrawerOpen(false);
+      }
+    };
+    if (detailsDrawerOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [detailsDrawerOpen]);
+
+  const handleToggleSelectBidder = (e, subId) => {
+    e?.stopPropagation();
+    setSelectedBidderIds((prev) =>
+      prev.includes(subId) ? prev.filter((id) => id !== subId) : [...prev, subId]
+    );
+  };
+
+  const handleOpenAiEvaluation = (sub) => {
+    setAiDrawerBidder(sub);
+    setAiDrawerOpen(true);
+
+    if (!comparisonResult) {
+      const targetTenderId = sub?.tenderId || filterTenderId || 'GEM/2024/B/5123981';
+      setCompareLoading(true);
+
+      const mlComparePromise = tenderService.compareBidders(
+        targetTenderId,
+        [
+          {
+            bidder_id: sub.bidderId || sub.id,
+            bidder_name: sub.bidder,
+            compliance_score: sub.complianceScore,
+            documents_count: sub.docCount,
+          },
+        ],
+        {
+          min_local_content: '50%',
+          gfr_rule_144_required: true,
+          minimum_turnover: 'INR 10 Cr',
+        }
+      );
+
+      const aiComparePromise = aiService.compareBiddersAI({
+        tenderId: targetTenderId,
+        bidderIds: [sub.bidderId || sub.id],
+        query: `Evaluate ${sub.bidder} on statutory GST, GFR 144, PyHanko DSC credentials, and technical compliance.`,
+      });
+
+      Promise.allSettled([mlComparePromise, aiComparePromise])
+        .then(([mlRes, aiRes]) => {
+          setComparisonResult({
+            ml: mlRes.status === 'fulfilled' ? mlRes.value : null,
+            ai: aiRes.status === 'fulfilled' ? aiRes.value : null,
+            bidders: [sub],
+          });
+        })
+        .catch((err) => {
+          console.warn('AI evaluation error:', err);
+        })
+        .finally(() => {
+          setCompareLoading(false);
+        });
+    }
+  };
+
+  const handleRunComparison = async () => {
+    if (selectedBidderIds.length < 2) {
+      alert('Please select at least 2 bidders using the checkboxes to run a comparative analysis.');
+      return;
+    }
+    setCompareLoading(true);
+
+    const targetTenderId = filterTenderId || 'GEM/2024/B/5123981';
+    const selectedSubs = submissionsList.filter((s) => selectedBidderIds.includes(s.id));
+
+    // Open drawer directly for the first selected bidder
+    setAiDrawerBidder(selectedSubs[0]);
+    setAiDrawerOpen(true);
+
+    try {
+      // 1. Invoke ML CIS comparison (POST /api/officer/tenders/{id}/compare-bidders)
+      const mlComparePromise = tenderService.compareBidders(
+        targetTenderId,
+        selectedSubs.map((s) => ({
+          bidder_id: s.bidderId || s.id,
+          bidder_name: s.bidder,
+          compliance_score: s.complianceScore,
+          documents_count: s.docCount,
+        })),
+        {
+          min_local_content: '50%',
+          gfr_rule_144_required: true,
+          minimum_turnover: 'INR 10 Cr',
+        }
+      );
+
+      // 2. Invoke Node AI RAG Comparative Analysis (POST /api/ai/compare/chat)
+      const aiComparePromise = aiService.compareBiddersAI({
+        tenderId: targetTenderId,
+        bidderIds: selectedSubs.map((s) => s.bidderId || s.id),
+        query: `Compare ${selectedSubs.map((s) => s.bidder).join(' vs ')} on eligibility, GFR 144, PyHanko DSC, and statutory GST credentials.`,
+      });
+
+      const [mlRes, aiRes] = await Promise.allSettled([mlComparePromise, aiComparePromise]);
+
+      setComparisonResult({
+        ml: mlRes.status === 'fulfilled' ? mlRes.value : null,
+        ai: aiRes.status === 'fulfilled' ? aiRes.value : null,
+        bidders: selectedSubs,
+      });
+
+      recordAuditLog({
+        activity: 'Bidder Comparison Completed',
+        module: 'Tender Submissions',
+        details: `Comparative analysis completed for ${selectedSubs.length} bidders on Tender #${targetTenderId}`,
+        status: 'Success',
+      });
+    } catch (err) {
+      console.warn('Comparison error:', err);
+    } finally {
+      setCompareLoading(false);
+    }
+  };
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -330,6 +320,12 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
     });
   }, [submissionsList, selectedTab, searchQuery, filterTenderId, filterCompliance, filterEval]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredSubmissions.length / rowsPerPage));
+  const paginatedSubmissions = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage;
+    return filteredSubmissions.slice(start, start + rowsPerPage);
+  }, [filteredSubmissions, currentPage, rowsPerPage]);
+
   const handleSelectRow = (sub) => {
     setSelectedSubmission(sub);
     setDetailsDrawerOpen(true);
@@ -345,7 +341,7 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
           bidder_id: selectedSubmission.id,
           composite_cis_score: selectedSubmission.complianceScore,
           verdict: evalVerdict,
-          notes: evalRemarks || 'Officer clearance verified via Cloudinary archive & PyHanko DSC',
+          notes: evalRemarks || 'Officer clearance verified via submitted documentation & DSC signature',
         },
         'OFF-101'
       ).catch(() => null);
@@ -393,7 +389,9 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
           return s;
         });
         localStorage.setItem('gem_officer_submissions', JSON.stringify(updatedStored));
-      } catch (e) {}
+      } catch {
+        // Ignore storage write error
+      }
 
       // 5. Update Bidder Applications so bidder sees evaluation result
       try {
@@ -425,7 +423,9 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
           return app;
         });
         localStorage.setItem('gem_bidder_applications', JSON.stringify(updatedBidderApps));
-      } catch (e) {}
+      } catch {
+        // Ignore storage write error
+      }
 
       // 6. Record Audit Log
       recordAuditLog({
@@ -437,10 +437,16 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
       });
 
       setEvaluationModalOpen(false);
-      alert(`Clearance Decision recorded! Verdict: ${evalVerdict} for ${selectedSubmission.bidder}`);
+      setEvalError(null);
+      setActionToast({
+        title: 'Clearance Decision Recorded',
+        message: `Official clearance verdict [${evalVerdict}] successfully recorded for ${selectedSubmission.bidder}.`,
+        verdict: evalVerdict,
+      });
+      setTimeout(() => setActionToast(null), 5000);
     } catch (err) {
-      console.error(err);
-      setEvaluationModalOpen(false);
+      console.error('Procurement clearance error:', err);
+      setEvalError(err?.message || 'Failed to record clearance decision. Please retry.');
     } finally {
       setEvalSubmitting(false);
     }
@@ -452,94 +458,116 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
     return 'bg-rose-500';
   };
 
+  const totalSubmissionsCount = submissionsList.length;
+  const activeTendersCount = useMemo(() => new Set(submissionsList.map((s) => s.tenderId).filter(Boolean)).size, [submissionsList]);
+  const pendingEvaluationCount = useMemo(() => submissionsList.filter((s) => s.evaluationStatus === 'Pending').length, [submissionsList]);
+  const underReviewCount = useMemo(() => submissionsList.filter((s) => s.evaluationStatus === 'Under Review').length, [submissionsList]);
+  const nonCompliantCount = useMemo(() => submissionsList.filter((s) => s.complianceStatus !== 'Compliant').length, [submissionsList]);
+  const compliantCount = useMemo(() => submissionsList.filter((s) => s.complianceStatus === 'Compliant').length, [submissionsList]);
+  const availableDepts = useMemo(() => Array.from(new Set(submissionsList.map((s) => s.department).filter(Boolean))), [submissionsList]);
+  const availableOrgs = useMemo(() => Array.from(new Set(submissionsList.map((s) => s.bidder).filter(Boolean))), [submissionsList]);
+
   return (
     <div className="space-y-5 select-none animate-in fade-in duration-200">
+      {onBackToDashboard && (
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={onBackToDashboard}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+          >
+            <span>&larr; Back to Dashboard</span>
+          </button>
+        </div>
+      )}
 
       {/* -------------------- 1. TOP 5 STAT CARDS -------------------- */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         {/* Card 1: Total Submissions */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition">
+        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Total Submissions</p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Submissions</p>
               <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                346
+                {totalSubmissionsCount}
               </h3>
-              <p className="text-[10px] font-medium text-slate-400 mt-0.5">All time</p>
+              <p className="text-xs font-medium text-slate-400 mt-0.5">All time</p>
             </div>
           </div>
         </div>
 
         {/* Card 2: Active Tenders */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition">
+        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Active Tenders</p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Active Tenders</p>
               <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                128
+                {activeTendersCount}
               </h3>
-              <p className="text-[10px] font-medium text-slate-400 mt-0.5">With submissions</p>
+              <p className="text-xs font-medium text-slate-400 mt-0.5">With submissions</p>
             </div>
           </div>
         </div>
 
         {/* Card 3: Pending Evaluation */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition">
+        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
               <Clock className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Pending Evaluation</p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Pending Evaluation</p>
               <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                89
+                {pendingEvaluationCount}
               </h3>
-              <p className="text-[10px] font-medium text-slate-400 mt-0.5">Awaiting evaluation</p>
+              <p className="text-xs font-medium text-slate-400 mt-0.5">Awaiting evaluation</p>
             </div>
           </div>
         </div>
 
         {/* Card 4: Non-Compliant */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition">
+        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Non-Compliant</p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Non-Compliant</p>
               <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                23
+                {nonCompliantCount}
               </h3>
-              <p className="text-[10px] font-medium text-slate-400 mt-0.5">Require attention</p>
+              <p className="text-xs font-medium text-slate-400 mt-0.5">Require attention</p>
             </div>
           </div>
         </div>
 
         {/* Card 5: Compliant */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition">
+        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Compliant</p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Compliant</p>
               <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                234
+                {compliantCount}
               </h3>
-              <p className="text-[10px] font-medium text-slate-400 mt-0.5">Passed compliance</p>
+              <p className="text-xs font-medium text-slate-400 mt-0.5">Passed compliance</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* -------------------- 3. FILTER PANEL -------------------- */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-2xs space-y-3.5">
+      <div className={`bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs transition-all ${
+        showFilters ? 'p-4 space-y-3.5' : 'py-2.5 px-4'
+      }`}>
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
             <Filter className="w-3.5 h-3.5 text-blue-600" />
@@ -561,7 +589,7 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
               {/* Tender ID / Title */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">
                   Tender ID / Title
                 </label>
                 <div className="relative">
@@ -570,7 +598,7 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search by Tender ID or Title..."
-                    className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 </div>
@@ -578,7 +606,7 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
 
               {/* Tender ID with clear X */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
                   Tender ID
                 </label>
                 <div className="relative">
@@ -587,7 +615,7 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                     value={filterTenderId}
                     onChange={(e) => setFilterTenderId(e.target.value)}
                     placeholder="e.g. GEM/2024/B/5123981"
-                    className="w-full pl-3 pr-8 py-2 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/60 text-blue-700 dark:text-blue-300 font-semibold rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-3 pr-8 py-2 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/60 text-blue-700 dark:text-blue-300 font-semibold rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   {filterTenderId && (
                     <button
@@ -603,47 +631,47 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
 
               {/* Department */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
                   Department
                 </label>
                 <select
                   value={filterDept}
                   onChange={(e) => setFilterDept(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 >
-                  <option value="">Select Department</option>
-                  <option value="Ministry of Education">Ministry of Education</option>
-                  <option value="Ministry of Railways">Ministry of Railways</option>
-                  <option value="PWD Department">PWD Department</option>
-                  <option value="Health Department">Health Department</option>
+                  <option value="">All Departments</option>
+                  {availableDepts.map((dept) => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
                 </select>
               </div>
 
               {/* Organization / Bidder */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
                   Organization / Bidder
                 </label>
                 <select
                   value={filterOrg}
                   onChange={(e) => setFilterOrg(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 >
-                  <option value="">Select Organization</option>
-                  <option value="ABC Enterprises Pvt. Ltd.">ABC Enterprises Pvt. Ltd.</option>
-                  <option value="XYZ Solutions">XYZ Solutions</option>
-                  <option value="Global Traders">Global Traders</option>
-                  <option value="TechCorp India Pvt. Ltd.">TechCorp India Pvt. Ltd.</option>
+                  <option value="">All Organizations / Bidders</option>
+                  {availableOrgs.map((org) => (
+                    <option key={org} value={org}>{org}</option>
+                  ))}
                 </select>
               </div>
 
               {/* Submission Status */}
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
                   Submission Status
                 </label>
                 <select
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  value={filterEval}
+                  onChange={(e) => setFilterEval(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 >
                   <option value="">Select Status</option>
                   <option value="Submitted">Submitted</option>
@@ -657,13 +685,13 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 text-xs items-end">
               {/* Compliance Status */}
               <div className="lg:col-span-3">
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
                   Compliance Status
                 </label>
                 <select
                   value={filterCompliance}
                   onChange={(e) => setFilterCompliance(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 >
                   <option value="">Select Compliance</option>
                   <option value="Compliant">🟢 Compliant</option>
@@ -675,7 +703,7 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
 
               {/* Submitted Date Range */}
               <div className="lg:col-span-4">
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
                   Submitted Date
                 </label>
                 <div className="flex items-center gap-2">
@@ -685,7 +713,7 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                       placeholder="Start Date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full pl-3 pr-7 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full pl-3 pr-7 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
                   </div>
@@ -696,7 +724,7 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                       placeholder="End Date"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full pl-3 pr-7 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full pl-3 pr-7 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
                   </div>
@@ -705,13 +733,13 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
 
               {/* Evaluation Status */}
               <div className="lg:col-span-2">
-                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
                   Evaluation Status
                 </label>
                 <select
                   value={filterEval}
                   onChange={(e) => setFilterEval(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 >
                   <option value="">Select Evaluation Status</option>
                   <option value="Pending">Pending</option>
@@ -724,14 +752,14 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                 <button
                   type="button"
                   onClick={handleResetFilters}
-                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition cursor-pointer"
+                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg transition cursor-pointer"
                 >
                   Reset
                 </button>
                 <button
                   type="button"
                   onClick={() => {}}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition cursor-pointer shadow-xs"
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition cursor-pointer shadow-xs"
                 >
                   <Filter className="w-3.5 h-3.5" />
                   <span>Apply Filters</span>
@@ -745,7 +773,7 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
       {/* -------------------- 4. TABS & EXPORT BUTTON -------------------- */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800">
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs scrollbar-none">
+        <div data-lenis-prevent="true" className="flex items-center gap-2 overflow-x-auto pb-1 text-xs scrollbar-none">
           <button
             onClick={() => setSelectedTab('all')}
             className={`pb-2.5 px-2 font-bold flex items-center gap-1.5 transition border-b-2 cursor-pointer ${
@@ -755,8 +783,8 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             }`}
           >
             <span>All Submissions</span>
-            <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 font-bold">
-              346
+            <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 font-semibold">
+              {totalSubmissionsCount}
             </span>
           </button>
 
@@ -769,8 +797,8 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             }`}
           >
             <span>Pending Evaluation</span>
-            <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
-              89
+            <span className="px-1.5 py-0.5 text-xs rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
+              {pendingEvaluationCount}
             </span>
           </button>
 
@@ -783,8 +811,8 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             }`}
           >
             <span>Under Review</span>
-            <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
-              45
+            <span className="px-1.5 py-0.5 text-xs rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
+              {underReviewCount}
             </span>
           </button>
 
@@ -797,8 +825,8 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             }`}
           >
             <span>Compliant</span>
-            <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 font-semibold">
-              234
+            <span className="px-1.5 py-0.5 text-xs rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 font-semibold">
+              {compliantCount}
             </span>
           </button>
 
@@ -811,107 +839,171 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             }`}
           >
             <span>Non-Compliant</span>
-            <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 font-semibold">
-              23
+            <span className="px-1.5 py-0.5 text-xs rounded-full bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 font-semibold">
+              {nonCompliantCount}
             </span>
           </button>
         </div>
 
-        {/* Export Button */}
-        <div className="pb-1">
+        {/* Export Button & QCBS Rankings Button */}
+        <div className="pb-1 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setQcbsModalTender({
+                id: selectedSubmission?.tenderId || filterTenderId || '1',
+                referenceNo: selectedSubmission?.tenderId || filterTenderId || 'GEM/2024/B/5123981',
+                title: selectedSubmission?.tenderTitle || 'Solar Power Installation & Infrastructure Project',
+                value: '₹ 18.50 Cr',
+              });
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/60 border border-amber-300/80 dark:border-amber-700/80 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/60 transition cursor-pointer shadow-2xs"
+            title="Inspect Top 10 Bidders ranked by GFR 192 QCBS (70% Technical / 30% Price)"
+          >
+            <Trophy className="w-3.5 h-3.5 text-amber-500" />
+            <span>Top 10 QCBS Bidders</span>
+          </button>
           <button
             type="button"
             onClick={() => alert('Exporting submissions table to CSV / Excel...')}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer shadow-2xs"
           >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
-            <span>Export</span>
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Export Table (CSV)</span>
           </button>
         </div>
       </div>
 
-      {/* -------------------- 5. MAIN CONTENT: TABLE & RIGHT DETAILS DRAWER -------------------- */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      {/* -------------------- 5. MAIN CONTENT: FULL-WIDTH TABLE & DETAILS DRAWER -------------------- */}
+      <div className="w-full space-y-5">
 
         {/* Submissions Data Table */}
-        <div
-          className={`${
-            detailsDrawerOpen ? 'lg:col-span-8' : 'lg:col-span-12'
-          } bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xs overflow-hidden transition-all duration-200`}
-        >
-          <div className="overflow-x-auto">
+        <div className="w-full bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs overflow-hidden transition-all duration-200">
+          {/* Multi-Bidder Comparison Selection Action Bar */}
+          {selectedBidderIds.length > 0 && (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 border-b border-blue-200 dark:border-blue-900/60 px-4 py-2.5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center">
+                  {selectedBidderIds.length}
+                </span>
+                <span className="text-xs font-semibold text-blue-900 dark:text-blue-200">
+                  bidders selected for comparative evaluation
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedBidderIds([])}
+                  className="text-xs text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white px-2 py-1 rounded cursor-pointer"
+                >
+                  Clear Selection
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRunComparison}
+                  disabled={selectedBidderIds.length < 2 || compareLoading}
+                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {compareLoading ? 'Analyzing Bidders...' : 'Run Comparative Evaluation'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div data-lenis-prevent="true" className="w-full overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  <th className="py-3 px-3.5">Submission ID</th>
-                  <th className="py-3 px-3.5">Tender ID / Title</th>
-                  <th className="py-3 px-3.5">Bidder / Organization</th>
-                  <th className="py-3 px-3.5">Submitted On</th>
-                  <th className="py-3 px-3.5 text-center">Documents</th>
-                  <th className="py-3 px-3.5">Compliance Score</th>
-                  <th className="py-3 px-3.5 text-center">Compliance Status</th>
-                  <th className="py-3 px-3.5 text-center">Evaluation Status</th>
-                  <th className="py-3 px-3.5 text-center">Actions</th>
+                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  <th className="py-2.5 px-3 w-10 text-center">
+                    <span className="sr-only">Select</span>
+                  </th>
+                  <th className="py-2.5 px-3 min-w-[120px]">Submission ID</th>
+                  <th className="py-2.5 px-3 min-w-[160px] max-w-[200px]">Tender ID / Title</th>
+                  <th className="py-2.5 px-3 min-w-[140px] max-w-[180px]">Bidder / Organization</th>
+                  <th className="py-2.5 px-3 min-w-[110px]">Submitted On</th>
+                  <th className="py-2.5 px-3 text-center min-w-[85px]">Documents</th>
+                  <th className="py-2.5 px-3 min-w-[110px]">Compliance Score</th>
+                  <th className="py-2.5 px-3 text-center min-w-[115px]">Compliance Status</th>
+                  <th className="py-2.5 px-3 text-center min-w-[100px]">Evaluation Status</th>
+                  <th className="py-2.5 px-3 text-center min-w-[165px] sticky right-0 z-10 bg-slate-50 dark:bg-slate-800 shadow-[-6px_0_10px_-3px_rgba(0,0,0,0.06)] dark:shadow-[-6px_0_10px_-3px_rgba(0,0,0,0.3)]">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-200">
-                {filteredSubmissions.length === 0 ? (
+                {paginatedSubmissions.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-slate-400">
+                    <td colSpan={10} className="py-12 text-center text-slate-400">
                       No tender submissions found matching the criteria.
                     </td>
                   </tr>
                 ) : (
-                  filteredSubmissions.map((sub) => {
+                  paginatedSubmissions.map((sub) => {
                     const isSelected = selectedSubmission?.id === sub.id && detailsDrawerOpen;
+                    const isChecked = selectedBidderIds.includes(sub.id);
                     return (
                       <tr
                         key={sub.id}
                         onClick={() => handleSelectRow(sub)}
-                        className={`hover:bg-blue-50/40 dark:hover:bg-slate-800/50 transition cursor-pointer ${
+                        className={`group hover:bg-blue-50/40 dark:hover:bg-slate-800/50 transition cursor-pointer ${
                           isSelected ? 'bg-blue-50/70 dark:bg-blue-950/30' : ''
                         }`}
                       >
+                        {/* Multi-Selection Checkbox */}
+                        <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => handleToggleSelectBidder(e, sub.id)}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer w-4 h-4"
+                            aria-label={`Select ${sub.bidder}`}
+                          />
+                        </td>
+
                         {/* Submission ID */}
-                        <td className="py-3 px-3.5">
-                          <span className="font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                        <td className="py-2.5 px-3">
+                          <span className="font-semibold text-blue-600 dark:text-blue-400 hover:underline">
                             {sub.id}
                           </span>
                         </td>
 
                         {/* Tender ID / Title */}
-                        <td className="py-3 px-3.5 max-w-[200px]">
-                          <p className="font-bold text-slate-900 dark:text-white leading-tight">
+                        <td className="py-2.5 px-3 max-w-[200px]">
+                          <code className="font-mono text-xs font-semibold text-slate-900 dark:text-white tracking-wide bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded">
                             {sub.tenderId}
-                          </p>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                          </code>
+                          <p
+                            className="text-xs text-slate-600 dark:text-slate-400 mt-1 line-clamp-2"
+                            title={sub.tenderTitle}
+                          >
                             {sub.tenderTitle}
                           </p>
                         </td>
 
                         {/* Bidder / Organization */}
-                        <td className="py-3 px-3.5 font-semibold text-slate-900 dark:text-white">
+                        <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-white break-words max-w-[180px]" title={sub.bidder}>
                           {sub.bidder}
                         </td>
 
                         {/* Submitted On */}
-                        <td className="py-3 px-3.5 whitespace-nowrap">
+                        <td className="py-2.5 px-3 whitespace-nowrap">
                           <p className="text-slate-900 dark:text-white leading-tight">{sub.submittedOn}</p>
-                          <p className="text-[10px] text-slate-400">{sub.submittedTime}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{sub.submittedTime}</p>
                         </td>
 
                         {/* Documents Pill */}
-                        <td className="py-3 px-3.5 text-center whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-blue-200 dark:border-blue-900/60 bg-blue-50/50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 font-semibold text-[11px]">
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-blue-200 dark:border-blue-900/60 bg-blue-50/50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 font-medium text-xs">
                             <FileText className="w-3 h-3" />
                             <span>{sub.docCount} Docs</span>
                           </span>
                         </td>
 
                         {/* Compliance Score + Progress Bar */}
-                        <td className="py-3 px-3.5 min-w-[120px]">
+                        <td className="py-2.5 px-3 min-w-[110px]">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-900 dark:text-white text-xs w-7">
+                            <span className="font-semibold text-slate-900 dark:text-white text-xs w-7">
                               {sub.complianceScore}%
                             </span>
                             <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -924,27 +1016,27 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                         </td>
 
                         {/* Compliance Status Badge */}
-                        <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
                           {sub.complianceStatus === 'Compliant' && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                               <span>Compliant</span>
                             </span>
                           )}
                           {sub.complianceStatus === 'Needs Review' && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40">
                               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                               <span>Needs Review</span>
                             </span>
                           )}
                           {sub.complianceStatus === 'Non-Compliant' && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200/60 dark:border-rose-800/40">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200/60 dark:border-rose-800/40">
                               <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                               <span>Non-Compliant</span>
                             </span>
                           )}
                           {sub.complianceStatus === 'Not Applicable' && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                               <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                               <span>Not Applicable</span>
                             </span>
@@ -952,47 +1044,61 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                         </td>
 
                         {/* Evaluation Status */}
-                        <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
                           {sub.evaluationStatus === 'Pending' ? (
-                            <span className="px-2 py-0.5 rounded-md text-[10.5px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                            <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                               Pending
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300">
+                            <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300">
                               Under Review
                             </span>
                           )}
                         </td>
 
-                        {/* Actions */}
-                        <td className="py-3 px-3.5 text-center">
-                          <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                        {/* Actions - Sticky Right to always stay in viewport (Issue 20), accessible buttons (Issue 4, 23) */}
+                        <td className={`py-2.5 px-3 text-center sticky right-0 z-10 ${isSelected ? 'bg-blue-50 dark:bg-slate-800' : 'bg-white dark:bg-slate-900 group-hover:bg-blue-50/50 dark:group-hover:bg-slate-800/60'} shadow-[-6px_0_10px_-3px_rgba(0,0,0,0.06)] dark:shadow-[-6px_0_10px_-3px_rgba(0,0,0,0.3)] transition-colors`}>
+                          <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAiEvaluation(sub)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800/80 transition cursor-pointer shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                              title={`View AI Evaluation for ${sub.bidder}`}
+                              aria-label={`View AI Evaluation for ${sub.bidder}`}
+                            >
+                              <Sparkles className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />
+                              <span className="whitespace-nowrap">AI Evaluation</span>
+                            </button>
+
                             <button
                               type="button"
                               onClick={() => {
                                 handleSelectRow(sub);
                                 setChatBotOpen(true);
                               }}
-                              className="p-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 transition cursor-pointer"
+                              className="p-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                               title="Ask Tender AI about this Bidder"
+                              aria-label={`Ask Tender AI about ${sub.bidder}`}
                             >
                               <MessageSquare className="w-3.5 h-3.5" />
                             </button>
                             <button
                               type="button"
                               onClick={() => handleSelectRow(sub)}
-                              className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                               title="View Details"
+                              aria-label={`View details for ${sub.bidder}`}
                             >
                               <Eye className="w-3.5 h-3.5" />
                             </button>
                             <button
                               type="button"
                               onClick={() => onOpenCompliance && onOpenCompliance(sub)}
-                              className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition cursor-pointer text-xs font-bold"
-                              title="Evaluate"
+                              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                              title="Evaluate Compliance Check"
+                              aria-label={`Evaluate compliance check for ${sub.bidder}`}
                             >
-                              +
+                              <ClipboardCheck className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </td>
@@ -1007,7 +1113,10 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
           {/* Table Footer: Pagination & Rows per page */}
           <div className="p-3.5 border-t border-slate-200/90 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
             <div>
-              <span>Showing 1 to {filteredSubmissions.length} of 346 submissions</span>
+              <span>
+                Showing {filteredSubmissions.length > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0} to{' '}
+                {Math.min(currentPage * rowsPerPage, filteredSubmissions.length)} of {filteredSubmissions.length} submissions
+              </span>
             </div>
 
             <div className="flex items-center gap-3">
@@ -1015,40 +1124,33 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 cursor-pointer"
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentPage <= 1}
+                  aria-label="Previous Page"
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 dark:text-slate-400 cursor-pointer transition"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-7 h-7 rounded-lg text-xs font-semibold flex items-center justify-center cursor-pointer transition ${
+                      currentPage === page
+                        ? 'bg-blue-600 text-white font-bold shadow-xs'
+                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
                 <button
                   type="button"
-                  className="w-7 h-7 rounded-lg bg-blue-600 text-white font-bold flex items-center justify-center text-xs"
-                >
-                  1
-                </button>
-                <button
-                  type="button"
-                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold flex items-center justify-center text-xs cursor-pointer"
-                >
-                  2
-                </button>
-                <button
-                  type="button"
-                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold flex items-center justify-center text-xs cursor-pointer"
-                >
-                  3
-                </button>
-                <span className="px-1 text-slate-400">...</span>
-                <button
-                  type="button"
-                  className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold flex items-center justify-center text-xs cursor-pointer"
-                >
-                  35
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 cursor-pointer"
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage >= totalPages}
+                  aria-label="Next Page"
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 dark:text-slate-400 cursor-pointer transition"
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -1058,8 +1160,11 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
               <div className="flex items-center gap-1.5">
                 <select
                   value={rowsPerPage}
-                  onChange={(e) => setRowsPerPage(Number(e.target.value))}
-                  className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs cursor-pointer"
+                  onChange={(e) => {
+                    setRowsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs cursor-pointer focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
                 >
                   <option value={10}>10 / page</option>
                   <option value={20}>20 / page</option>
@@ -1070,9 +1175,25 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
           </div>
         </div>
 
-        {/* -------------------- 6. RIGHT SIDE DETAILS DRAWER -------------------- */}
+        {/* -------------------- 6. RIGHT SIDE DETAILS DRAWER (Slide-Over Panel) -------------------- */}
         {detailsDrawerOpen && selectedSubmission && (
-          <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-2xs space-y-4 animate-in fade-in slide-in-from-right-4 duration-200">
+          <div className="fixed inset-0 z-50 overflow-hidden animate-in fade-in duration-200">
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs transition-opacity cursor-pointer"
+              onClick={() => setDetailsDrawerOpen(false)}
+              aria-hidden="true"
+            />
+
+            {/* Drawer Container */}
+            <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+              <aside
+                role="dialog"
+                aria-modal="true"
+                data-lenis-prevent="true"
+                aria-label="Submission Details"
+                className="w-screen max-w-md md:max-w-lg bg-white dark:bg-slate-900 shadow-2xl border-l border-slate-200 dark:border-slate-800 flex flex-col transform transition-transform duration-300 ease-out animate-in slide-in-from-right p-4 sm:p-5 space-y-4 overflow-y-auto"
+              >
             {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">
@@ -1081,7 +1202,8 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
               <button
                 type="button"
                 onClick={() => setDetailsDrawerOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                aria-label="Close details drawer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1093,7 +1215,7 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                 {selectedSubmission.id}
               </span>
               <span
-                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ${
                   selectedSubmission.complianceStatus === 'Compliant'
                     ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200/60'
                     : selectedSubmission.complianceStatus === 'Needs Review'
@@ -1114,123 +1236,183 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
               </span>
             </div>
 
-            {/* Tender Info */}
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase">Tender</p>
-              <p className="text-xs font-bold text-slate-900 dark:text-white">
-                {selectedSubmission.tenderId}
-              </p>
-              <p className="text-xs text-slate-600 dark:text-slate-300">
-                {selectedSubmission.tenderTitle}
-              </p>
+            {/* Segmented Tab Controls to reduce density */}
+            <div className="flex p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setDetailTab('overview')}
+                className={`flex-1 py-1 rounded-md transition cursor-pointer ${
+                  detailTab === 'overview'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Overview
+              </button>
+              <button
+                type="button"
+                onClick={() => setDetailTab('dossier')}
+                className={`flex-1 py-1 rounded-md transition cursor-pointer ${
+                  detailTab === 'dossier'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                AI Dossier &amp; Docs ({selectedSubmission.docCount})
+              </button>
             </div>
 
-            {/* Bidder */}
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase">Bidder</p>
-              <p className="text-xs font-bold text-slate-900 dark:text-white">
-                {selectedSubmission.bidder}
-              </p>
-            </div>
+            {detailTab === 'overview' ? (
+              <div className="space-y-3.5">
+                {/* Tender Info */}
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tender</p>
+                  <code className="font-mono text-xs font-bold text-slate-900 dark:text-white block bg-slate-50 dark:bg-slate-800 px-1.5 py-0.5 rounded w-fit">
+                    {selectedSubmission.tenderId}
+                  </code>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-snug">
+                    {selectedSubmission.tenderTitle}
+                  </p>
+                </div>
 
-            {/* Submitted On */}
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase">Submitted On</p>
-              <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                {selectedSubmission.submittedOn}, {selectedSubmission.submittedTime}
-              </p>
-            </div>
+                {/* Bidder */}
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Bidder</p>
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">
+                    {selectedSubmission.bidder}
+                  </p>
+                </div>
 
-            {/* Compliance Score Bar */}
-            <div className="space-y-1.5 pt-1">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-500 dark:text-slate-400">Compliance Score</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                  {selectedSubmission.complianceScore}% Compliant
-                </span>
-              </div>
-              <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${getScoreColor(selectedSubmission.complianceScore)}`}
-                  style={{ width: `${selectedSubmission.complianceScore}%` }}
-                />
-              </div>
-            </div>
+                {/* Submitted On */}
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Submitted On</p>
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                    {selectedSubmission.submittedOn}, {selectedSubmission.submittedTime}
+                  </p>
+                </div>
 
-            {/* Documents List */}
-            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-800 dark:text-slate-200">
-                  Documents ({selectedSubmission.docCount})
-                </span>
+                {/* Compliance Score Bar */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-slate-500 dark:text-slate-400">Compliance Score</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                      {selectedSubmission.complianceScore}% Compliant
+                    </span>
+                  </div>
+                  <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${getScoreColor(selectedSubmission.complianceScore)}`}
+                      style={{ width: `${selectedSubmission.complianceScore}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Document Summary */}
+                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                  <span className="font-medium text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-blue-600" />
+                    <span>{selectedSubmission.docCount} Attached Documents</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setDetailTab('dossier')}
+                    className="text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
+                  >
+                    View All →
+                  </button>
+                </div>
+
+                {/* Direct Open AI Evaluation Action in Details Drawer */}
                 <button
                   type="button"
-                  onClick={() => setViewAllDocs(!viewAllDocs)}
-                  className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                  onClick={() => handleOpenAiEvaluation(selectedSubmission)}
+                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition cursor-pointer"
                 >
-                  {viewAllDocs ? 'Show Less' : 'View All'}
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>View AI Evaluation</span>
                 </button>
               </div>
-
-              <div className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
-                {(viewAllDocs ? selectedSubmission.documents : selectedSubmission.documents.slice(0, 4)).map((doc, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 hover:bg-slate-100/70 transition gap-2"
-                  >
-                    <div className="flex items-center gap-2 min-w-0 truncate">
-                      <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                      <span className="truncate text-xs font-medium">{doc.name}</span>
+            ) : (
+              <div className="space-y-3.5">
+                {/* Evaluation Dossier */}
+                {selectedSubmission.mlDossier && (
+                  <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700 space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>Compliance Evaluation Dossier</span>
+                      </span>
+                      <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
+                        {selectedSubmission.mlDossier.forensicAuthenticity}% Authenticity
+                      </span>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0 ml-1">
-                      <span className="text-[10px] text-slate-400">{doc.size}</span>
-                      {doc.cloudinaryUrl && (
-                        <a
-                          href={doc.cloudinaryUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-[10px] font-bold hover:underline"
-                          title="Open Cloudinary Secure PDF"
-                        >
-                          <ExternalLink className="w-2.5 h-2.5" />
-                          <span>PDF</span>
-                        </a>
-                      )}
+                    <MarkdownRenderer
+                      content={selectedSubmission.mlDossier.executiveSummary}
+                      className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed"
+                    />
+                    <div className="text-xs space-y-1 pt-1 text-slate-600 dark:text-slate-300">
+                      <div className="flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span>{selectedSubmission.mlDossier.digitalSignature}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span>{selectedSubmission.mlDossier.taxpayerVerification}</span>
+                      </div>
                     </div>
                   </div>
-                ))}
-                {!viewAllDocs && selectedSubmission.docCount > 4 && (
-                  <p className="text-[11px] text-slate-400 italic pt-0.5">
-                    ...and {selectedSubmission.docCount - 4} more
-                  </p>
                 )}
-              </div>
-            </div>
 
-            {/* GeM ML Microservice Evaluation Dossier */}
-            {selectedSubmission.mlDossier && (
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700 space-y-1.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                    <span>GeM ML Microservice Dossier</span>
-                  </span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
-                    {selectedSubmission.mlDossier.forensicAuthenticity}% Forensic
-                  </span>
-                </div>
-                <MarkdownRenderer
-                  content={selectedSubmission.mlDossier.executiveSummary}
-                  className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed"
-                />
-                <div className="text-[10.5px] space-y-0.5 pt-1 text-slate-600 dark:text-slate-300">
-                  <div className="flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3 text-emerald-500" />
-                    <span>{selectedSubmission.mlDossier.digitalSignature}</span>
+                {/* Documents List */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      Attached Files ({selectedSubmission.docCount})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setViewAllDocs(!viewAllDocs)}
+                      className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      {viewAllDocs ? 'Show Less' : 'View All'}
+                    </button>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                    <span>{selectedSubmission.mlDossier.taxpayerVerification}</span>
+
+                  <div
+                    data-lenis-prevent="true"
+                    className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300 max-h-60 overflow-y-auto pr-1"
+                  >
+                    {(viewAllDocs ? selectedSubmission.documents : selectedSubmission.documents.slice(0, 4)).map((doc, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 hover:bg-slate-100/70 transition gap-2"
+                      >
+                        <div className="flex items-center gap-2 min-w-0 truncate">
+                          <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span className="truncate text-xs font-medium">{doc.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                          <span className="text-xs text-slate-400">{doc.size}</span>
+                          {doc.cloudinaryUrl && (
+                            <a
+                              href={doc.cloudinaryUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-xs font-semibold hover:underline"
+                              title="View Document PDF"
+                            >
+                              <ExternalLink className="w-2.5 h-2.5" />
+                              <span>PDF</span>
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {!viewAllDocs && selectedSubmission.docCount > 4 && (
+                      <p className="text-xs text-slate-400 italic pt-0.5 text-center">
+                        ...and {selectedSubmission.docCount - 4} more files
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1238,154 +1420,105 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
 
             {/* Action Buttons */}
             <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-              {/* Evaluate Proposal / ML Clearance */}
+              {/* Primary Action: Evaluate Proposal / ML Clearance */}
               <button
                 type="button"
                 onClick={() => setEvaluationModalOpen(true)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold transition cursor-pointer shadow-xs"
+                className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition cursor-pointer shadow-xs"
               >
                 <ShieldCheck className="w-4 h-4" />
                 <span>Evaluate Bidder &amp; Issue Clearance</span>
               </button>
 
-              {/* Chat with Bidder AI */}
-              <button
-                type="button"
-                onClick={() => setChatBotOpen(true)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white text-xs font-bold transition cursor-pointer shadow-xs group"
-              >
-                <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span>Chat with AI</span>
-                <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded-full font-bold ml-0.5">Context</span>
-              </button>
+              {/* Secondary Actions */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setChatBotOpen(true)}
+                  className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold transition cursor-pointer"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Chat with AI</span>
+                </button>
 
-              {/* Detailed Compliance Audit */}
-              <button
-                type="button"
-                onClick={() => onOpenCompliance && onOpenCompliance(selectedSubmission)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-xs font-bold transition cursor-pointer"
-              >
-                <Play className="w-3.5 h-3.5" />
-                <span>Detailed Compliance Audit</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenCompliance && onOpenCompliance(selectedSubmission)}
+                  className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-xs font-semibold transition cursor-pointer"
+                >
+                  <Play className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Detailed Audit</span>
+                </button>
+              </div>
+            </div>
+              </aside>
             </div>
           </div>
         )}
       </div>
 
       {/* -------------------- 6.5 OFFICER PROCUREMENT CLEARANCE MODAL -------------------- */}
-      {evaluationModalOpen && selectedSubmission && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-blue-600" />
-                <h3 className="font-bold text-slate-900 dark:text-white text-base">
-                  Procurement Clearance Decision Engine
-                </h3>
-              </div>
-              <button
-                onClick={() => setEvaluationModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <ProcurementClearanceModal
+        isOpen={evaluationModalOpen}
+        onClose={() => {
+          setEvaluationModalOpen(false);
+          setEvalError(null);
+        }}
+        submission={selectedSubmission}
+        verdict={evalVerdict}
+        setVerdict={setEvalVerdict}
+        remarks={evalRemarks}
+        setRemarks={setEvalRemarks}
+        isSubmitting={evalSubmitting}
+        onConfirm={handleConfirmEvaluation}
+        errorMessage={evalError}
+      />
 
-            <div className="space-y-3 text-xs">
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 space-y-1">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-slate-900 dark:text-white text-sm">{selectedSubmission.bidder}</span>
-                  <span className="font-mono text-xs text-blue-600 dark:text-blue-400 font-bold">{selectedSubmission.id}</span>
-                </div>
-                <p className="text-slate-500 dark:text-slate-400 truncate">{selectedSubmission.tenderTitle}</p>
-                <p className="text-[11px] text-slate-400">Tender: {selectedSubmission.tenderId}</p>
-              </div>
-
-              {/* ML Decision Scores */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="p-2.5 rounded-xl bg-blue-50/50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-center">
-                  <span className="text-[10px] text-slate-400 font-bold block">Composite CIS</span>
-                  <span className="text-sm font-black text-blue-600 dark:text-blue-400">{selectedSubmission.complianceScore}%</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 text-center">
-                  <span className="text-[10px] text-slate-400 font-bold block">Forensic Score</span>
-                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">98% Authentic</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-purple-50/50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900/40 text-center">
-                  <span className="text-[10px] text-slate-400 font-bold block">Statutory Status</span>
-                  <span className="text-sm font-black text-purple-600 dark:text-purple-400">Active GSTN</span>
-                </div>
-              </div>
-
-              {/* Clearance Verdict Radio */}
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
-                  Procurement Clearance Verdict (ML Endpoint 4.11)
-                </label>
-                <div className="space-y-1.5">
-                  <label className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition ${evalVerdict === 'CLEARED' ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 text-emerald-900 dark:text-emerald-200 font-bold' : 'border-slate-200 dark:border-slate-700'}`}>
-                    <input type="radio" name="verdict" value="CLEARED" checked={evalVerdict === 'CLEARED'} onChange={() => setEvalVerdict('CLEARED')} />
-                    <span>🟢 CLEARED — Bidder fully qualifies technical specifications &amp; statutory rules</span>
-                  </label>
-                  <label className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition ${evalVerdict === 'CONDITIONALLY_CLEARED' ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-400 text-amber-900 dark:text-amber-200 font-bold' : 'border-slate-200 dark:border-slate-700'}`}>
-                    <input type="radio" name="verdict" value="CONDITIONALLY_CLEARED" checked={evalVerdict === 'CONDITIONALLY_CLEARED'} onChange={() => setEvalVerdict('CONDITIONALLY_CLEARED')} />
-                    <span>🟡 CONDITIONALLY CLEARED — Minor clarification required on local content / BOQ</span>
-                  </label>
-                  <label className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition ${evalVerdict === 'REJECTED' ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-400 text-rose-900 dark:text-rose-200 font-bold' : 'border-slate-200 dark:border-slate-700'}`}>
-                    <input type="radio" name="verdict" value="REJECTED" checked={evalVerdict === 'REJECTED'} onChange={() => setEvalVerdict('REJECTED')} />
-                    <span>🔴 REJECTED — Non-compliant with tender criteria or GFR Rule 144(xi)</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Officer Notes */}
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Evaluating Officer Notes / Audit Remarks
-                </label>
-                <textarea
-                  rows={3}
-                  value={evalRemarks}
-                  onChange={(e) => setEvalRemarks(e.target.value)}
-                  placeholder="e.g. Audited against Cloudinary proposal PDF & PyHanko Class-3 DSC. Approved for commercial stage."
-                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setEvaluationModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={evalSubmitting}
-                onClick={handleConfirmEvaluation}
-                className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl cursor-pointer flex items-center gap-1.5 shadow-xs"
-              >
-                {evalSubmitting ? 'Recording Decision...' : 'Save & Issue Official Clearance'}
-              </button>
-            </div>
+      {/* Action Notification Toast */}
+      {actionToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 right-6 z-50 flex items-start gap-3 p-4 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-2xl border border-slate-700 dark:border-slate-200 animate-in slide-in-from-bottom-4 duration-300 max-w-md"
+        >
+          <div
+            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+              actionToast.verdict === 'CLEARED'
+                ? 'bg-emerald-500/20 text-emerald-400 dark:text-emerald-600'
+                : actionToast.verdict === 'CONDITIONALLY_CLEARED'
+                ? 'bg-amber-500/20 text-amber-400 dark:text-amber-600'
+                : 'bg-rose-500/20 text-rose-400 dark:text-rose-600'
+            }`}
+          >
+            <ShieldCheck className="w-5 h-5" />
           </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold">{actionToast.title}</p>
+            <p className="text-xs text-slate-300 dark:text-slate-600 mt-0.5 leading-relaxed">
+              {actionToast.message}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionToast(null)}
+            className="text-slate-400 hover:text-white dark:hover:text-slate-900 transition cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
-      {/* -------------------- 7. FOOTER -------------------- */}
-      <div className="pt-6 pb-2 border-t border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-500 dark:text-slate-400">
-        <div>
-          <span>© 2024 GeM Compliflix Platform. All rights reserved.</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span>Version 1.0.0</span>
-          <span className="hover:underline cursor-pointer">Privacy Policy</span>
-          <span className="hover:underline cursor-pointer">Terms of Service</span>
-        </div>
-      </div>
+      {/* Contextual Right-Side AI Evaluation Drawer */}
+      <AiEvaluationDrawer
+        isOpen={aiDrawerOpen}
+        onClose={() => setAiDrawerOpen(false)}
+        bidder={aiDrawerBidder || selectedSubmission}
+        tenderId={filterTenderId || 'GEM/2024/B/5123981'}
+        comparisonResult={comparisonResult}
+        contextBidders={submissionsList}
+        loading={compareLoading}
+        onSelectBidder={(selected) => setAiDrawerBidder(selected)}
+      />
 
       {/* Bidder Contextual Chatbot — Bound to POST /api/officer/tenders/chat */}
       <BidderChatBot
@@ -1395,6 +1528,15 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
         tenderId={selectedSubmission?.tenderId || filterTenderId || '1'}
         bidderId={selectedSubmission?.bidderId || selectedSubmission?.id || 'BID-007'}
       />
+
+      {/* QCBS Top 10 Bidders Evaluation Modal */}
+      {qcbsModalTender && (
+        <TenderDetailModal
+          tender={qcbsModalTender}
+          initialTab="qcbs"
+          onClose={() => setQcbsModalTender(null)}
+        />
+      )}
     </div>
   );
 };
