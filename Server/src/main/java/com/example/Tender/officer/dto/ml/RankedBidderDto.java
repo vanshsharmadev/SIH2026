@@ -35,6 +35,12 @@ public class RankedBidderDto {
     private String cisStatus;              // "CLEAR", "UNDER_REVIEW", "SANCTIONED"
     private String verdict;                // "HIGHLY_RECOMMENDED", "QUALIFIED", "CONDITIONALLY_QUALIFIED", "DISQUALIFIED"
     private String riskLevel;              // "LOW", "MEDIUM", "HIGH"
+    private Integer yearsOfExperience;     // e.g. 15, 12, 8
+    private String experienceLabel;        // e.g. "15+ Years (Tier-1 EPC Contractor)"
+    private Double experienceScore;        // 0.0 - 100.0 based on years & past track record
+    private Double priceScore;             // (L_min / L_bidder) * 100
+    private Double qcbsScore;              // Combined QCBS score: (experienceScore * 0.70) + (priceScore * 0.30)
+    private List<String> badges;           // e.g. ["Top Experience & Lowest Price (Best Value)", "Lowest Quote (L1)"]
     private List<String> highlights;        // Strengths & key audit badges
     private List<String> flaggedIssues;     // Warning flags or missing items
     private LocalDateTime submissionDate;
