@@ -156,7 +156,7 @@ const BidderDashboard = () => {
   const vendorId = user?.registrationNumber || '—';
 
   // Live submitted applications for this bidder from localStorage
-  const [localSubmittedBids] = useState(() => {
+  const [localSubmittedBids, setLocalSubmittedBids] = useState(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
       return Array.isArray(stored) ? stored : [];
@@ -165,6 +165,27 @@ const BidderDashboard = () => {
     }
   });
 
+  useEffect(() => {
+    const handleSync = () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
+        setLocalSubmittedBids(Array.isArray(stored) ? stored : []);
+      } catch {
+        setLocalSubmittedBids([]);
+      }
+    };
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('focus', handleSync);
+    window.addEventListener('gem_submission_created', handleSync);
+    window.addEventListener('gem_bidder_applications_updated', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('focus', handleSync);
+      window.removeEventListener('gem_submission_created', handleSync);
+      window.removeEventListener('gem_bidder_applications_updated', handleSync);
+    };
+  }, []);
+
   const myBids = useMemo(() => {
     return localSubmittedBids.map((b, idx) => ({
       tenderId: b.tenderId || b.id || `SUB-${idx + 1}`,
@@ -172,7 +193,7 @@ const BidderDashboard = () => {
       department: b.company || b.department || 'Government Department',
       appliedDate: b.appliedDate || 'Recent',
       bidValue: b.quotedAmount || b.value || 'As Quoted',
-      complianceScore: b.matchScore || b.complianceScore || 92,
+      complianceScore: b.matchScore || b.complianceScore || 0,
       status: b.status || 'Under Evaluation',
       statusColor: b.status === 'Technically Qualified' ? 'emerald' : b.status === 'Awarded' ? 'emerald-dark' : 'amber',
       statusIcon: b.status === 'Technically Qualified' ? CheckCircle2 : Clock,
@@ -321,6 +342,51 @@ const BidderDashboard = () => {
   const completedBids = myBids.filter((b) => b.isCompleted);
   const pendingClarifications = myBids.filter((b) => b.missingDocs > 0);
   const displayedBids = bidSubTab === 'active' ? activeBids : completedBids;
+
+  // Real dynamic compliance score from submitted bids
+  const avgComplianceScore = useMemo(() => {
+    if (!myBids.length) return 0;
+    const sum = myBids.reduce((acc, b) => acc + (Number(b.complianceScore) || 0), 0);
+    return Math.round(sum / myBids.length);
+  }, [myBids]);
+
+  // Real MSME / Udyam registration status
+  const isMseRegistered = Boolean(
+    (liveProfile?.udyamNumber && liveProfile.udyamNumber !== '—') ||
+    (user?.udyamNumber && user.udyamNumber !== '—') ||
+    documents.some((d) => (d.documentType || d.type || '').toLowerCase().includes('udyam') || (d.documentType || d.type || '').toLowerCase().includes('msme'))
+  );
+
+  // Vault readiness score (statutory compliance completion: GST, PAN, Udyam, and stored docs)
+  const vaultReadinessScore = useMemo(() => {
+    let score = 0;
+    if (gstNumber && gstNumber !== '—') score += 25;
+    if (panNumber && panNumber !== '—') score += 25;
+    if (isMseRegistered) score += 20;
+    if (documents.length > 0) score += Math.min(30, documents.length * 10);
+    return Math.min(100, score);
+  }, [gstNumber, panNumber, isMseRegistered, documents]);
+
+  // Real upcoming deadlines derived from active tenders
+  const upcomingDeadlines = useMemo(() => {
+    if (!matchedTenders || matchedTenders.length === 0) return [];
+    return matchedTenders
+      .filter((t) => t.lastDate || t.closingDate || t.closes)
+      .slice(0, 3)
+      .map((t) => {
+        const rawDate = t.closingDate || t.lastDate || t.closes || '';
+        const parts = String(rawDate).trim().split(/[\s-]+/);
+        const day = parts[0] && !isNaN(parts[0]) ? parts[0] : '—';
+        const month = parts[1] || 'End';
+        return {
+          day,
+          month,
+          title: t.title || 'Procurement Tender',
+          sub: t.daysLeft !== undefined ? `Closes in ${t.daysLeft} days` : 'Refer to NIT',
+          ref: t.referenceNo || t.id,
+        };
+      });
+  }, [matchedTenders]);
 
   // Filter and search
   const filteredBids = displayedBids
@@ -518,7 +584,9 @@ const BidderDashboard = () => {
                       {activeBids.length}
                     </p>
                     <p className="bd-summary-sub" style={{ color: '#2563EB' }}>
-                      {activeBids.filter(b => b.status === 'Under Evaluation').length} Under Review · {activeBids.filter(b => b.status === 'Technically Qualified').length} Qualified
+                      {activeBids.length > 0
+                        ? `${activeBids.filter(b => b.status === 'Under Evaluation').length} Under Review · ${activeBids.filter(b => b.status === 'Technically Qualified').length} Qualified`
+                        : '0 Under Review · 0 Qualified'}
                     </p>
                   </div>
                   <div className="bd-summary-icon" style={{ background: 'rgba(37, 99, 235, 0.08)' }}>
@@ -530,10 +598,14 @@ const BidderDashboard = () => {
                   <div>
                     <p className="bd-summary-label">Compliance Score</p>
                     <p className="bd-summary-value" style={{ color: 'var(--bd-emerald)' }}>
-                      94.8%
+                      {avgComplianceScore > 0 ? `${avgComplianceScore}%` : '0%'}
                     </p>
-                    <p className="bd-summary-sub" style={{ color: '#059669' }}>
-                      Eligible for L1 Matching
+                    <p className="bd-summary-sub" style={{ color: avgComplianceScore >= 80 ? '#059669' : '#64748B' }}>
+                      {avgComplianceScore >= 80
+                        ? 'Eligible for L1 Matching'
+                        : avgComplianceScore > 0
+                        ? 'Under Technical Review'
+                        : 'No submitted bids'}
                     </p>
                   </div>
                   <div className="bd-summary-icon" style={{ background: 'rgba(5, 150, 105, 0.08)' }}>
@@ -548,7 +620,7 @@ const BidderDashboard = () => {
                       {pendingClarifications.length}
                     </p>
                     <p className="bd-summary-sub" style={{ color: '#D97706' }}>
-                      {pendingClarifications.length > 0 ? 'Due in 2 days (Railways)' : 'All clear'}
+                      {pendingClarifications.length > 0 ? `${pendingClarifications.length} response required` : 'All clear'}
                     </p>
                   </div>
                   <div className="bd-summary-icon" style={{ background: 'rgba(217, 119, 6, 0.08)' }}>
@@ -560,14 +632,175 @@ const BidderDashboard = () => {
                   <div>
                     <p className="bd-summary-label">EMD Exemption</p>
                     <p className="bd-summary-value" style={{ color: 'var(--bd-purple)' }}>
-                      100%
+                      {isMseRegistered ? '100%' : '0%'}
                     </p>
-                    <p className="bd-summary-sub" style={{ color: '#7C3AED' }}>
-                      MSE Policy Benefit Active
+                    <p className="bd-summary-sub" style={{ color: isMseRegistered ? '#7C3AED' : '#64748B' }}>
+                      {isMseRegistered ? 'MSE Policy Benefit Active' : 'Not Linked (Standard EMD)'}
                     </p>
                   </div>
                   <div className="bd-summary-icon" style={{ background: 'rgba(124, 58, 237, 0.08)' }}>
                     <Award aria-hidden="true" style={{ color: '#7C3AED' }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Live Bidder Performance & Compliance Visualizer Chart ── */}
+              <div style={{
+                background: 'var(--bd-surface)',
+                border: '1px solid var(--bd-border)',
+                borderRadius: '16px',
+                padding: '20px',
+                marginBottom: '24px',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: '20px',
+                alignItems: 'center',
+              }}>
+                {/* Gauge 1: Document Vault Readiness */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ position: 'relative', width: 72, height: 72, flexShrink: 0 }}>
+                    <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                      <path
+                        stroke="rgba(148, 163, 184, 0.2)"
+                        strokeWidth="3.4"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                      <path
+                        stroke="#2563EB"
+                        strokeWidth="3.4"
+                        strokeDasharray={`${vaultReadinessScore}, 100`}
+                        strokeLinecap="round"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        style={{ transition: 'stroke-dasharray 0.8s ease' }}
+                      />
+                    </svg>
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--bd-text-primary)' }}>
+                        {vaultReadinessScore}%
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--bd-text-primary)' }}>
+                        Statutory Vault Readiness
+                      </span>
+                      <span style={{
+                        fontSize: '0.625rem',
+                        fontWeight: 700,
+                        padding: '2px 6px',
+                        borderRadius: '6px',
+                        background: vaultReadinessScore >= 80 ? 'rgba(5, 150, 105, 0.1)' : 'rgba(37, 99, 235, 0.1)',
+                        color: vaultReadinessScore >= 80 ? '#059669' : '#2563EB',
+                      }}>
+                        {vaultReadinessScore >= 80 ? 'Optimal' : 'In Progress'}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.6875rem', color: 'var(--bd-text-muted)', margin: '3px 0 0' }}>
+                      {documents.length} document(s) uploaded · GST {gstNumber !== '—' ? 'verified' : 'not linked'} · PAN {panNumber !== '—' ? 'verified' : 'not linked'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Gauge 2: Live Bid Standing & Eligibility */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ position: 'relative', width: 72, height: 72, flexShrink: 0 }}>
+                    <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                      <path
+                        stroke="rgba(148, 163, 184, 0.2)"
+                        strokeWidth="3.4"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                      <path
+                        stroke="#059669"
+                        strokeWidth="3.4"
+                        strokeDasharray={`${avgComplianceScore || 0}, 100`}
+                        strokeLinecap="round"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        style={{ transition: 'stroke-dasharray 0.8s ease' }}
+                      />
+                    </svg>
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--bd-text-primary)' }}>
+                        {avgComplianceScore > 0 ? `${avgComplianceScore}%` : '0%'}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--bd-text-primary)' }}>
+                        Technical Scrutiny Health
+                      </span>
+                      <span style={{
+                        fontSize: '0.625rem',
+                        fontWeight: 700,
+                        padding: '2px 6px',
+                        borderRadius: '6px',
+                        background: avgComplianceScore >= 80 ? 'rgba(5, 150, 105, 0.1)' : 'rgba(217, 119, 6, 0.1)',
+                        color: avgComplianceScore >= 80 ? '#059669' : '#D97706',
+                      }}>
+                        {avgComplianceScore >= 80 ? 'L1 Qualified' : avgComplianceScore > 0 ? 'Under Review' : 'No Submissions'}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.6875rem', color: 'var(--bd-text-muted)', margin: '3px 0 0' }}>
+                      {activeBids.length > 0
+                        ? `${activeBids.length} active bid(s) under officer evaluation`
+                        : `${matchedTenders.length} matching tenders available for participation`}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Gauge 3: Statutory Standing & Policy Benefit */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ position: 'relative', width: 72, height: 72, flexShrink: 0 }}>
+                    <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                      <path
+                        stroke="rgba(148, 163, 184, 0.2)"
+                        strokeWidth="3.4"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                      <path
+                        stroke="#7C3AED"
+                        strokeWidth="3.4"
+                        strokeDasharray={`${myBids.length > 0 ? Math.round((myBids.filter(b => b.status === 'Technically Qualified' || b.status === 'Awarded').length / myBids.length) * 100) : (isMseRegistered ? 100 : 0)}, 100`}
+                        strokeLinecap="round"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        style={{ transition: 'stroke-dasharray 0.8s ease' }}
+                      />
+                    </svg>
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--bd-text-primary)' }}>
+                        {myBids.length > 0 ? `${Math.round((myBids.filter(b => b.status === 'Technically Qualified' || b.status === 'Awarded').length / myBids.length) * 100)}%` : (isMseRegistered ? '100%' : '0%')}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--bd-text-primary)' }}>
+                        Statutory Standing
+                      </span>
+                      <span style={{
+                        fontSize: '0.625rem',
+                        fontWeight: 700,
+                        padding: '2px 6px',
+                        borderRadius: '6px',
+                        background: 'rgba(124, 58, 237, 0.1)',
+                        color: '#7C3AED',
+                      }}>
+                        {isMseRegistered ? 'MSE Verified' : 'Standard'}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.6875rem', color: 'var(--bd-text-muted)', margin: '3px 0 0' }}>
+                      {myBids.length > 0
+                        ? `${myBids.filter(b => b.status === 'Technically Qualified' || b.status === 'Awarded').length} of ${myBids.length} bids qualified`
+                        : (isMseRegistered ? 'EMD waiver applied across all portals' : 'Upload Udyam certificate for EMD waiver')}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -582,28 +815,24 @@ const BidderDashboard = () => {
                         <AlertTriangle />
                       </div>
                       <div className="bd-action-content">
-                        <h2 className="bd-action-title">Clarification Required — Respond Before Deadline</h2>
+                        <h2 className="bd-action-title">Clarification Required — Response Pending</h2>
                         <p className="bd-action-desc">
                           <strong>{pendingClarifications[0].tenderId}</strong> — {pendingClarifications[0].title}
                           <br />
-                          Clause 4.2 DSC Verification certificate needs to be uploaded.
+                          {pendingClarifications[0].lastActivity || 'Statutory document compliance scrutiny in progress.'}
                         </p>
                         <div className="bd-action-meta">
                           <span className="bd-action-deadline">
                             <Clock aria-hidden="true" />
-                            Deadline: 13 Sep 2026 (2 days remaining)
+                            Action pending for tender submission
                           </span>
                           <button
                             type="button"
                             className="bd-btn bd-btn--amber bd-btn--sm"
-                            onClick={() =>
-                              alert(
-                                `Upload clarification document for ${pendingClarifications[0].tenderId}: Clause 4.2 DSC Verification certificate.`
-                              )
-                            }
+                            onClick={() => setActiveTab('vault')}
                           >
                             <UploadCloud aria-hidden="true" />
-                            Respond
+                            Open Vault
                           </button>
                         </div>
                       </div>
@@ -626,90 +855,112 @@ const BidderDashboard = () => {
                       </button>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {myBids.slice(0, 3).map((bid) => {
-                        const StatusIcon = bid.statusIcon;
-                        const statusStyles = getStatusClasses(bid.statusColor);
-                        return (
-                          <div key={bid.tenderId} className="bd-bid-card">
-                            <div className="bd-bid-header">
-                              <span className="bd-bid-ref">{bid.tenderId}</span>
-                              <span
-                                className="bd-status-badge"
-                                style={statusStyles?.badge || {}}
-                              >
-                                <StatusIcon style={{ width: 12, height: 12 }} aria-hidden="true" />
-                                {bid.status}
-                              </span>
-                              <span style={{ fontSize: '0.6875rem', color: 'var(--bd-text-muted)', marginLeft: 'auto' }}>
-                                Applied: <strong style={{ color: 'var(--bd-text-secondary)' }}>{bid.appliedDate}</strong>
-                              </span>
-                            </div>
-                            <h3 className="bd-bid-title">{bid.title}</h3>
-                            <p className="bd-bid-dept">{bid.department}</p>
-                            <div className="bd-bid-meta">
-                              <span className="bd-bid-meta-item">
-                                <span className="bd-bid-meta-label">Bid Amount: </span>
-                                <span className="bd-bid-meta-value">{bid.bidValue}</span>
-                              </span>
-                              <span className="bd-bid-meta-item">
-                                <span className="bd-bid-meta-label">Compliance: </span>
-                                <span className="bd-bid-meta-value" style={{ color: getComplianceColor(bid.complianceScore) }}>
-                                  {bid.complianceScore}%
+                      {myBids.length === 0 ? (
+                        <div style={{
+                          padding: '36px 20px',
+                          textAlign: 'center',
+                          background: 'var(--bd-surface)',
+                          borderRadius: '14px',
+                          border: '1px dashed var(--bd-border)',
+                          color: 'var(--bd-text-muted)',
+                        }}>
+                          <Briefcase style={{ width: 28, height: 28, opacity: 0.35, margin: '0 auto 8px' }} />
+                          <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--bd-text-primary)', margin: '0 0 4px' }}>
+                            No bids submitted yet
+                          </p>
+                          <p style={{ fontSize: '0.75rem', margin: '0 0 16px', maxWidth: 360, marginInline: 'auto' }}>
+                            Explore procurement opportunities matching your business profile and submit bids directly through GeM SPV.
+                          </p>
+                          <button
+                            type="button"
+                            className="bd-btn bd-btn--primary bd-btn--sm"
+                            onClick={() => setActiveTab('recommendations')}
+                          >
+                            Explore Matching Tenders
+                            <ArrowRight aria-hidden="true" />
+                          </button>
+                        </div>
+                      ) : (
+                        myBids.slice(0, 3).map((bid) => {
+                          const StatusIcon = bid.statusIcon;
+                          const statusStyles = getStatusClasses(bid.statusColor);
+                          return (
+                            <div key={bid.tenderId} className="bd-bid-card">
+                              <div className="bd-bid-header">
+                                <span className="bd-bid-ref">{bid.tenderId}</span>
+                                <span
+                                  className="bd-status-badge"
+                                  style={statusStyles?.badge || {}}
+                                >
+                                  <StatusIcon style={{ width: 12, height: 12 }} aria-hidden="true" />
+                                  {bid.status}
                                 </span>
-                                <span className="bd-progress-track">
-                                  <span
-                                    className="bd-progress-fill"
-                                    style={{ width: `${bid.complianceScore}%`, background: getComplianceColor(bid.complianceScore) }}
-                                    role="progressbar"
-                                    aria-valuenow={bid.complianceScore}
-                                    aria-valuemin={0}
-                                    aria-valuemax={100}
-                                    aria-label={`Compliance score ${bid.complianceScore}%`}
-                                  />
+                                <span style={{ fontSize: '0.6875rem', color: 'var(--bd-text-muted)', marginLeft: 'auto' }}>
+                                  Applied: <strong style={{ color: 'var(--bd-text-secondary)' }}>{bid.appliedDate}</strong>
                                 </span>
-                              </span>
-                            </div>
-                            <div className="bd-bid-footer">
-                              <span className="bd-bid-milestone">
-                                <ArrowRight aria-hidden="true" />
-                                {bid.nextMilestone}
-                              </span>
-                              <div className="bd-bid-actions">
-                                {bid.missingDocs > 0 ? (
+                              </div>
+                              <h3 className="bd-bid-title">{bid.title}</h3>
+                              <p className="bd-bid-dept">{bid.department}</p>
+                              <div className="bd-bid-meta">
+                                <span className="bd-bid-meta-item">
+                                  <span className="bd-bid-meta-label">Bid Amount: </span>
+                                  <span className="bd-bid-meta-value">{bid.bidValue}</span>
+                                </span>
+                                <span className="bd-bid-meta-item">
+                                  <span className="bd-bid-meta-label">Compliance: </span>
+                                  <span className="bd-bid-meta-value" style={{ color: getComplianceColor(bid.complianceScore) }}>
+                                    {bid.complianceScore}%
+                                  </span>
+                                  <span className="bd-progress-track">
+                                    <span
+                                      className="bd-progress-fill"
+                                      style={{ width: `${bid.complianceScore}%`, background: getComplianceColor(bid.complianceScore) }}
+                                      role="progressbar"
+                                      aria-valuenow={bid.complianceScore}
+                                      aria-valuemin={0}
+                                      aria-valuemax={100}
+                                      aria-label={`Compliance score ${bid.complianceScore}%`}
+                                    />
+                                  </span>
+                                </span>
+                                {bid.missingDocs > 0 && (
+                                  <span className="bd-bid-meta-item" style={{ color: '#D97706' }}>
+                                    <AlertTriangle aria-hidden="true" style={{ width: 12, height: 12 }} />
+                                    {bid.missingDocs} clarification required
+                                  </span>
+                                )}
+                              </div>
+                              <div className="bd-bid-footer">
+                                <span className="bd-bid-milestone">
+                                  <Clock aria-hidden="true" />
+                                  {bid.nextMilestone}
+                                </span>
+                                <div className="bd-bid-actions">
+                                  {bid.status === 'Technically Qualified' && (
+                                    <Link
+                                      to={`/verification?tenderId=${bid.tenderId.replace('GEM/2026/B/', '').replace('GEM/2024/B/', '')}`}
+                                      className="bd-btn bd-btn--ghost bd-btn--sm"
+                                    >
+                                      <ShieldCheck aria-hidden="true" style={{ color: '#2563EB' }} />
+                                      Audit Report
+                                    </Link>
+                                  )}
                                   <button
                                     type="button"
-                                    className="bd-btn bd-btn--amber bd-btn--sm"
+                                    className="bd-btn--icon"
+                                    title="Download Submission Receipt"
                                     onClick={() =>
-                                      alert(`Upload clarification for ${bid.tenderId}: Clause 4.2 DSC Verification.`)
+                                      alert(`Downloading verified GeM Bid Submission Acknowledgement for ${bid.tenderId}.`)
                                     }
                                   >
-                                    <UploadCloud aria-hidden="true" />
-                                    Respond
+                                    <Download aria-hidden="true" />
                                   </button>
-                                ) : (
-                                  <Link
-                                    to={`/verification?tenderId=${bid.tenderId.replace('GEM/2026/B/', '').replace('GEM/2024/B/', '')}`}
-                                    className="bd-btn bd-btn--ghost bd-btn--sm"
-                                  >
-                                    <ShieldCheck aria-hidden="true" style={{ color: '#2563EB' }} />
-                                    Audit Report
-                                  </Link>
-                                )}
-                                <button
-                                  type="button"
-                                  className="bd-btn--icon"
-                                  title="Download Submission Receipt"
-                                  onClick={() =>
-                                    alert(`Downloading verified GeM Bid Submission Acknowledgement for ${bid.tenderId}.`)
-                                  }
-                                >
-                                  <Download aria-hidden="true" />
-                                </button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })
+                      )}
                     </div>
                   </section>
                 </div>
@@ -722,47 +973,31 @@ const BidderDashboard = () => {
                       <Calendar aria-hidden="true" style={{ color: '#D97706' }} />
                       Upcoming Deadlines
                     </h3>
-                    <div className="bd-demo-label">Illustrative Data</div>
                     <div>
-                      <div className="bd-deadline-item">
-                        <div
-                          className="bd-deadline-date"
-                          style={{ background: 'rgba(217, 119, 6, 0.08)', color: '#B45309' }}
-                        >
-                          <span className="bd-date-day">13</span>
-                          <span className="bd-date-month">Sep</span>
+                      {upcomingDeadlines.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--bd-text-muted)', fontSize: '0.75rem' }}>
+                          <Clock style={{ width: 22, height: 22, opacity: 0.3, margin: '0 auto 6px' }} />
+                          <p style={{ margin: 0 }}>No upcoming tender deadlines right now.</p>
                         </div>
-                        <div className="bd-deadline-info">
-                          <h4>DSC Verification — Railways Tender</h4>
-                          <p>Respond to Clause 4.2 clarification</p>
-                        </div>
-                      </div>
-                      <div className="bd-deadline-item">
-                        <div
-                          className="bd-deadline-date"
-                          style={{ background: 'rgba(37, 99, 235, 0.08)', color: '#1D4ED8' }}
-                        >
-                          <span className="bd-date-day">14</span>
-                          <span className="bd-date-month">Sep</span>
-                        </div>
-                        <div className="bd-deadline-info">
-                          <h4>Financial Bid Opening — MNRE Solar</h4>
-                          <p>Financial bid package finalization</p>
-                        </div>
-                      </div>
-                      <div className="bd-deadline-item">
-                        <div
-                          className="bd-deadline-date"
-                          style={{ background: 'rgba(5, 150, 105, 0.08)', color: '#047857' }}
-                        >
-                          <span className="bd-date-day">28</span>
-                          <span className="bd-date-month">Sep</span>
-                        </div>
-                        <div className="bd-deadline-info">
-                          <h4>MeitY AI Servers — Tender Closing</h4>
-                          <p>Last date for bid submission</p>
-                        </div>
-                      </div>
+                      ) : (
+                        upcomingDeadlines.map((item, idx) => (
+                          <div key={item.ref || idx} className="bd-deadline-item">
+                            <div
+                              className="bd-deadline-date"
+                              style={{ background: 'rgba(217, 119, 6, 0.08)', color: '#B45309' }}
+                            >
+                              <span className="bd-date-day">{item.day}</span>
+                              <span className="bd-date-month">{item.month}</span>
+                            </div>
+                            <div className="bd-deadline-info">
+                              <h4 style={{ display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                {item.title}
+                              </h4>
+                              <p>{item.sub}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
 
@@ -778,7 +1013,11 @@ const BidderDashboard = () => {
                           <CheckCircle2 aria-hidden="true" style={{ color: '#059669' }} />
                         </div>
                         <p className="bd-insight-text">
-                          <strong>All {documents.length} documents verified</strong> — no pending re-verification required.
+                          {documents.length > 0 ? (
+                            <><strong>{documents.length} document(s)</strong> stored in compliance vault.</>
+                          ) : (
+                            <><strong>No documents uploaded</strong> — upload statutory documents to verify compliance.</>
+                          )}
                         </p>
                       </div>
                       <div className="bd-insight-item">
@@ -786,7 +1025,7 @@ const BidderDashboard = () => {
                           <Calendar aria-hidden="true" style={{ color: '#2563EB' }} />
                         </div>
                         <p className="bd-insight-text">
-                          Next renewal: <strong>GST Certificate on 01 Mar 2027</strong>
+                          GST Status: <strong>{gstNumber !== '—' ? `Verified (${gstNumber})` : 'Not linked'}</strong>
                         </p>
                       </div>
                       <div className="bd-insight-item">
@@ -794,7 +1033,7 @@ const BidderDashboard = () => {
                           <Award aria-hidden="true" style={{ color: '#7C3AED' }} />
                         </div>
                         <p className="bd-insight-text">
-                          <strong>EMD exemption valid</strong> — MSME Udyam active until FY 2027-28.
+                          EMD Exemption: <strong>{isMseRegistered ? `Active (${udyamNumber !== '—' ? udyamNumber : 'MSME'})` : 'Not Registered'}</strong>
                         </p>
                       </div>
                       <div className="bd-insight-item">
@@ -802,7 +1041,7 @@ const BidderDashboard = () => {
                           <TrendingUp aria-hidden="true" style={{ color: '#059669' }} />
                         </div>
                         <p className="bd-insight-text">
-                          <strong>Local content: 68%</strong> — exceeds Class-I threshold (50%).
+                          PAN Status: <strong>{panNumber !== '—' ? `Verified (${panNumber})` : 'Not linked'}</strong>
                         </p>
                       </div>
                     </div>

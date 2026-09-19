@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Calendar,
@@ -32,62 +32,136 @@ import {
   HelpCircle,
   ArrowUpDown,
 } from 'lucide-react';
-import { recordAuditLog } from '../../services';
+import { recordAuditLog, tenderService } from '../../services';
 
-// --- MOCK TENDER COMPLIANCE DATA (Matching reference screenshot + realistic GeM records) ---
-// --- COMPLIANCE DATA (Dynamically populated from live tenders) ---
-const TREND_POINTS = [];
-const CATEGORY_DATA = [];
-const SCORE_DISTRIBUTION = [];
-const ROOT_CAUSES = [];
+// Dynamic helper to build compliance metrics from real tenders and submissions
+const buildComplianceList = (tenders = [], submissions = []) => {
+  if (!Array.isArray(tenders) || tenders.length === 0) return [];
+  return tenders.map((t, idx) => {
+    const tId = String(t.id || t.tenderId || t.referenceNo || idx + 1);
+    const tRef = t.tenderId || t.referenceNo || t.refNo || `GEM/TND/${tId}`;
+    const subs = (submissions || []).filter(
+      (s) => String(s.tenderId) === tId || s.tenderRef === tRef || String(s.tenderId) === String(t.tenderId)
+    );
+    const totalSubmissions = subs.length;
+    const compliant = subs.filter((s) => s.status === 'Compliant' || s.overallStatus === 'COMPLIANT' || s.score >= 70).length;
+    const nonCompliant = subs.filter((s) => s.status === 'Non-Compliant' || s.overallStatus === 'NON_COMPLIANT' || (s.score > 0 && s.score < 70)).length;
+    const underReview = subs.filter((s) => s.status === 'Pending' || s.status === 'Under Review' || !s.overallStatus).length;
+    const compliantPct = totalSubmissions > 0 ? Math.round((compliant / totalSubmissions) * 100) : (t.complianceScore || 0);
+    const nonCompliantPct = totalSubmissions > 0 ? Math.round((nonCompliant / totalSubmissions) * 100) : 0;
+    const underReviewPct = totalSubmissions > 0 ? Math.round((underReview / totalSubmissions) * 100) : 0;
+    const avgScore = totalSubmissions > 0
+      ? Math.round(subs.reduce((acc, s) => acc + (s.score || 0), 0) / totalSubmissions)
+      : (t.complianceScore || 0);
+    return {
+      id: t.id || idx + 1,
+      refNo: tRef,
+      title: t.title || t.tenderTitle || 'Untitled Tender',
+      org: t.organization || t.org || 'GeM Organization',
+      dept: t.department || t.dept || 'Procurement Division',
+      category: t.category || 'General Procurement',
+      stage: t.status || 'Active',
+      totalSubmissions,
+      compliant,
+      compliantPct,
+      nonCompliant,
+      nonCompliantPct,
+      underReview,
+      underReviewPct,
+      avgScore,
+    };
+  });
+};
+
+const getMergedLocalTenders = () => {
+  try {
+    const savedCreated = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
+    const savedOfficer = JSON.parse(localStorage.getItem('gem_officer_tenders') || '[]');
+    const merged = [...savedCreated];
+    const seen = new Set(merged.map((t) => String(t.id || t.tenderId || t.referenceNo)));
+    for (const t of savedOfficer) {
+      const k = String(t.id || t.tenderId || t.referenceNo);
+      if (!seen.has(k)) {
+        merged.push(t);
+        seen.add(k);
+      }
+    }
+    return merged;
+  } catch {
+    return [];
+  }
+};
 
 const Reports = () => {
   const location = useLocation();
   const isStandalone = location.pathname === '/reports';
 
   // Dynamic Tenders State loaded from real submissions & tenders
-  const [allTendersCompliance] = useState(() => {
+  const [allTendersCompliance, setAllTendersCompliance] = useState(() => {
     try {
-      const savedTenders = JSON.parse(localStorage.getItem('gem_officer_tenders') || '[]');
+      const merged = getMergedLocalTenders();
       const savedSubmissions = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
-      if (Array.isArray(savedTenders) && savedTenders.length > 0) {
-        return savedTenders.map((t, idx) => {
-          const subs = savedSubmissions.filter((s) => String(s.tenderId) === String(t.id) || s.tenderRef === t.tenderId);
-          const totalSubmissions = subs.length;
-          const compliant = subs.filter((s) => s.status === 'Compliant' || s.overallStatus === 'COMPLIANT' || s.score >= 70).length;
-          const nonCompliant = subs.filter((s) => s.status === 'Non-Compliant' || s.overallStatus === 'NON_COMPLIANT' || (s.score > 0 && s.score < 70)).length;
-          const underReview = subs.filter((s) => s.status === 'Pending' || s.status === 'Under Review' || !s.overallStatus).length;
-          const compliantPct = totalSubmissions > 0 ? Math.round((compliant / totalSubmissions) * 100) : 0;
-          const nonCompliantPct = totalSubmissions > 0 ? Math.round((nonCompliant / totalSubmissions) * 100) : 0;
-          const underReviewPct = totalSubmissions > 0 ? Math.round((underReview / totalSubmissions) * 100) : 0;
-          const avgScore = totalSubmissions > 0 ? Math.round(subs.reduce((acc, s) => acc + (s.score || 0), 0) / totalSubmissions) : 0;
-          return {
-            id: t.id || idx + 1,
-            refNo: t.tenderId || t.refNo || `GEM/TND/${t.id || idx + 1}`,
-            title: t.title || t.tenderTitle || 'Untitled Tender',
-            org: t.organization || t.org || 'GeM Organization',
-            dept: t.department || t.dept || 'Procurement Division',
-            category: t.category || 'General',
-            stage: t.status || 'Active',
-            totalSubmissions,
-            compliant,
-            compliantPct,
-            nonCompliant,
-            nonCompliantPct,
-            underReview,
-            underReviewPct,
-            avgScore,
-          };
-        });
-      }
+      return buildComplianceList(merged, savedSubmissions);
     } catch (e) {
       console.warn('Could not read real tenders for reports:', e);
+      return [];
     }
-    return [];
   });
 
+  // Fetch real tenders from backend /tenders and merge with local changes
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadLiveTenders = async () => {
+      try {
+        const liveTenders = await tenderService.getTenders();
+        if (isMounted && Array.isArray(liveTenders) && liveTenders.length > 0) {
+          const savedSubmissions = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
+          const merged = getMergedLocalTenders();
+          const seen = new Set(merged.map((t) => String(t.id || t.tenderId || t.referenceNo)));
+          for (const item of liveTenders) {
+            const k = String(item.id || item.tenderId || item.referenceNo);
+            if (!seen.has(k)) {
+              merged.push(item);
+              seen.add(k);
+            }
+          }
+          setAllTendersCompliance(buildComplianceList(merged, savedSubmissions));
+        }
+      } catch (err) {
+        console.warn('Backend tenders fetch notice:', err.message);
+      }
+    };
+
+    loadLiveTenders();
+
+    const handleStorageUpdate = () => {
+      if (!isMounted) return;
+      try {
+        const merged = getMergedLocalTenders();
+        const savedSubmissions = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
+        setAllTendersCompliance(buildComplianceList(merged, savedSubmissions));
+      } catch (e) {}
+    };
+
+    window.addEventListener('storage', handleStorageUpdate);
+    window.addEventListener('focus', handleStorageUpdate);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('storage', handleStorageUpdate);
+      window.removeEventListener('focus', handleStorageUpdate);
+    };
+  }, []);
+
   // Filters State
-  const [dateRange, setDateRange] = useState('01 May 2024 - 20 May 2024');
+  const [dateRange, setDateRange] = useState(() => {
+    const now = new Date();
+    const past = new Date();
+    past.setDate(now.getDate() - 30);
+    const fmt = (d) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    return `${fmt(past)} - ${fmt(now)}`;
+  });
   const [selectedDept, setSelectedDept] = useState('All Departments');
   const [selectedOrg, setSelectedOrg] = useState('All Organizations');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
@@ -196,6 +270,171 @@ const Reports = () => {
   const complianceRate = totalSubmissionsSum > 0 ? Math.round((compliantSum / totalSubmissionsSum) * 100) : 0;
   const nonComplianceRate = totalSubmissionsSum > 0 ? Math.round((nonCompliantSum / totalSubmissionsSum) * 100) : 0;
   const underReviewPct = totalSubmissionsSum > 0 ? Math.round((underReviewSum / totalSubmissionsSum) * 100) : 0;
+
+  const avgComplianceScoreOverall = useMemo(() => {
+    if (totalSubmissionsSum > 0) {
+      return Math.round((compliantSum / totalSubmissionsSum) * 100);
+    }
+    if (filteredTenders.length > 0) {
+      const sum = filteredTenders.reduce((acc, t) => acc + (t.avgScore || 0), 0);
+      return Math.round(sum / filteredTenders.length);
+    }
+    return 0;
+  }, [totalSubmissionsSum, compliantSum, filteredTenders]);
+
+  // 1. Dynamic Category Breakdown for Donut Chart
+  const categoryData = useMemo(() => {
+    const list = filteredTenders.length > 0 ? filteredTenders : allTendersCompliance;
+    if (!list || list.length === 0) return [];
+    const counts = {};
+    for (const t of list) {
+      const cat = t.category || 'General Procurement';
+      counts[cat] = (counts[cat] || 0) + 1;
+    }
+    const total = list.length;
+    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#6366F1'];
+    return Object.entries(counts).map(([name, count], idx) => ({
+      name,
+      count,
+      pct: Math.round((count / total) * 100),
+      color: colors[idx % colors.length],
+    }));
+  }, [filteredTenders, allTendersCompliance]);
+
+  // 2. Dynamic Compliance Trend Points for Interactive Curved Line Chart
+  const trendPoints = useMemo(() => {
+    const list = filteredTenders.length > 0 ? filteredTenders : allTendersCompliance;
+    if (!list || list.length === 0) return [];
+
+    const points = list.slice(0, 8).map((t, idx) => {
+      const rawRef = String(t.refNo || t.id || `T-${idx + 1}`);
+      const shortRef = rawRef.length > 8 ? rawRef.slice(-6) : rawRef;
+      const comp = t.totalSubmissions > 0 ? t.compliantPct : (t.avgScore || 0);
+      const nonComp = t.totalSubmissions > 0 ? t.nonCompliantPct : (comp > 0 ? Math.max(0, 100 - comp) : 0);
+      return {
+        date: shortRef,
+        comp: Math.min(100, Math.max(0, comp)),
+        nonComp: Math.min(100, Math.max(0, nonComp)),
+        label: t.title,
+      };
+    });
+
+    if (points.length === 1) {
+      return [
+        { date: 'Initial', comp: points[0].comp, nonComp: points[0].nonComp, label: `${points[0].label} (Baseline)` },
+        points[0],
+      ];
+    }
+    return points;
+  }, [filteredTenders, allTendersCompliance]);
+
+  // Dynamic live sparkline for KPI Card 1 (Overall Compliance)
+  const kpiSparklinePoints = useMemo(() => {
+    if (!trendPoints || trendPoints.length === 0) return '2,7 20,7 38,7';
+    const pts = trendPoints.slice(-5);
+    const min = Math.min(...pts.map((p) => p.comp));
+    const max = Math.max(...pts.map((p) => p.comp));
+    const range = max - min || 1;
+    return pts
+      .map((p, idx) => {
+        const x = 2 + (idx / Math.max(1, pts.length - 1)) * 36;
+        const y = 12 - ((p.comp - min) / range) * 9;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(' ');
+  }, [trendPoints]);
+
+  // Dynamic live sparkline for Average Compliance Score card
+  const avgScoreSparklinePoints = useMemo(() => {
+    if (!trendPoints || trendPoints.length === 0) return null;
+    const pts = trendPoints.slice(-6);
+    if (pts.length < 2) return null;
+    const min = Math.min(...pts.map((p) => p.comp));
+    const max = Math.max(...pts.map((p) => p.comp));
+    const range = max - min || 1;
+    const coords = pts.map((p, idx) => {
+      const x = 5 + (idx / (pts.length - 1)) * 90;
+      const y = 32 - ((p.comp - min) / range) * 24;
+      return { x, y, str: `${x.toFixed(1)},${y.toFixed(1)}` };
+    });
+    return {
+      pointsStr: coords.map((c) => c.str).join(' '),
+      lastX: coords[coords.length - 1].x,
+      lastY: coords[coords.length - 1].y,
+    };
+  }, [trendPoints]);
+
+  // 3. Dynamic Score Distribution for Side Panel Mini Donut
+  const scoreDistribution = useMemo(() => {
+    const list = filteredTenders.length > 0 ? filteredTenders : allTendersCompliance;
+    if (!list || list.length === 0) return [];
+    const brackets = [
+      { label: '90-100% (High)', count: 0, color: '#10B981' },
+      { label: '70-89% (Substantial)', count: 0, color: '#3B82F6' },
+      { label: '50-69% (Needs Review)', count: 0, color: '#F59E0B' },
+      { label: '< 50% (Non-compliant)', count: 0, color: '#EF4444' },
+    ];
+    let total = 0;
+    for (const t of list) {
+      const score = t.avgScore !== undefined && t.avgScore > 0 ? t.avgScore : (t.compliantPct || 0);
+      total += 1;
+      if (score >= 90) brackets[0].count += 1;
+      else if (score >= 70) brackets[1].count += 1;
+      else if (score >= 50) brackets[2].count += 1;
+      else brackets[3].count += 1;
+    }
+    return brackets.map((b) => ({
+      ...b,
+      pct: total > 0 ? Math.round((b.count / total) * 100) : 0,
+    }));
+  }, [filteredTenders, allTendersCompliance]);
+
+  // 4. Dynamic Root Causes from real non-compliant submissions
+  const rootCauses = useMemo(() => {
+    const causesMap = {};
+    let totalViolations = 0;
+
+    try {
+      const savedSubmissions = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
+      for (const sub of savedSubmissions) {
+        if (Array.isArray(sub.discrepancies) && sub.discrepancies.length > 0) {
+          for (const disc of sub.discrepancies) {
+            const reason = typeof disc === 'string' ? disc : (disc.clause || disc.title || disc.issue || 'Clause Discrepancy');
+            causesMap[reason] = (causesMap[reason] || 0) + 1;
+            totalViolations += 1;
+          }
+        } else if (sub.status === 'Non-Compliant' || sub.status === 'Minor Issues') {
+          const reason = sub.remarks || sub.reason || 'Technical Parameter Discrepancy';
+          causesMap[reason] = (causesMap[reason] || 0) + 1;
+          totalViolations += 1;
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading root causes:', e);
+    }
+
+    if (totalViolations === 0) {
+      for (const t of allTendersCompliance) {
+        if (t.nonCompliant > 0) {
+          const reason = 'Eligibility & Scrutiny Discrepancy';
+          causesMap[reason] = (causesMap[reason] || 0) + t.nonCompliant;
+          totalViolations += t.nonCompliant;
+        }
+      }
+    }
+
+    if (totalViolations === 0) return [];
+
+    return Object.entries(causesMap)
+      .map(([reason, count]) => ({
+        reason,
+        desc: 'Identified by AI automated compliance scrutiny',
+        count,
+        pct: Math.round((count / totalViolations) * 100),
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [allTendersCompliance]);
 
   // Working CSV Download
   const handleExportReport = () => {
@@ -339,7 +578,7 @@ const Reports = () => {
                 <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Live platform status</p>
                 <div className="w-10 h-3 shrink-0">
                   <svg viewBox="0 0 40 14" className="w-full h-full overflow-visible">
-                    <polyline fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points="2,12 12,10 22,11 30,5 38,2" />
+                    <polyline fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={kpiSparklinePoints} />
                   </svg>
                 </div>
               </div>
@@ -647,9 +886,20 @@ const Reports = () => {
                 </div>
 
                 {/* Interactive SVG Trend Chart with Exact Curved Path */}
-                {TREND_POINTS.length > 1 ? (
+                {trendPoints.length > 0 ? (
                   <div className="relative w-full h-[200px]">
                     <svg viewBox="0 0 520 185" className="w-full h-full overflow-visible">
+                      <defs>
+                        <linearGradient id="compAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.25" />
+                          <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.0" />
+                        </linearGradient>
+                        <linearGradient id="nonCompAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#EF4444" stopOpacity="0.15" />
+                          <stop offset="100%" stopColor="#EF4444" stopOpacity="0.0" />
+                        </linearGradient>
+                      </defs>
+
                       {/* Horizontal Grid lines */}
                       {[0, 25, 50, 75, 100].map((val) => {
                         const y = 150 - (val / 100) * 125;
@@ -688,9 +938,57 @@ const Reports = () => {
                         Percentage (%)
                       </text>
 
+                      {/* Connecting Paths: Area & Stroke */}
+                      {trendPoints.length > 1 && (
+                        <>
+                          {/* Compliance Area Fill */}
+                          <path
+                            d={`M 50 ${150 - (trendPoints[0].comp / 100) * 125} ${trendPoints
+                              .map((pt, i) => {
+                                const x = 50 + i * (430 / (trendPoints.length - 1));
+                                const y = 150 - (pt.comp / 100) * 125;
+                                return `L ${x} ${y}`;
+                              })
+                              .join(' ')} L 480 150 L 50 150 Z`}
+                            fill="url(#compAreaGradient)"
+                          />
+                          {/* Compliance Line */}
+                          <path
+                            d={`M 50 ${150 - (trendPoints[0].comp / 100) * 125} ${trendPoints
+                              .map((pt, i) => {
+                                const x = 50 + i * (430 / (trendPoints.length - 1));
+                                const y = 150 - (pt.comp / 100) * 125;
+                                return `L ${x} ${y}`;
+                              })
+                              .join(' ')}`}
+                            fill="none"
+                            stroke="#3B82F6"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          {/* Non-compliance Line */}
+                          <path
+                            d={`M 50 ${150 - (trendPoints[0].nonComp / 100) * 125} ${trendPoints
+                              .map((pt, i) => {
+                                const x = 50 + i * (430 / (trendPoints.length - 1));
+                                const y = 150 - (pt.nonComp / 100) * 125;
+                                return `L ${x} ${y}`;
+                              })
+                              .join(' ')}`}
+                            fill="none"
+                            stroke="#EF4444"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeDasharray="4 2"
+                          />
+                        </>
+                      )}
+
                       {/* Interactive Points and Labels */}
-                      {TREND_POINTS.map((pt, i) => {
-                        const x = 50 + i * (430 / (TREND_POINTS.length - 1));
+                      {trendPoints.map((pt, i) => {
+                        const x = 50 + i * (430 / Math.max(1, trendPoints.length - 1));
                         const yComp = 150 - (pt.comp / 100) * 125;
                         const yNonComp = 150 - (pt.nonComp / 100) * 125;
 
@@ -784,13 +1082,13 @@ const Reports = () => {
                   Compliance by Category
                 </h3>
 
-                {CATEGORY_DATA.length > 0 ? (
+                {categoryData.length > 0 ? (
                   <div className="flex flex-col sm:flex-row items-center justify-around gap-4 pt-1">
                     {/* Donut Chart SVG */}
                     <div className="relative w-36 h-36 flex items-center justify-center shrink-0">
                       <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                         <circle cx="50" cy="50" r="38" stroke="currentColor" strokeWidth="15" fill="none" className="text-slate-100 dark:text-slate-800" />
-                        {CATEGORY_DATA.map((cat, idx) => (
+                        {categoryData.map((cat, idx) => (
                           <circle
                             key={idx}
                             cx="50"
@@ -799,7 +1097,7 @@ const Reports = () => {
                             stroke={cat.color}
                             strokeWidth="15"
                             strokeDasharray={`${(cat.pct / 100) * 238.76} 238.76`}
-                            strokeDashoffset={`-${CATEGORY_DATA.slice(0, idx).reduce((acc, c) => acc + (c.pct / 100) * 238.76, 0)}`}
+                            strokeDashoffset={`-${categoryData.slice(0, idx).reduce((acc, c) => acc + (c.pct / 100) * 238.76, 0)}`}
                             fill="none"
                           />
                         ))}
@@ -808,17 +1106,17 @@ const Reports = () => {
                       {/* Center text */}
                       <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
                         <span className="text-xl font-black text-slate-900 dark:text-white leading-none">
-                          {totalSubmissionsSum}
+                          {totalSubmissionsSum > 0 ? totalSubmissionsSum : categoryData.reduce((acc, c) => acc + c.count, 0)}
                         </span>
                         <span className="text-[10px] font-semibold text-slate-400 mt-0.5">
-                          Total
+                          {totalSubmissionsSum > 0 ? 'Submissions' : 'Tenders'}
                         </span>
                       </div>
                     </div>
 
                     {/* Legend List */}
                     <div className="space-y-2 flex-1 text-[11px] font-semibold w-full">
-                      {CATEGORY_DATA.map((cat, idx) => (
+                      {categoryData.map((cat, idx) => (
                         <div key={idx} className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5 truncate">
                             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
@@ -1118,13 +1416,13 @@ const Reports = () => {
               Score Distribution
             </h4>
 
-            {SCORE_DISTRIBUTION.length > 0 ? (
+            {scoreDistribution.length > 0 ? (
               <div className="flex items-start gap-3">
                 {/* Mini Donut Chart */}
                 <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
                   <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r="38" stroke="currentColor" strokeWidth="16" fill="none" className="text-slate-100 dark:text-slate-800" />
-                    {SCORE_DISTRIBUTION.map((item, idx) => (
+                    {scoreDistribution.map((item, idx) => (
                       <circle
                         key={idx}
                         cx="50"
@@ -1133,7 +1431,7 @@ const Reports = () => {
                         stroke={item.color}
                         strokeWidth="16"
                         strokeDasharray={`${(item.pct / 100) * 238.76} 238.76`}
-                        strokeDashoffset={`-${SCORE_DISTRIBUTION.slice(0, idx).reduce((acc, it) => acc + (it.pct / 100) * 238.76, 0)}`}
+                        strokeDashoffset={`-${scoreDistribution.slice(0, idx).reduce((acc, it) => acc + (it.pct / 100) * 238.76, 0)}`}
                         fill="none"
                       />
                     ))}
@@ -1142,7 +1440,7 @@ const Reports = () => {
 
                 {/* Distribution Legend */}
                 <div className="space-y-1.5 flex-1 min-w-0 text-[10.5px] font-semibold">
-                  {SCORE_DISTRIBUTION.map((item, i) => (
+                  {scoreDistribution.map((item, i) => (
                     <div key={i} className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
@@ -1170,15 +1468,15 @@ const Reports = () => {
                   Average Compliance Score
                 </p>
                 <h3 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight mt-1">
-                  {complianceRate}%
+                  {avgComplianceScoreOverall}%
                 </h3>
                 <p className="text-[11px] font-bold text-slate-400 mt-1 flex items-center gap-1">
                   <span>{totalSubmissionsSum > 0 ? `Based on ${totalSubmissionsSum} submissions` : 'Live evaluated average'}</span>
                 </p>
               </div>
 
-              {/* Sparkline curve */}
-              {totalSubmissionsSum > 0 && (
+              {/* Dynamic Sparkline curve */}
+              {avgScoreSparklinePoints && (
                 <div className="w-24 h-10">
                   <svg viewBox="0 0 100 40" className="w-full h-full overflow-visible">
                     <polyline
@@ -1187,9 +1485,9 @@ const Reports = () => {
                       strokeWidth="2.5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      points="5,32 20,28 40,30 60,20 80,18 95,8"
+                      points={avgScoreSparklinePoints.pointsStr}
                     />
-                    <circle cx="95" cy="8" r="3.5" fill="#10B981" stroke="#ffffff" strokeWidth="1.5" />
+                    <circle cx={avgScoreSparklinePoints.lastX} cy={avgScoreSparklinePoints.lastY} r="3.5" fill="#10B981" stroke="#ffffff" strokeWidth="1.5" />
                   </svg>
                 </div>
               )}
@@ -1202,9 +1500,9 @@ const Reports = () => {
               Top Non-compliance Reasons
             </h4>
 
-            {ROOT_CAUSES.length > 0 ? (
+            {rootCauses.length > 0 ? (
               <div className="space-y-2 text-[10.5px] font-semibold">
-                {ROOT_CAUSES.map((item, idx) => (
+                {rootCauses.map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between gap-2 py-0.5">
                     <span className="text-slate-700 dark:text-slate-300 truncate font-medium min-w-0">
                       {item.reason}
@@ -1442,8 +1740,8 @@ const Reports = () => {
               </button>
             </div>
             <div className="space-y-3 text-xs">
-              {ROOT_CAUSES.length > 0 ? (
-                ROOT_CAUSES.map((rc, i) => (
+              {rootCauses.length > 0 ? (
+                rootCauses.map((rc, i) => (
                   <div key={i} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-between">
                     <div>
                       <p className="font-bold text-slate-900 dark:text-white">{rc.reason}</p>
