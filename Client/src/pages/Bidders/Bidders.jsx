@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Filter, ShieldCheck, Building2, Users, CheckCircle2, RefreshCw, Award, CreditCard } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Search, Building2, CheckCircle2, RefreshCw, Award, CreditCard } from 'lucide-react';
 import BidderCard from '../../components/bidder/BidderCard';
-import { bidderService, DEFAULT_BIDDERS } from '../../services/bidderService';
+import { bidderService } from '../../services/bidderService';
 
 const Bidders = () => {
-  const [bidders, setBidders] = useState(DEFAULT_BIDDERS);
+  const [bidders, setBidders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -89,7 +89,7 @@ const Bidders = () => {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Sync Live API</span>
+            <span>Sync Vendor Records</span>
           </button>
 
           <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-bold">
@@ -213,7 +213,7 @@ const Bidders = () => {
       {isLoading ? (
         <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent" />
-          <p className="text-xs text-slate-500">Loading registered vendors from API...</p>
+          <p className="text-xs text-slate-500">Loading registered vendors...</p>
         </div>
       ) : filteredBidders.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

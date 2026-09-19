@@ -106,13 +106,13 @@ const DocumentUploader = ({ onUpload, acceptedFormats = '.pdf,.docx,.zip' }) => 
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
         onDrop={handleDrop}
-        className={`p-5 sm:p-6 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center transition-all ${
+        className={`p-5 sm:p-6 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-center transition-all ${
           dragActive
             ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-950/40 scale-[1.005]'
             : 'border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 hover:border-blue-400 dark:hover:border-blue-500'
         }`}
       >
-        <div className="w-11 h-11 rounded-2xl bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-2.5 shadow-2xs">
+        <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-2.5 shadow-2xs">
           <UploadCloud className="w-6 h-6" />
         </div>
 
@@ -126,7 +126,7 @@ const DocumentUploader = ({ onUpload, acceptedFormats = '.pdf,.docx,.zip' }) => 
           </label>
         </p>
 
-        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Select multiple files simultaneously &bull; Supported: PDF, DOCX, ZIP (Up to 50MB each)
         </p>
       </div>
@@ -141,7 +141,7 @@ const DocumentUploader = ({ onUpload, acceptedFormats = '.pdf,.docx,.zip' }) => 
               <span className="font-bold text-slate-800 dark:text-slate-200">
                 {files.length} {files.length === 1 ? 'Document' : 'Documents'} Attached
               </span>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 ({formatFileSize(totalSize)})
               </span>
             </div>

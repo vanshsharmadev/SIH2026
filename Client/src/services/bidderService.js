@@ -16,64 +16,7 @@ import api from './api';
  * - updatedAt: ISO timestamp
  */
 
-export const DEFAULT_BIDDERS = [
-  {
-    id: 1,
-    legalName: "Arnav Tyagi",
-    panNumber: "ARNAV9012H",
-    gstNumber: "09ARNAV9012H3Z7",
-    udyamNumber: "UDYAM-UP-01-0012345",
-    registrationNumber: "REG-2026-UP-8819",
-    email: "arnav24169006@gmail.com",
-    phone: "9876500103",
-    address: "Ghaziabad, UP",
-    profileMetadata: "MSME Class-I Registered Supplier",
-    createdAt: "2026-09-06T14:35:00",
-    updatedAt: "2026-09-06T14:35:00"
-  },
-  {
-    id: 2,
-    legalName: "Bharat Electronics Limited (BEL)",
-    panNumber: "AAACB2188G",
-    gstNumber: "07AAACB2188G1ZQ",
-    udyamNumber: "UDYAM-KR-03-0044192",
-    registrationNumber: "CIN-L32309KA1954GOI000787",
-    email: "procurement@bel.co.in",
-    phone: "080-25039300",
-    address: "Outer Ring Road, Bengaluru, Karnataka",
-    profileMetadata: "Aerospace and Defense Electronics PSU",
-    createdAt: "2026-08-15T10:20:00",
-    updatedAt: "2026-09-01T12:00:00"
-  },
-  {
-    id: 3,
-    legalName: "OmniGrid Solar Technologies Pvt Ltd",
-    panNumber: "AABCO9921K",
-    gstNumber: "08AABCO9921K1ZF",
-    udyamNumber: "UDYAM-RJ-06-0087612",
-    registrationNumber: "CIN-U40106RJ2018PTC062145",
-    email: "contact@omnigrid.in",
-    phone: "9414012345",
-    address: "Sitapura Industrial Area, Jaipur, Rajasthan",
-    profileMetadata: "Renewable Energy Class-I Vendor",
-    createdAt: "2026-08-20T11:45:00",
-    updatedAt: "2026-09-03T16:15:00"
-  },
-  {
-    id: 4,
-    legalName: "MedTech Diagnostics India LLP",
-    panNumber: "AAKFM4512E",
-    gstNumber: "24AAKFM4512E1Z8",
-    udyamNumber: "UDYAM-GJ-01-0023419",
-    registrationNumber: "LLPIN-AAB-4512",
-    email: "info@medtechindia.com",
-    phone: "9825098765",
-    address: "GIDC Electronics Zone, Gandhinagar, Gujarat",
-    profileMetadata: "Medical Equipment Manufacturer",
-    createdAt: "2026-08-25T09:30:00",
-    updatedAt: "2026-09-04T14:20:00"
-  }
-];
+export const DEFAULT_BIDDERS = [];
 
 export const normalizeBidder = (raw) => {
   if (!raw) return null;
@@ -132,7 +75,7 @@ export const bidderService = {
     if (list && list.length > 0) {
       return list.map(normalizeBidder);
     }
-    return DEFAULT_BIDDERS.map(normalizeBidder);
+    return [];
   },
 
   /**
@@ -147,8 +90,7 @@ export const bidderService = {
         const fallbackRes = await api.get(`/bidders/${id}`);
         return normalizeBidder(fallbackRes?.data || fallbackRes);
       } catch {
-        const found = DEFAULT_BIDDERS.find((b) => String(b.id) === String(id));
-        return found ? normalizeBidder(found) : null;
+        return null;
       }
     }
   },

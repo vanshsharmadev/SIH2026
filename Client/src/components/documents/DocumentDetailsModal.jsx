@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   X,
   ExternalLink,
@@ -8,11 +8,7 @@ import {
   Copy,
   Check,
   AlertTriangle,
-  QrCode,
   Lock,
-  Download,
-  Calendar,
-  Layers,
   Sparkles,
   RefreshCw,
 } from 'lucide-react';
@@ -25,19 +21,22 @@ const DocumentDetailsModal = ({ docId, initialDoc, onClose, onDeleteSuccess }) =
   const [copiedOcr, setCopiedOcr] = useState(false);
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'ocr' | 'forensics'
   const [error, setError] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   useEffect(() => {
+    let isMounted = true;
     if (docId) {
-      setLoading(true);
-      setError(null);
       documentService
         .getDocument(docId)
         .then((res) => {
+          if (!isMounted) return;
           const fetched = res?.data || res;
           setDoc(fetched);
           setLoading(false);
         })
         .catch((err) => {
+          if (!isMounted) return;
           console.error('Failed to fetch document details:', err);
           // If we had initialDoc, keep it; otherwise show error
           if (!initialDoc) {
@@ -46,14 +45,35 @@ const DocumentDetailsModal = ({ docId, initialDoc, onClose, onDeleteSuccess }) =
           setLoading(false);
         });
     }
-  }, [docId]);
+    return () => {
+      isMounted = false;
+    };
+  }, [docId, initialDoc]);
 
-  const handleDelete = async () => {
-    if (!window.confirm(`Are you sure you want to delete "${doc?.fileName || 'this document'}" from Cloudinary and database?`)) {
-      return;
-    }
+  // Escape key listener
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (showDeleteConfirm) {
+          setShowDeleteConfirm(false);
+          setDeleteError(null);
+        } else if (!deleting) {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showDeleteConfirm, deleting, onClose]);
 
+  const handleDeleteClick = () => {
+    setDeleteError(null);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = async () => {
     setDeleting(true);
+    setDeleteError(null);
     try {
       const targetId = doc?.id || docId;
       await documentService.deleteDocument(targetId);
@@ -63,7 +83,7 @@ const DocumentDetailsModal = ({ docId, initialDoc, onClose, onDeleteSuccess }) =
       onClose();
     } catch (err) {
       console.error('Delete failed:', err);
-      alert(err.message || 'Failed to delete document');
+      setDeleteError(err.message || 'Failed to delete document from server. Please retry.');
       setDeleting(false);
     }
   };
@@ -88,8 +108,19 @@ const DocumentDetailsModal = ({ docId, initialDoc, onClose, onDeleteSuccess }) =
     doc?.fileName?.match(/\.(jpeg|jpg|png|webp)/i);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative w-full max-w-3xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="document-details-title"
+      onClick={() => {
+        if (!deleting) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-3xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden"
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-800/60">
           <div className="flex items-center gap-3 min-w-0 pr-4">
@@ -98,7 +129,7 @@ const DocumentDetailsModal = ({ docId, initialDoc, onClose, onDeleteSuccess }) =
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">
+                <h3 id="document-details-title" className="text-base font-bold text-slate-900 dark:text-white truncate">
                   {doc?.fileName || `Document #${docId}`}
                 </h3>
                 {doc?.id && (
@@ -116,10 +147,10 @@ const DocumentDetailsModal = ({ docId, initialDoc, onClose, onDeleteSuccess }) =
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={handleDelete}
+              onClick={handleDeleteClick}
               disabled={deleting}
               className="p-2 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-rose-200 dark:border-rose-900/50 transition cursor-pointer"
-              title="Delete document from Cloudinary & Database"
+              title="Delete document"
             >
               {deleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
             </button>
@@ -132,6 +163,64 @@ const DocumentDetailsModal = ({ docId, initialDoc, onClose, onDeleteSuccess }) =
             </button>
           </div>
         </div>
+
+        {/* Inline Accessible Delete Confirmation Card */}
+        {showDeleteConfirm && (
+          <div
+            role="alertdialog"
+            aria-labelledby="delete-confirm-title"
+            aria-describedby="delete-confirm-desc"
+            className="p-4 bg-rose-50 dark:bg-rose-950/40 border-b border-rose-200 dark:border-rose-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-150"
+          >
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <h4 id="delete-confirm-title" className="text-xs font-bold text-rose-900 dark:text-rose-200">
+                  Confirm Permanent Deletion
+                </h4>
+                <p id="delete-confirm-desc" className="text-[11px] text-rose-700 dark:text-rose-300 mt-0.5">
+                  Permanently remove <span className="font-semibold">{doc?.fileName || 'this document'}</span> from the compliance database?
+                </p>
+                {deleteError && (
+                  <p className="text-[11px] font-bold text-rose-800 dark:text-rose-200 mt-1">
+                    Error: {deleteError}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteError(null);
+                }}
+                disabled={deleting}
+                className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+                className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {deleting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Confirm Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Tab Navigation */}
         <div className="px-6 border-b border-slate-200 dark:border-slate-800 flex items-center gap-4 text-xs font-bold select-none">
@@ -223,20 +312,20 @@ const DocumentDetailsModal = ({ docId, initialDoc, onClose, onDeleteSuccess }) =
                       </span>
                       <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
                         <Lock className="w-3.5 h-3.5" />
-                        <span>pyHanko Verified</span>
+                        <span>Cryptographically Verified</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Cloudinary CDN Link Banner */}
+                  {/* Verified Document Record */}
                   {doc?.fileUrl && (
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50">
                       <div className="min-w-0 pr-2">
                         <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                          Cloudinary CDN Storage URL
+                          Verified Document Record
                         </span>
-                        <p className="text-xs font-mono text-slate-700 dark:text-slate-300 truncate mt-0.5">
-                          {doc.fileUrl}
+                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate mt-0.5">
+                          {doc.fileName || 'Verified Document'}
                         </p>
                       </div>
                       <a
@@ -268,7 +357,7 @@ const DocumentDetailsModal = ({ docId, initialDoc, onClose, onDeleteSuccess }) =
                           {doc.fileName || 'PDF Document'}
                         </p>
                         <p className="text-xs text-slate-400 mt-1 max-w-sm">
-                          Preview available via Cloudinary CDN or downloaded directly.
+                          Preview available in document viewer.
                         </p>
                         <a
                           href={doc.fileUrl}
@@ -277,13 +366,13 @@ const DocumentDetailsModal = ({ docId, initialDoc, onClose, onDeleteSuccess }) =
                           className="mt-3.5 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold hover:opacity-90 transition cursor-pointer"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
-                          <span>View PDF in Cloudinary Viewer</span>
+                          <span>Open Document in Viewer</span>
                         </a>
                       </div>
                     ) : (
                       <div className="text-center py-8 text-slate-400">
                         <FileText className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                        <p className="text-xs">Document stored securely in Cloudinary CDN</p>
+                        <p className="text-xs">Document stored securely in compliance repository</p>
                       </div>
                     )}
                   </div>
@@ -299,7 +388,7 @@ const DocumentDetailsModal = ({ docId, initialDoc, onClose, onDeleteSuccess }) =
                         AI Optical Character Recognition (OCR) Transcript
                       </h4>
                       <p className="text-[11px] text-slate-400">
-                        Extracted via Tesseract / EasyOCR pipeline with clause segmentation
+                        Extracted via automated optical text recognition with clause segmentation
                       </p>
                     </div>
 
@@ -354,13 +443,13 @@ Active in GST registry, regular returns filed up to recent tax period.`}
                       <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
                         <span className="text-[10px] text-slate-400 font-bold uppercase">Digital Signature</span>
                         <p className="font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
-                          pyHanko Class 3 Valid
+                          Class 3 DSC Valid
                         </p>
                       </div>
                       <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
                         <span className="text-[10px] text-slate-400 font-bold uppercase">QR Code Integrity</span>
                         <p className="font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
-                          pyzbar Match 100%
+                          Verified &amp; Intact (100%)
                         </p>
                       </div>
                       <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
@@ -372,7 +461,7 @@ Active in GST registry, regular returns filed up to recent tax period.`}
                       <div className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
                         <span className="text-[10px] text-slate-400 font-bold uppercase">Live Tax Portal Cross-Check</span>
                         <p className="font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
-                          Active & Verified
+                          Active &amp; Verified
                         </p>
                       </div>
                     </div>
@@ -386,7 +475,7 @@ Active in GST registry, regular returns filed up to recent tax period.`}
         {/* Footer */}
         <div className="px-6 py-3.5 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <span className="text-[11px] text-slate-400">
-            Cloudinary &bull; GeM ML Forensic Engine v2.0.0
+            GeM Secure Document Verification Engine
           </span>
           <button
             type="button"

@@ -228,14 +228,34 @@ html.dark .bidder-dashboard,
   padding: var(--bd-space-6);
   display: flex;
   gap: var(--bd-space-6);
+  align-items: flex-start;
+  position: relative;
 }
 
 .bd-sidebar {
   width: var(--bd-sidebar-width);
   flex-shrink: 0;
+  position: -webkit-sticky;
   position: sticky;
-  top: var(--bd-space-6);
+  top: calc(var(--navbar-height, 88px) + 20px);
   align-self: flex-start;
+  z-index: 25;
+  max-height: calc(100vh - var(--navbar-height, 88px) - 32px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.bd-sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.bd-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.bd-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 4px;
 }
 
 .bd-sidebar-nav {
@@ -1287,7 +1307,7 @@ html.dark .bd-precheck-result--pass {
 }
 
 /* ── Responsive: Tablets ─────────────────────────────────── */
-@media (max-width: 1279px) {
+@media (max-width: 1023px) {
   .bd-sidebar {
     display: none;
   }
@@ -1303,9 +1323,7 @@ html.dark .bd-precheck-result--pass {
   .bd-layout {
     padding: var(--bd-space-4);
   }
-}
 
-@media (max-width: 1023px) {
   .bd-summary-grid {
     grid-template-columns: repeat(2, 1fr);
   }

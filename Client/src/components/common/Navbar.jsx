@@ -5,6 +5,7 @@ import { useLanguage, useTheme, useAuth } from '../../context';
 import { isOfficerUser, getUserDisplayName } from '../../utils/roleUtils';
 import ScreenReaderModal from './ScreenReaderModal';
 import NationalEmblem from './NationalEmblem';
+import logoGemVariant from '../../assets/logo_gem_variant.png';
 
 const Navbar = ({ fontScale, setFontScale }) => {
   const location = useLocation();
@@ -269,16 +270,17 @@ const Navbar = ({ fontScale, setFontScale }) => {
         <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-4">
           {/* Left: National Emblem + GeM Compliflix Brand */}
           <Link to="/" className="flex items-center gap-2.5 sm:gap-3 group shrink-0">
-            <NationalEmblem
-              className="h-9 sm:h-10 w-auto"
-              style={{ maxHeight: '40px', width: 'auto' }}
+            <img
+              src={logoGemVariant}
+              alt="GeM Compliflix"
+              className="h-9 sm:h-10 w-auto object-contain shrink-0 group-hover:scale-105 transition-transform"
             />
             <div className="flex flex-col leading-none">
               <div className="flex items-center text-xl sm:text-[22px] font-black tracking-tight">
                 <span className="text-[#0A2540] dark:text-white">GeM</span>
                 <span className="text-[#0E9F6E] ml-1">Compliflix</span>
               </div>
-              <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
                 Compliant Procurement. Stronger India.
               </span>
             </div>

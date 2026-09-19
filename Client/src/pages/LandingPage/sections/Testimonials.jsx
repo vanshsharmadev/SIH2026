@@ -78,7 +78,7 @@ const Testimonials = () => {
                       <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
                     ))}
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 text-[10px] font-bold border border-blue-200 dark:border-blue-800">
+                  <span className="px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 text-xs font-semibold border border-blue-200 dark:border-blue-800">
                     {t.metricTag}
                   </span>
                 </div>
@@ -86,7 +86,7 @@ const Testimonials = () => {
                 {/* Quote Text */}
                 <div className="relative mb-6">
                   <Quote className="w-8 h-8 text-slate-200 dark:text-[#282828] absolute -top-2 -left-1 pointer-events-none -z-0" />
-                  <p className="text-xs sm:text-[13px] text-slate-700 dark:text-slate-300 leading-relaxed font-medium relative z-10">
+                  <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium relative z-10">
                     &ldquo;{t.quote}&rdquo;
                   </p>
                 </div>
@@ -101,15 +101,15 @@ const Testimonials = () => {
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">
                       {t.name}
-                    </h4>
+                    </h3>
                     <ShieldCheck className="w-3.5 h-3.5 text-blue-600 dark:text-[#4da3ff] shrink-0" />
                   </div>
                   <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 truncate">
                     {t.role}
                   </p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-500 truncate">
+                  <p className="text-xs text-slate-500 dark:text-slate-500 truncate">
                     {t.organization}
                   </p>
                 </div>
