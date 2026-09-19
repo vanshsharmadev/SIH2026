@@ -127,6 +127,44 @@ public class OfficerTenderController {
         );
     }
 
+    /**
+     * Retrieve Top 10 Bidders evaluated for a specific tender (GET /api/officer/tenders/{id}/top-bidders).
+     */
+    @GetMapping("/{id}/top-bidders")
+    public ResponseEntity<OfficerApiResponse<com.example.Tender.officer.dto.ml.TopBiddersResponse>> getTopBiddersForTender(
+            @PathVariable("id") Long id,
+            @RequestParam(value = "limit", defaultValue = "10") int limit) {
+
+        com.example.Tender.officer.dto.ml.TopBiddersResponse response = tenderDocumentService.getTopBiddersForTender(id, limit);
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("Top " + response.getTopBidders().size() + " bidders for tender retrieved successfully", response)
+        );
+    }
+
+    /**
+     * Alias endpoint to retrieve Top 10 Bidders for a specific tender (GET /api/officer/tenders/{id}/top-10).
+     */
+    @GetMapping("/{id}/top-10")
+    public ResponseEntity<OfficerApiResponse<com.example.Tender.officer.dto.ml.TopBiddersResponse>> getTop10ForTender(
+            @PathVariable("id") Long id,
+            @RequestParam(value = "limit", defaultValue = "10") int limit) {
+
+        return getTopBiddersForTender(id, limit);
+    }
+
+    /**
+     * Retrieve Top 10 Active/Recent Tenders on the platform (GET /api/officer/tenders/top-10).
+     */
+    @GetMapping("/top-10")
+    public ResponseEntity<OfficerApiResponse<List<TenderUploadResponse>>> getTop10Tenders(
+            @RequestParam(value = "limit", defaultValue = "10") int limit) {
+
+        List<TenderUploadResponse> tenders = tenderDocumentService.getTopTenders(limit);
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("Top " + tenders.size() + " tenders retrieved successfully", tenders)
+        );
+    }
+
     // ==========================================
     // 2. Node AI RAG Chatbot & Embeddings Endpoints
     // ==========================================
