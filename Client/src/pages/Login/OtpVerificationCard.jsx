@@ -15,6 +15,10 @@ import TricolorBar from '../../components/common/TricolorBar';
 import { authService } from '../../services';
 import { isCustomBackendConfigured } from '../../services/api';
 
+// ===========================================================================
+// FEATURE: OTP Verification & Registration Session Recovery
+// Validates 6-digit identity OTP and provides direct recovery routes if temporary session expires
+// ===========================================================================
 const OtpVerificationCard = ({
   email,
   role = 'officer',
@@ -341,10 +345,30 @@ const OtpVerificationCard = ({
             </div>
           </div>
 
-          {/* Error Alert Message */}
+          {/* Error Alert Message with Session Recovery Actions */}
           {errorMsg && (
-            <div className="p-2.5 rounded-md text-xs font-medium bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-900/60 text-center animate-in fade-in duration-150">
-              {errorMsg}
+            <div className="p-3 rounded-lg text-xs font-medium bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-900/60 text-center animate-in fade-in duration-150 space-y-2">
+              <p>{errorMsg}</p>
+              {(errorMsg.toLowerCase().includes('expired') ||
+                errorMsg.toLowerCase().includes('restart signup') ||
+                errorMsg.toLowerCase().includes('no pending')) && (
+                <div className="flex items-center justify-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/signup')}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[11px] font-semibold transition shadow-xs cursor-pointer"
+                  >
+                    Restart Signup
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/login')}
+                    className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white rounded-md text-[11px] font-semibold transition cursor-pointer"
+                  >
+                    Sign In with Password
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

@@ -189,11 +189,11 @@ const HeroSection = () => {
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span>GeM Ecosystem AI Compliance Engine</span>
                 <span className="text-slate-300 dark:text-slate-600">|</span>
-                <span className="text-[11px] text-blue-600 dark:text-blue-400 font-mono">GFR 2017 &bull; SIH 2026</span>
+                <span className="text-xs font-medium text-blue-700 dark:text-blue-300">GFR 2017 &bull; SIH 2026</span>
               </div>
 
               {/* Catchy Commanding Headline */}
-              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-[46px] font-black tracking-tight leading-[1.12] text-[#0A2540] dark:text-white mb-4">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.15] text-[#0A2540] dark:text-white mb-4">
                 Smarter Procurement.<br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#073567] via-[#0284c7] to-[#059669] dark:from-[#4da3ff] dark:via-[#38bdf8] dark:to-[#38d39f]">
                   Zero Disqualification.
@@ -244,15 +244,15 @@ const HeroSection = () => {
 
             {/* Right Column: Live Interactive AI Compliance Scanner Preview Card */}
             <div className="lg:col-span-5">
-              <div className="bg-white dark:bg-[#181818] rounded-2xl border border-slate-200/90 dark:border-[#343434] shadow-xl overflow-hidden">
+              <div className="bg-white dark:bg-[#181818] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-md overflow-hidden">
                 
-                {/* Scanner Widget Header */}
-                <div className="bg-[#073567] dark:bg-[#141414] px-4 py-3 text-white flex items-center justify-between border-b border-blue-900 dark:border-[#282828]">
+                {/* Scanner Widget Header - Balanced contrast */}
+                <div className="bg-slate-50 dark:bg-slate-900 px-4 py-2.5 text-slate-800 dark:text-slate-200 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                    <span className="text-xs font-bold tracking-wide uppercase">Interactive AI Scanner</span>
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="text-xs font-semibold tracking-wide text-slate-700 dark:text-slate-300">Live AI Compliance Preview</span>
                   </div>
-                  <span className="text-[11px] font-mono text-blue-200 dark:text-slate-400">Live Simulation</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">Interactive</span>
                 </div>
 
                 {/* Sample Tender Selector Tabs */}
@@ -278,13 +278,13 @@ const HeroSection = () => {
                   {/* Tender Meta */}
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div>
-                      <span className="text-[11px] font-mono text-blue-600 dark:text-blue-400 font-bold">{sample.ref}</span>
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-tight mt-0.5">{sample.title}</h4>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">{sample.dept}</p>
+                      <span className="text-xs font-mono text-blue-600 dark:text-blue-400 font-bold">{sample.ref}</span>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight mt-0.5" role="heading" aria-level="2">{sample.title}</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">{sample.dept}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 leading-none">{sample.score}%</div>
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Readiness</span>
+                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Readiness</span>
                     </div>
                   </div>
 
@@ -309,7 +309,7 @@ const HeroSection = () => {
                           )}
                           <span className="font-medium text-slate-800 dark:text-slate-200 truncate">{chk.rule}</span>
                         </div>
-                        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono shrink-0 ml-2">{chk.detail}</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono shrink-0 ml-2">{chk.detail}</span>
                       </div>
                     ))}
                   </div>

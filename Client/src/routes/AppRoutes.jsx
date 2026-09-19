@@ -1,13 +1,14 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import LandingPage from '../pages/LandingPage';
 import Login from '../pages/Login';
-import Tenders from '../pages/Tenders';
+import Tenders, { TenderDetails } from '../pages/Tenders';
 import Verification from '../pages/Verification';
 import Reports from '../pages/Reports';
 import Bidders from '../pages/Bidders';
 import Dashboard, { BidderDashboard } from '../pages/Dashboard';
 import MyApplications from '../pages/MyApplications';
 import Settings from '../pages/Settings';
+import NotFound from '../pages/NotFound';
 import { useAuth } from '../context';
 import { isOfficerUser } from '../utils/roleUtils';
 
@@ -98,6 +99,7 @@ const AppRoutes = () => {
         }
       />
       <Route path="/tenders" element={<Tenders />} />
+      <Route path="/tenders/:tenderId" element={<TenderDetails />} />
       <Route path="/bidders" element={<Bidders />} />
 
       {/* Bidder-Only Verification & Pre-screening (Blocked for Officers -> /dashboard?tab=compliance) */}
@@ -124,6 +126,14 @@ const AppRoutes = () => {
         element={
           <BidderRoute>
             <BidderDashboard />
+          </BidderRoute>
+        }
+      />
+      <Route
+        path="/bidder/tenders/:tenderId"
+        element={
+          <BidderRoute>
+            <TenderDetails />
           </BidderRoute>
         }
       />
@@ -214,8 +224,8 @@ const AppRoutes = () => {
         }
       />
 
-      {/* Catch-all */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* Catch-all 404 Route */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 };

@@ -5,6 +5,7 @@ import {
   X,
   Sparkles,
   Minimize2,
+  Maximize2,
   Trash2,
   ShieldCheck,
   FileText,
@@ -117,8 +118,8 @@ const BidderChatBot = ({
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [showContext, setShowContext] = useState(false);
-  const [showConfig, setShowConfig] = useState(false);
   const messagesEndRef = useRef(null);
 
   // Active target tender & bidder IDs (defaults to prop / bidderData or '1' & 'BID-007')
@@ -159,10 +160,10 @@ const BidderChatBot = ({
         {
           id: 'welcome-bidder',
           sender: 'bot',
-          text: `Namaste Officer! I am your AI Tender & Compliance Assistant with Node RAG & Gemini intelligence.\n\nEvaluating **${bName}** (${bId}) for tender **${tId}**.\n\nYou can ask me specific questions like turnover requirements, financial criteria, Make in India local content, or statutory document verification.`,
+          text: `Namaste Officer! I am your AI Tender & Compliance Assistant.\n\nEvaluating **${bName}** (${bId}) for tender **${tId}**.\n\nYou can ask me specific questions like turnover requirements, financial criteria, Make in India local content, or statutory document verification.`,
           timestamp: 'Just now',
-          citation: `Node RAG Context • Tender: ${tId} • Bidder: ${bId}`,
-          confidence: 'Gemini RAG Loaded',
+          citation: `Evaluation Context • Tender: ${tId} • Bidder: ${bId}`,
+          confidence: 'Context Verified',
         },
       ]);
     }
@@ -176,7 +177,24 @@ const BidderChatBot = ({
     if (isOpen && !minimized) {
       scrollToBottom();
     }
-  }, [messages, isOpen, minimized]);
+  }, [messages, isOpen, minimized, isFullscreen]);
+
+  // Handle ESC key to exit fullscreen or close modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (isFullscreen) {
+          setIsFullscreen(false);
+        } else if (isOpen) {
+          onClose();
+        }
+      }
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, isFullscreen, onClose]);
 
   const getSuggestions = () => {
     return [
@@ -229,10 +247,10 @@ const BidderChatBot = ({
         const botResponse = {
           id: `bot-${Date.now()}`,
           sender: 'bot',
-          title: 'GeM AI RAG & Gemini Assessment',
+          title: 'GeM AI Compliance Assessment',
           text: answerText,
-          citation: `Node AI RAG Service • Tender ${tId} • Bidder ${bId}`,
-          confidence: 'Gemini RAG Verified',
+          citation: `Compliance Evaluation • Tender ${tId} • Bidder ${bId}`,
+          confidence: 'Verified',
           sources: res?.data?.sources || res?.sources || null,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
@@ -291,8 +309,8 @@ const BidderChatBot = ({
         sender: 'bot',
         text: `Chat cleared. Active context reset for **${bName}** (${bId}) on tender **${tId}**. How may I assist your evaluation?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        citation: `Node RAG • Tender ${tId} • ${bId}`,
-        confidence: 'Gemini RAG Loaded',
+        citation: `Evaluation Context • Tender ${tId} • ${bId}`,
+        confidence: 'Context Loaded',
       },
     ]);
   };
@@ -300,10 +318,17 @@ const BidderChatBot = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-5 right-4 sm:right-6 z-50 flex flex-col items-end animate-in fade-in slide-in-from-bottom-5 duration-200">
+    <div
+      className={
+        isFullscreen
+          ? 'fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 lg:p-6 animate-in fade-in duration-200'
+          : 'fixed bottom-5 right-4 sm:right-6 z-50 flex flex-col items-end animate-in fade-in slide-in-from-bottom-5 duration-200'
+      }
+    >
       {minimized ? (
         /* Minimized Pill */
         <button
+          type="button"
           onClick={() => setMinimized(false)}
           className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-gradient-to-r from-[#073567] to-indigo-700 text-white font-semibold text-xs shadow-2xl hover:shadow-indigo-500/30 transition-all cursor-pointer hover:scale-105"
         >
@@ -320,8 +345,13 @@ const BidderChatBot = ({
         </button>
       ) : (
         /* Full Chat Window */
-        <div className="w-[92vw] sm:w-[430px] h-[580px] max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 font-sans">
-          
+        <div
+          className={
+            isFullscreen
+              ? 'w-full max-w-5xl h-[92vh] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 font-sans'
+              : 'w-[92vw] sm:w-[430px] h-[580px] max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 font-sans'
+          }
+        >
           {/* Header */}
           <div className="px-4 py-3 bg-gradient-to-r from-[#0a1b38] via-[#073567] to-indigo-900 text-white flex items-center justify-between shadow-md select-none shrink-0">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -330,88 +360,59 @@ const BidderChatBot = ({
               </div>
               <div className="leading-tight min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <h3 className="text-xs font-bold tracking-tight truncate">Officer Tender AI Chat</h3>
-                  <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-1 py-0.2 rounded font-mono font-bold shrink-0">
-                    RAG
-                  </span>
+                  <h3 className="text-xs font-bold tracking-tight truncate">Officer Tender AI Assistant</h3>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  {isFullscreen && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/15 text-emerald-300 font-medium">
+                      Full Screen
+                    </span>
+                  )}
                 </div>
                 <p className="text-[10.5px] text-slate-300 font-medium truncate">
-                  Tender: <span className="font-mono text-emerald-300">{activeTenderId}</span> &bull; Bidder: <span className="font-mono text-blue-300">{activeBidderId}</span>
+                  Evaluating: <span className="font-semibold text-emerald-300">{bidderData?.bidder || activeBidderId}</span>
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-1 text-slate-300 shrink-0">
+              {/* Full Screen Button */}
               <button
                 type="button"
-                onClick={() => setShowConfig(!showConfig)}
-                title="Configure Tender & Bidder ID"
-                className={`p-1.5 rounded-lg transition cursor-pointer ${
-                  showConfig ? 'text-white bg-white/20' : 'hover:text-white hover:bg-white/10'
-                }`}
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                title={isFullscreen ? 'Exit Full Screen (Esc)' : 'Full Screen'}
+                className="p-1.5 rounded-lg hover:text-white hover:bg-white/10 transition cursor-pointer"
+                aria-label={isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
               >
-                <Settings className="w-3.5 h-3.5" />
+                {isFullscreen ? (
+                  <Minimize2 className="w-4 h-4 text-emerald-300" />
+                ) : (
+                  <Maximize2 className="w-4 h-4" />
+                )}
               </button>
+
+              {/* Reset Chat */}
               <button
                 type="button"
                 onClick={handleClearChat}
                 title="Reset Chat"
                 className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+                aria-label="Reset Chat"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-4 h-4" />
               </button>
-              <button
-                type="button"
-                onClick={() => setMinimized(true)}
-                title="Minimize"
-                className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
-              >
-                <Minimize2 className="w-3.5 h-3.5" />
-              </button>
+
+              {/* Close Button */}
               <button
                 type="button"
                 onClick={onClose}
                 title="Close"
                 className="p-1.5 hover:text-rose-300 hover:bg-white/10 rounded-lg transition cursor-pointer"
+                aria-label="Close"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
           </div>
-
-          {/* Quick Payload Config Drawer */}
-          {showConfig && (
-            <div className="px-3.5 py-2.5 bg-slate-900 border-b border-indigo-950 text-white space-y-2 text-xs shrink-0 animate-in slide-in-from-top-1 duration-150">
-              <div className="flex items-center justify-between text-[10px]">
-                <span className="font-bold text-slate-400 uppercase tracking-wider">Target Endpoint Payload</span>
-                <span className="font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-1.5 py-0.5 rounded">
-                  POST /api/officer/tenders/chat
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-0.5 font-medium">tenderId</label>
-                  <input
-                    type="text"
-                    value={activeTenderId}
-                    onChange={(e) => setActiveTenderId(e.target.value)}
-                    placeholder="e.g. 1 or TND-001"
-                    className="w-full px-2 py-1 text-xs rounded-lg border border-slate-700 bg-slate-800 text-white font-mono focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-0.5 font-medium">bidderId</label>
-                  <input
-                    type="text"
-                    value={activeBidderId}
-                    onChange={(e) => setActiveBidderId(e.target.value)}
-                    placeholder="e.g. BID-007"
-                    className="w-full px-2 py-1 text-xs rounded-lg border border-slate-700 bg-slate-800 text-white font-mono focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Bidder Context Banner */}
           <div className="shrink-0">
@@ -447,7 +448,7 @@ const BidderChatBot = ({
 
             {/* Expandable Document Context */}
             {showContext && (
-              <div className="px-4 py-2.5 bg-slate-50/70 dark:bg-slate-950/50 border-b border-slate-200/80 dark:border-slate-800 max-h-[140px] overflow-y-auto space-y-1.5 animate-in slide-in-from-top-2 duration-150">
+              <div data-lenis-prevent="true" className="px-4 py-2.5 bg-slate-50/70 dark:bg-slate-950/50 border-b border-slate-200/80 dark:border-slate-800 max-h-[140px] overflow-y-auto space-y-1.5 animate-in slide-in-from-top-2 duration-150">
                 <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                   Document Context
                 </p>
@@ -466,100 +467,98 @@ const BidderChatBot = ({
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50 dark:bg-slate-950/40 text-xs">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex gap-2.5 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                {msg.sender === 'bot' && (
-                  <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-                    <Sparkles className="w-3 h-3" />
-                  </div>
-                )}
-
+          <div data-lenis-prevent="true" className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 bg-slate-50/50 dark:bg-slate-950/40 text-xs sm:text-sm">
+            <div className={isFullscreen ? 'max-w-4xl mx-auto space-y-4' : 'space-y-3.5'}>
+              {messages.map((msg) => (
                 <div
-                  className={`max-w-[85%] rounded-2xl p-3 space-y-1.5 ${
-                    msg.sender === 'user'
-                      ? 'bg-gradient-to-tr from-blue-600 to-indigo-600 text-white rounded-tr-xs shadow-md shadow-blue-500/10'
-                      : 'bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-xs shadow-2xs'
-                  }`}
+                  key={msg.id}
+                  className={`flex gap-2.5 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  {msg.title && (
-                    <p className="font-bold text-[11px] text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
-                      <ShieldCheck className="w-3 h-3" />
-                      <span>{msg.title}</span>
-                    </p>
-                  )}
-                  <MarkdownRenderer content={msg.text} />
-
-                  {/* Sources display (from Node RAG response) */}
-                  {msg.sources && (
-                    <div className="pt-2 mt-1.5 border-t border-slate-100 dark:border-slate-800 text-[10px] space-y-1">
-                      {Array.isArray(msg.sources?.tender) && msg.sources.tender.length > 0 && (
-                        <div className="text-slate-600 dark:text-slate-300">
-                          <span className="font-bold text-indigo-600 dark:text-indigo-400">Tender Requirements:</span>{' '}
-                          {msg.sources.tender.join(', ')}
-                        </div>
-                      )}
-                      {Array.isArray(msg.sources?.bidder) && msg.sources.bidder.length > 0 && (
-                        <div className="text-slate-600 dark:text-slate-300">
-                          <span className="font-bold text-emerald-600 dark:text-emerald-400">Bidder Documents:</span>{' '}
-                          {msg.sources.bidder.join(', ')}
-                        </div>
-                      )}
+                  {msg.sender === 'bot' && (
+                    <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                      <Sparkles className="w-3.5 h-3.5" />
                     </div>
                   )}
 
-                  {msg.citation && (
-                    <div className="pt-1 mt-1 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[9.5px] text-slate-400">
-                      <span className="truncate">{msg.citation}</span>
-                      {msg.confidence && (
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0 ml-1">
-                          {msg.confidence}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  <div
+                    className={`${
+                      isFullscreen ? 'max-w-[80%]' : 'max-w-[88%]'
+                    } rounded-2xl p-3 sm:p-3.5 space-y-1.5 ${
+                      msg.sender === 'user'
+                        ? 'bg-gradient-to-tr from-blue-600 to-indigo-600 text-white rounded-tr-xs shadow-md shadow-blue-500/10'
+                        : 'bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-xs shadow-2xs'
+                    }`}
+                  >
+                    {msg.title && (
+                      <p className="font-bold text-xs text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>{msg.title}</span>
+                      </p>
+                    )}
+                    <MarkdownRenderer content={msg.text} />
 
-                  <div className="text-[9px] text-right opacity-60">
-                    {msg.timestamp}
+                    {msg.citation && (
+                      <div className="pt-1 mt-1 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
+                        <span className="truncate">{msg.citation}</span>
+                        {msg.confidence && (
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0 ml-1">
+                            {msg.confidence}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="text-[9.5px] text-right opacity-60">
+                      {msg.timestamp}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
 
-            {isTyping && (
-              <div className="flex items-center gap-2 text-slate-400 text-xs py-1">
-                <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                  <Sparkles className="w-3 h-3 animate-spin" />
+              {isTyping && (
+                <div className="flex items-center gap-2 text-slate-400 text-xs py-1">
+                  <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                    <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                  </div>
+                  <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.2s]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.4s]" />
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-2xl">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.2s]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.4s]" />
-                </div>
-              </div>
-            )}
+              )}
 
-            <div ref={messagesEndRef} />
+              <div ref={messagesEndRef} />
+            </div>
           </div>
 
           {/* Suggestion Chips */}
-          <div className="px-3 py-2 border-t border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-x-auto whitespace-nowrap scrollbar-none flex items-center gap-1.5 shrink-0">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight shrink-0">
-              Ask:
-            </span>
-            {getSuggestions().map((s, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => handleSend(s)}
-                className="px-2.5 py-1 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/50 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 border border-slate-200/60 dark:border-slate-700 transition shrink-0 cursor-pointer"
-              >
-                {s}
-              </button>
-            ))}
+          <div
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            className="px-3.5 py-2 border-t border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-x-auto whitespace-nowrap scrollbar-none no-scrollbar [&::-webkit-scrollbar]:hidden flex items-center gap-1.5 shrink-0"
+          >
+            <div
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              className={
+                isFullscreen
+                  ? 'max-w-4xl mx-auto w-full flex items-center gap-1.5 overflow-x-auto whitespace-nowrap scrollbar-none no-scrollbar [&::-webkit-scrollbar]:hidden'
+                  : 'flex items-center gap-1.5'
+              }
+            >
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight shrink-0">
+                Ask:
+              </span>
+              {getSuggestions().map((s, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleSend(s)}
+                  className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/50 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 border border-slate-200/60 dark:border-slate-700 transition shrink-0 cursor-pointer"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Input Footer */}
@@ -568,23 +567,25 @@ const BidderChatBot = ({
               e.preventDefault();
               handleSend();
             }}
-            className="p-2.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2 shrink-0"
+            className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0"
           >
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={`Ask about ${bidderData?.bidder || 'this bidder'}...`}
-              className="flex-1 px-3.5 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || isTyping}
-              className="w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-sm disabled:opacity-40 transition cursor-pointer shrink-0"
-              title="Send Message"
-            >
-              <Send className="w-4 h-4" />
-            </button>
+            <div className={isFullscreen ? 'max-w-4xl mx-auto flex items-center gap-2' : 'flex items-center gap-2'}>
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={`Ask about ${bidderData?.bidder || 'this bidder'}...`}
+                className="flex-1 px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || isTyping}
+                className="w-10 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-xs disabled:opacity-40 transition cursor-pointer shrink-0"
+                title="Send Message"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
           </form>
         </div>
       )}

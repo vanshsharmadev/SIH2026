@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import {
   Mail,
@@ -8,7 +8,6 @@ import {
   Info,
   FileText,
   X,
-  ExternalLink,
   Lock,
   Scale,
   Building2,
@@ -17,7 +16,7 @@ import {
 import NicLogo from './NicLogo';
 import DigitalIndiaLogo from './DigitalIndiaLogo';
 import AtmanirbharLogo from './AtmanirbharLogo';
-import NationalEmblem from './NationalEmblem';
+import logoGemVariant from '../../assets/logo_gem_variant.png';
 
 const LinkedinIcon = ({ className = 'w-3.5 h-3.5' }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -102,7 +101,7 @@ const FooterInfoModal = ({ topic, onClose }) => {
       subtitle: 'Official assistance for Department Buyers, Evaluation Officers, and Commercial Bidders',
       icon: HelpCircle,
       badge: 'National Helpdesk Service',
-      body: (
+      body: (  
         <div className="space-y-4 text-xs sm:text-sm text-slate-300 leading-relaxed">
           <p>
             The GeM Compliflix Helpdesk provides round-the-clock technical and functional assistance for bid submission, document verification, and compliance assessment.
@@ -303,7 +302,7 @@ const FooterInfoModal = ({ topic, onClose }) => {
           <ul className="space-y-1.5 text-xs text-slate-400">
             <li>• High-contrast color palette and font scaling tools</li>
             <li>• Full keyboard navigation across all interactive elements</li>
-            <li>• Built-in Web Speech API screen reader and text-to-speech assistant</li>
+            <li>• Built-in speech screen reader and text-to-speech assistant</li>
             <li>• Descriptive alt text on all logos and informational badges</li>
           </ul>
         </div>
@@ -504,9 +503,10 @@ const Footer = () => {
             {/* Col 1: Brand & Gov Info */}
             <div className="lg:col-span-4 space-y-4">
               <div className="flex items-center gap-3">
-                <NationalEmblem
-                  className="h-10 w-auto opacity-95"
-                  variant="dark-only"
+                <img
+                  src={logoGemVariant}
+                  alt="GeM Compliflix"
+                  className="h-10 w-auto object-contain shrink-0"
                 />
                 <div>
                   <div className="text-xl font-black tracking-tight leading-none text-white">
@@ -532,9 +532,9 @@ const Footer = () => {
 
             {/* Col 2: Quick Links */}
             <div className="lg:col-span-2 space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-white border-b border-slate-700/60 pb-1.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-white border-b border-slate-700/60 pb-1.5">
                 Quick Links
-              </h4>
+              </h3>
               <ul className="space-y-2 text-xs text-slate-400">
                 <li>
                   <Link to="/" className="hover:text-white transition">
@@ -579,9 +579,9 @@ const Footer = () => {
 
             {/* Col 3: Help & Support */}
             <div className="lg:col-span-2 space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-white border-b border-slate-700/60 pb-1.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-white border-b border-slate-700/60 pb-1.5">
                 Help & Support
-              </h4>
+              </h3>
               <ul className="space-y-2 text-xs text-slate-400">
                 <li>
                   <button
@@ -624,9 +624,9 @@ const Footer = () => {
 
             {/* Col 4: Legal */}
             <div className="lg:col-span-2 space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-white border-b border-slate-700/60 pb-1.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-white border-b border-slate-700/60 pb-1.5">
                 Legal
-              </h4>
+              </h3>
               <ul className="space-y-2 text-xs text-slate-400">
                 <li>
                   <button

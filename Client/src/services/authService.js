@@ -32,6 +32,7 @@ export const authService = {
     const identifier = String(email || emailOrMobile || username || '').trim().toLowerCase();
     const payload = {
       email: identifier,
+      emailOrMobile: identifier,
       password: String(password || ''),
     };
 
@@ -39,8 +40,8 @@ export const authService = {
       const response = await api.post('/auth/login', payload);
       return normalizeAuthResponse(response);
     } catch (err) {
-      // Fallback for legacy split auth endpoints if /auth/login is not deployed yet
-      if (err.status === 404) {
+      // Fallback for role-specific auth endpoints if /auth/login is not unified
+      if (err.status === 404 || err.status === 400 || err.status === 401) {
         try {
           const altResponse = await api.post('/officer/auth/login', {
             emailOrMobile: identifier,
@@ -48,15 +49,15 @@ export const authService = {
           });
           return normalizeAuthResponse(altResponse, 'OFFICER');
         } catch (officerErr) {
-          if (officerErr.status === 404 || officerErr.status === 401) {
-            try {
-              const bidderResponse = await api.post('/bidder/auth/login', payload);
-              return normalizeAuthResponse(bidderResponse, 'BIDDER');
-            } catch (bidderErr) {
-              throw bidderErr.status === 404 ? err : bidderErr;
-            }
+          try {
+            const bidderResponse = await api.post('/bidder/auth/login', {
+              email: identifier,
+              password: payload.password,
+            });
+            return normalizeAuthResponse(bidderResponse, 'BIDDER');
+          } catch (bidderErr) {
+            throw bidderErr.status === 404 ? err : bidderErr;
           }
-          throw officerErr;
         }
       }
       throw err;
@@ -88,13 +89,34 @@ export const authService = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════
-  //  1.2 — Re-Initiate DigiLocker URL
-  //  POST /api/officer/identity/initiate
+  //  1.2 — Re-Initiate DigiLocker URL / OAuth Flow
+  //  GET /api/officer/auth/digilocker/initiate (OpenAPI)
+  //  Fallback: POST /api/officer/identity/initiate
   //  Body: { tempToken }
   // ═══════════════════════════════════════════════════════════════════════
+  initiateDigiLockerOAuth: async (tempToken) => {
+    const token = tempToken || sessionStorage.getItem('tempToken');
+    try {
+      return await api.get('/officer/auth/digilocker/initiate', {
+        params: token ? { tempToken: token } : {},
+      });
+    } catch (err) {
+      if (err.status === 404) {
+        return await api.post('/officer/identity/initiate', { tempToken: token });
+      }
+      throw err;
+    }
+  },
+
   initiateDigiLocker: async (tempToken) => {
     const token = tempToken || sessionStorage.getItem('tempToken');
-    return await api.post('/officer/identity/initiate', { tempToken: token });
+    try {
+      return await api.get('/officer/auth/digilocker/initiate', {
+        params: token ? { tempToken: token } : {},
+      });
+    } catch {
+      return await api.post('/officer/identity/initiate', { tempToken: token });
+    }
   },
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -246,6 +268,16 @@ export const authService = {
     } catch {
       return null;
     }
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  1.8 — Verify Officer JWT Token
+  //  POST /api/officer/auth/verify-token
+  //  Body: { token }
+  // ═══════════════════════════════════════════════════════════════════════
+  officerVerifyToken: async (token) => {
+    const authToken = token || localStorage.getItem('token');
+    return await api.post('/officer/auth/verify-token', { token: authToken });
   },
 
   // ═══════════════════════════════════════════════════════════════════════

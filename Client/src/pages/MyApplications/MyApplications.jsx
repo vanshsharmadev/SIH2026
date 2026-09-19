@@ -40,219 +40,13 @@ import {
   Briefcase,
   Shield,
   FileCheck,
+  Bot,
 } from 'lucide-react';
 import { useAuth } from '../../context';
 import { getUserDisplayName, isOfficerUser } from '../../utils/roleUtils';
 
-// Core mock applications matching official Government procurement dataset
-const APPLICATIONS_DATA = [
-  {
-    id: 'APP-2026-9195',
-    tenderId: 'GEM/2026/B/9195',
-    rawTenderId: '1',
-    title: 'Supply of Ergonomic Modular Office Furniture & Workstations for New Secretariats',
-    company: 'Ministry of Housing and Urban Affairs (MoHUA)',
-    ministryCode: 'MoHUA',
-    appliedDate: 'Applied Today',
-    matchStatus: 'Strong',
-    matchScore: 94,
-    applicantsCount: 13,
-    status: 'Under Evaluation',
-    statusCategory: 'under_eval',
-    quotedAmount: '₹ 4,20,00,000',
-    lastActivity: 'Technical Bid Scrutiny Stage 1',
-    deadline: '2026-10-15',
-    hasClarification: false,
-    chatEnabled: true,
-    documents: [
-      { name: 'Technical_Proposal_Furniture_Ergo.pdf', size: '2.8 MB', status: 'Verified', date: 'Today, 11:20 AM', hash: 'SHA256:7b9a...44f2' },
-      { name: 'BOQ_Price_Schedule_MoHUA.xlsx', size: '480 KB', status: 'Verified', date: 'Today, 11:22 AM', hash: 'SHA256:3a1e...90dc' },
-      { name: 'BIFMA_GreenGuard_Ergonomic_Certificate.pdf', size: '1.6 MB', status: 'Compliant', date: 'Today, 11:24 AM', hash: 'SHA256:88bc...01aa' },
-      { name: 'PPP_MII_Class_I_Local_Content_Affidavit.pdf', size: '620 KB', status: 'Verified (68%)', date: 'Today, 11:25 AM', hash: 'SHA256:12ef...56bc' },
-      { name: 'Udyam_MSME_Registration_Cert.pdf', size: '920 KB', status: 'EMD Exempted', date: 'Today, 11:26 AM', hash: 'SHA256:99cd...7811' },
-    ],
-    feedbackDetails: {
-      summary: 'High technical alignment. Product specifications exceed the minimum 4-stage ergonomic adjustability and BIFMA standards. Land Border Rule 144(xi) and Make in India 68% local content verified.',
-      criteria: [
-        { name: 'Rule 144(xi) Land Border Compliance', passed: true, score: '100% Passed' },
-        { name: 'PPP-MII 2017 Local Content (>=50%)', passed: true, score: '68% (Class-I Supplier)' },
-        { name: 'MSME EMD Exemption Verification', passed: true, score: 'Exempted (Udyam Verified)' },
-        { name: 'ISO 9001 & BIFMA X5.5 Ergonomics', passed: true, score: 'Valid & Verified' },
-        { name: 'Average 3-Year Annual Turnover', passed: true, score: '₹ 12.4 Cr (Exceeds ₹ 8 Cr limit)' },
-      ],
-    },
-  },
-  {
-    id: 'APP-2026-9401',
-    tenderId: 'GEM/2026/B/9401',
-    rawTenderId: '1',
-    title: 'Supply, Installation & Maintenance of High-Performance AI Edge Computing Servers',
-    company: 'Ministry of Electronics & Information Technology (MeitY)',
-    ministryCode: 'MeitY',
-    appliedDate: 'Applied Today',
-    matchStatus: 'Strong',
-    matchScore: 96,
-    applicantsCount: 13,
-    status: 'Under Evaluation',
-    statusCategory: 'under_eval',
-    quotedAmount: '₹ 17,80,00,000',
-    lastActivity: 'Preliminary Eligibility Cleared',
-    deadline: '2026-10-20',
-    hasClarification: false,
-    chatEnabled: true,
-    documents: [
-      { name: 'Technical_Proposal_AI_Edge.pdf', size: '3.4 MB', status: 'Verified', date: 'Today, 09:40 AM', hash: 'SHA256:9f4a...e128' },
-      { name: 'BOQ_Price_Schedule_MeitY.xlsx', size: '512 KB', status: 'Verified', date: 'Today, 09:42 AM', hash: 'SHA256:71de...9902' },
-      { name: 'GFR_144xi_Land_Border_Declaration.pdf', size: '420 KB', status: 'Compliant', date: 'Today, 09:43 AM', hash: 'SHA256:55aa...3341' },
-      { name: 'Make_In_India_Class_I_Local_Content.pdf', size: '680 KB', status: 'Verified (62%)', date: 'Today, 09:45 AM', hash: 'SHA256:32ff...bb09' },
-      { name: 'MSME_Udyam_Registration.pdf', size: '1.1 MB', status: 'EMD Exempted', date: 'Today, 09:46 AM', hash: 'SHA256:88ad...2219' },
-    ],
-    feedbackDetails: {
-      summary: 'Your technical specifications exceed the minimum tier-3 datacenter requirements. Land Border Rule 144(xi) and Make in India local content thresholds have been 100% verified by autonomous evaluation.',
-      criteria: [
-        { name: 'Rule 144(xi) Land Border Requirement', passed: true, score: '100% Passed' },
-        { name: 'PPP-MII 2017 Local Content (>=50%)', passed: true, score: '62% (Class-I Supplier)' },
-        { name: 'MSME EMD Benefit', passed: true, score: 'Exempted (Udyam Verified)' },
-        { name: 'DSC Class 3 Digital Certificate', passed: true, score: 'Valid & Timestamped' },
-        { name: 'Cert-In Cyber Security Compliance', passed: true, score: 'Certified' },
-      ],
-    },
-  },
-  {
-    id: 'APP-2026-9385',
-    tenderId: 'GEM/2026/B/9385',
-    rawTenderId: '2',
-    title: 'Turnkey EPC for 50MW Grid-Connected Rooftop Solar PV Systems on Central Government Buildings',
-    company: 'Ministry of New & Renewable Energy (MNRE)',
-    ministryCode: 'MNRE',
-    appliedDate: 'Applied Today',
-    matchStatus: 'Strong',
-    matchScore: 92,
-    applicantsCount: 13,
-    status: 'Under Evaluation',
-    statusCategory: 'under_eval',
-    quotedAmount: '₹ 41,20,00,000',
-    lastActivity: 'Tier-1 Solar Cell Sourcing Verification',
-    deadline: '2026-10-25',
-    hasClarification: false,
-    chatEnabled: true,
-    documents: [
-      { name: 'Solar_EPC_Engineering_Plan.pdf', size: '4.8 MB', status: 'Verified', date: 'Today, 08:15 AM', hash: 'SHA256:34ff...0091' },
-      { name: 'Financial_Bid_BOQ_MNRE.xlsx', size: '620 KB', status: 'Verified', date: 'Today, 08:17 AM', hash: 'SHA256:56aa...4412' },
-      { name: 'Land_Border_Rule144_Affidavit.pdf', size: '390 KB', status: 'Compliant', date: 'Today, 08:18 AM', hash: 'SHA256:99ac...7712' },
-      { name: 'MII_Auditor_Local_Content_Audit.pdf', size: '890 KB', status: 'Verified (74%)', date: 'Today, 08:20 AM', hash: 'SHA256:11ea...8854' },
-    ],
-    feedbackDetails: {
-      summary: 'Shortlisted for financial bid opening. High technical score awarded for Tier-1 ALMM solar cell sourcing and indigenous inverter compliance.',
-      criteria: [
-        { name: 'Rule 144(xi) Land Border Requirement', passed: true, score: 'Compliant' },
-        { name: 'PPP-MII 2017 Local Content', passed: true, score: '74% Local Content' },
-        { name: 'ALMM Certified Cell Sourcing', passed: true, score: 'Verified Tier-1' },
-        { name: 'Turnover Criteria (Rule 173 GFR)', passed: true, score: 'Audited Statements Verified' },
-      ],
-    },
-  },
-  {
-    id: 'APP-2026-9250',
-    tenderId: 'GEM/2026/B/9250',
-    rawTenderId: '1',
-    title: 'Development & Deployment of National AI-Powered Biometric Access & Surveillance Systems',
-    company: 'Ministry of Home Affairs',
-    ministryCode: 'MHA',
-    appliedDate: 'Applied Today',
-    matchStatus: 'Strong',
-    matchScore: 95,
-    applicantsCount: 13,
-    status: 'Under Evaluation',
-    statusCategory: 'under_eval',
-    quotedAmount: '₹ 29,50,00,000',
-    lastActivity: 'Security Clearance & CVC Check',
-    deadline: '2026-11-02',
-    hasClarification: false,
-    chatEnabled: true,
-    documents: [
-      { name: 'National_Security_Biometrics_Architecture.pdf', size: '5.2 MB', status: 'Verified', date: 'Today, 07:45 AM', hash: 'SHA256:88bc...2190' },
-      { name: 'Commercial_Schedule_MHA.xlsx', size: '710 KB', status: 'Verified', date: 'Today, 07:48 AM', hash: 'SHA256:44aa...9911' },
-      { name: 'FIPS_201_STQC_Biometrics_Cert.pdf', size: '1.9 MB', status: 'Verified', date: 'Today, 07:50 AM', hash: 'SHA256:33ba...5510' },
-      { name: 'Class_I_Local_Content_Certificate.pdf', size: '540 KB', status: 'Verified (71%)', date: 'Today, 07:51 AM', hash: 'SHA256:77ee...1122' },
-    ],
-    feedbackDetails: {
-      summary: 'STQC certified biometric algorithm meets national security thresholds. Strict cryptographic hardware module (HSM) compliance affirmed.',
-      criteria: [
-        { name: 'STQC & UIDAI Biometric Cert', passed: true, score: 'Level-0 & Level-1 Certified' },
-        { name: 'Rule 144(xi) Land Border Declaration', passed: true, score: '100% Verified' },
-        { name: 'PPP-MII 2017 Local Content', passed: true, score: '71% Class-I Supplier' },
-        { name: 'Hardware Security Module (HSM) FIPS 140-2', passed: true, score: 'Level 3 Verified' },
-      ],
-    },
-  },
-  {
-    id: 'APP-2024-5123',
-    tenderId: 'GEM/2024/B/5123982',
-    rawTenderId: '1',
-    title: 'IT Hardware Procurement & Network Infrastructure Setup',
-    company: 'Ministry of Railways (CRIS)',
-    ministryCode: 'Railways',
-    appliedDate: "Applied on 15 Aug' 26",
-    matchStatus: 'Action Needed',
-    matchScore: 84,
-    applicantsCount: 22,
-    status: 'Clarification Requested',
-    statusCategory: 'clarification',
-    quotedAmount: '₹ 8,40,00,000',
-    lastActivity: 'Clarification Notice Issued (Deadline: 48h)',
-    deadline: '2026-09-14',
-    hasClarification: true,
-    clarificationMsg: 'Tender committee requested signed Annexure-B for DSC timestamping within 48 hours.',
-    chatEnabled: true,
-    documents: [
-      { name: 'Network_Hardware_Specs.pdf', size: '2.4 MB', status: 'Verified', date: '15 Aug 2026', hash: 'SHA256:11aa...33bb' },
-      { name: 'Financial_Schedule_Railways.xlsx', size: '410 KB', status: 'Verified', date: '15 Aug 2026', hash: 'SHA256:44cc...55dd' },
-      { name: 'Annexure_B_Timestamp_Clarification.pdf', size: 'Pending Upload', status: 'Action Needed', date: 'Pending', hash: 'Awaiting Resubmission' },
-    ],
-    feedbackDetails: {
-      summary: 'Technical documents are largely compliant, but DSC timestamping verification requires updated Annexure-B confirmation before technical qualification.',
-      criteria: [
-        { name: 'Rule 144(xi) Land Border Requirement', passed: true, score: 'Compliant' },
-        { name: 'Clause 4.2 DSC Timestamp Verification', passed: false, score: 'Pending Resubmission' },
-        { name: 'MSME EMD Benefit', passed: true, score: 'MSE Exempted' },
-        { name: 'OEM Authorization Form (MAF)', passed: true, score: 'Authorized' },
-      ],
-    },
-  },
-  {
-    id: 'APP-2024-5124',
-    tenderId: 'GEM/2024/B/5123985',
-    rawTenderId: '2',
-    title: 'Smart Classroom Setup & Interactive Display Boards',
-    company: 'Ministry of Education',
-    ministryCode: 'MoE',
-    appliedDate: "Applied on 10 Jul' 26",
-    matchStatus: 'Strong',
-    matchScore: 98,
-    applicantsCount: 18,
-    status: 'Awarded & Finalized',
-    statusCategory: 'awarded',
-    quotedAmount: '₹ 5,60,00,000',
-    lastActivity: 'Purchase Order #GEM-PO-88231 Dispatched',
-    deadline: '2026-07-18',
-    hasClarification: false,
-    chatEnabled: true,
-    documents: [
-      { name: 'Education_Board_Specs.pdf', size: '1.9 MB', status: 'Verified', date: '10 Jul 2026', hash: 'SHA256:55ee...77ff' },
-      { name: 'BOQ_SmartClassroom.xlsx', size: '380 KB', status: 'Verified', date: '10 Jul 2026', hash: 'SHA256:88aa...1122' },
-      { name: 'Award_Contract_Confirmation.pdf', size: '1.2 MB', status: 'Contract Signed', date: '18 Jul 2026', hash: 'SHA256:99bb...44cc' },
-    ],
-    feedbackDetails: {
-      summary: 'Contract awarded. Purchase Order generated and dispatched through GeM procurement engine.',
-      criteria: [
-        { name: 'All GFR Compliance Checks', passed: true, score: '100% Verified' },
-        { name: 'L1 Price Matching Verification', passed: true, score: 'L1 Bidder' },
-        { name: 'Performance Security Bank Guarantee', passed: true, score: 'Verified by e-PBG' },
-      ],
-    },
-  },
-];
+// Dynamic applications dataset (empty baseline; loaded from real user bids)
+const APPLICATIONS_DATA = [];
 
 const MyApplications = () => {
   const navigate = useNavigate();
@@ -293,14 +87,7 @@ const MyApplications = () => {
 
   // Chat message state
   const [chatMessage, setChatMessage] = useState('');
-  const [chatLog, setChatLog] = useState([
-    {
-      sender: 'officer',
-      name: 'Evaluating Officer (GeM Technical Committee)',
-      text: 'Greetings. Your technical bid has been indexed. Please note that an updated signed Annexure-B with DSC timestamping is requested for final eligibility clearance.',
-      time: '10:30 AM',
-    },
-  ]);
+  const [chatLog, setChatLog] = useState([]);
 
   // Load dynamically submitted bidder applications from localStorage
   const [localApplications, setLocalApplications] = useState(() => {
@@ -474,7 +261,7 @@ const MyApplications = () => {
     if (!chatMessage.trim()) return;
     const newMsg = {
       sender: 'bidder',
-      name: displayName || 'Rajat Sharma (Authorized Signatory)',
+      name: displayName || 'Authorized Signatory',
       text: chatMessage.trim(),
       time: 'Just now',
     };

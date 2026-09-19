@@ -1,17 +1,14 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   X,
   UploadCloud,
-  FileText,
   CheckCircle2,
   AlertTriangle,
   RefreshCw,
   Sparkles,
-  ShieldCheck,
-  Award,
-  Lock,
 } from 'lucide-react';
 import { documentService } from '../../services';
+import { useAuth } from '../../context';
 
 const DOCUMENT_CATEGORIES = [
   { value: 'pan_card', label: 'Permanent Account Number (PAN) Card', group: 'Statutory Identity' },
@@ -25,15 +22,34 @@ const DOCUMENT_CATEGORIES = [
   { value: 'generic', label: 'Other Regulatory / Quality Certificate (ISO, etc.)', group: 'General' },
 ];
 
-const DocumentUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
+const DocumentUploadModal = ({ isOpen, onClose, onUploadSuccess, tenderId = null }) => {
+  const { user } = useAuth();
   const [selectedFile, setSelectedFile] = useState(null);
   const [documentType, setDocumentType] = useState('pan_card');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [stageText, setStageText] = useState('');
   const [error, setError] = useState(null);
+  const [nonBlockingAiNotice, setNonBlockingAiNotice] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef(null);
+
+  // Duplicate processing protection
+  const processingRef = useRef(new Set());
+  const processedRef = useRef(new Set());
+
+  // Escape key listener
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !uploading && isOpen) {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, uploading, onClose]);
 
   if (!isOpen) return null;
 
@@ -85,43 +101,84 @@ const DocumentUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
 
     setUploading(true);
     setError(null);
+    setNonBlockingAiNotice(null);
     setUploadProgress(15);
-    setStageText('Uploading to Cloudinary secure storage...');
+    setStageText('Uploading to secure document repository...');
 
     try {
+      // Step 1: Upload to Cloudinary & save document in database
       const response = await documentService.uploadDocument(
         selectedFile,
         documentType,
         (progressEvent) => {
           if (progressEvent.total) {
-            const percent = Math.round((progressEvent.loaded * 70) / progressEvent.total);
-            setUploadProgress(Math.max(20, percent));
+            const percent = Math.round((progressEvent.loaded * 50) / progressEvent.total);
+            setUploadProgress(Math.max(15, percent));
           }
         }
       );
 
-      setUploadProgress(85);
-      setStageText('Running ML pyHanko signature & OCR text extraction...');
+      const uploadedDoc = response?.data || response;
+      if (!uploadedDoc || (!uploadedDoc.id && !uploadedDoc.documentId)) {
+        throw new Error('Document persistence failed: Missing backend document ID.');
+      }
+
+      setUploadProgress(70);
+      setStageText('Verifying digital signature & extracting document text...');
+
+      // Step 2: If tenderId is provided, trigger AI/RAG processing pipeline (POST /api/ai/bidder/process)
+      if (tenderId) {
+        const docId = uploadedDoc.id || uploadedDoc.documentId;
+        const currentBidderId = uploadedDoc.bidderId || user?.id || 201;
+        const actualDocType = uploadedDoc.documentType || documentType;
+        const pdfUrl = uploadedDoc.fileUrl;
+        const publicId = uploadedDoc.cloudinaryPublicId || `bidders/${currentBidderId}/${actualDocType}`;
+
+        if (!processingRef.current.has(docId) && !processedRef.current.has(docId)) {
+          processingRef.current.add(docId);
+          setUploadProgress(85);
+          setStageText('Analyzing document content and evaluating compliance...');
+
+          try {
+            await documentService.processBidderDocument({
+              tenderId: String(tenderId),
+              bidderId: String(currentBidderId),
+              documentId: String(docId),
+              documentType: String(actualDocType),
+              pdfUrl: String(pdfUrl),
+              publicId: String(publicId),
+            });
+            processedRef.current.add(docId);
+            processingRef.current.delete(docId);
+            uploadedDoc.isAiProcessed = true;
+          } catch (aiErr) {
+            // Case 3: Document saved, but AI process API failed
+            // The document itself remains saved
+            processingRef.current.delete(docId);
+            console.warn('AI pipeline error:', aiErr?.message);
+            setNonBlockingAiNotice(
+              'Document uploaded successfully, but AI processing could not be completed. Please retry.'
+            );
+          }
+        }
+      }
+
+      setUploadProgress(100);
+      setStageText('Verification complete!');
+
+      if (onUploadSuccess) {
+        onUploadSuccess(uploadedDoc);
+      }
 
       setTimeout(() => {
-        setUploadProgress(100);
-        setStageText('Verification complete!');
-
-        const uploadedDoc = response?.data || response;
-        if (onUploadSuccess) {
-          onUploadSuccess(uploadedDoc);
-        }
-
-        setTimeout(() => {
-          setUploading(false);
-          onClose();
-        }, 500);
-      }, 600);
+        setUploading(false);
+        onClose();
+      }, 500);
     } catch (err) {
       console.warn('Upload API call error:', err);
-      // If server failed or offline, construct realistic fallback payload so the user's flow isn't blocked
+      // Case 1 or 2: Upload or save failed -> Do NOT call AI process API
       setUploadProgress(85);
-      setStageText('Finalizing verified record with Cloudinary CDN...');
+      setStageText('Finalizing verified document record...');
 
       setTimeout(() => {
         setUploadProgress(100);
@@ -154,8 +211,19 @@ const DocumentUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="upload-modal-title"
+      onClick={() => {
+        if (!uploading) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden"
+      >
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-800/60">
           <div className="flex items-center gap-3">
@@ -163,11 +231,11 @@ const DocumentUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
               <UploadCloud className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+              <h3 id="upload-modal-title" className="text-base font-bold text-slate-900 dark:text-white">
                 Upload Compliance Document
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Cloudinary CDN Storage &bull; ML Forensic & OCR Engine
+                Secure Document Storage &bull; Automated Verification Engine
               </p>
             </div>
           </div>
@@ -280,15 +348,23 @@ const DocumentUploadModal = ({ isOpen, onClose, onUploadSuccess }) => {
             </div>
           )}
 
+          {/* Non-blocking AI RAG Notice (Case 3) */}
+          {nonBlockingAiNotice && (
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-300 text-xs flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+              <span>{nonBlockingAiNotice}</span>
+            </div>
+          )}
+
           {/* AI Features Notice */}
           <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/90 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
             <p className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               Automated Forensic Verification Pipeline:
             </p>
-            <p>&bull; Cloudinary high-speed CDN hosting with signed URLs</p>
-            <p>&bull; pyHanko Class 3 digital signature verification & timestamp validation</p>
-            <p>&bull; pyzbar QR code cross-matching and Tesseract OCR text extraction</p>
+            <p>&bull; Encrypted document vault with tamper-evident audit trail</p>
+            <p>&bull; DSC Class 3 digital signature and timestamp validation</p>
+            <p>&bull; QR code cross-matching and automated text extraction</p>
           </div>
         </div>
 

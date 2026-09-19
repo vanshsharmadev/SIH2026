@@ -155,7 +155,7 @@ const HowItWorks = () => {
                 {/* Step Top Bar: Badge & Number */}
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${step.badgeColor}`}>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide ${step.badgeColor}`}>
                       {step.badge}
                     </span>
                     <span className="font-mono text-2xl font-black text-slate-300 dark:text-[#383838] group-hover:text-blue-600 dark:group-hover:text-[#4da3ff] transition-colors">

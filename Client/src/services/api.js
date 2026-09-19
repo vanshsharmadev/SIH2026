@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { store } from '../store';
+import { logout } from '../store/slices/authSlice';
 
 /**
  * Resolves the backend base URL dynamically from environment variables.
@@ -84,20 +86,22 @@ api.interceptors.response.use(
       // Network error or CORS issue
       friendlyMessage =
         'Unable to connect to the backend server. Please verify your internet connection or check the deployed BACKEND_URL in .env.';
-    } else if (error.response?.data?.errors && typeof error.response.data.errors === 'object') {
-      const firstError = Object.values(error.response.data.errors)[0];
-      friendlyMessage = firstError || error.response.data.message || 'Validation error. Please check your inputs.';
-    } else if (error.response?.data?.message) {
-      friendlyMessage = error.response.data.message;
-    } else if (error.response?.data?.error) {
-      friendlyMessage = error.response.data.error;
     } else if (error.response?.status === 401) {
       if (isLoginReq) {
-        friendlyMessage = 'Invalid email or password. Please check your credentials.';
+        friendlyMessage =
+          error.response?.data?.message || 'Invalid email or password. Please check your credentials.';
       } else {
-        friendlyMessage = 'Session expired or unauthorized. Please sign in again.';
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        friendlyMessage =
+          'Authentication required or session expired. Please sign in to perform this action.';
+        try {
+          const token = localStorage.getItem('token');
+          // Only clear if it was an actual expired backend token, avoid disrupting demo sessions
+          if (token && !token.startsWith('gem-token-')) {
+            store.dispatch(logout());
+          }
+        } catch {
+          // ignore
+        }
       }
     } else if (error.response?.status === 403) {
       friendlyMessage = error.response?.data?.message || 'Access denied or unverified account.';
@@ -106,7 +110,14 @@ api.interceptors.response.use(
         error.response?.data?.message ||
         'An account with this email, GSTIN, or identity is already registered. Please sign in instead.';
     } else if (error.response?.status === 404) {
-      friendlyMessage = 'Requested resource was not found on the server.';
+      friendlyMessage = error.response?.data?.message || 'Requested resource was not found on the server.';
+    } else if (error.response?.data?.errors && typeof error.response.data.errors === 'object') {
+      const firstError = Object.values(error.response.data.errors)[0];
+      friendlyMessage = firstError || error.response.data.message || 'Validation error. Please check your inputs.';
+    } else if (error.response?.data?.message) {
+      friendlyMessage = error.response.data.message;
+    } else if (error.response?.data?.error) {
+      friendlyMessage = error.response.data.error;
     } else if (error.response?.status >= 500) {
       friendlyMessage = 'Internal server error. Please try again later.';
     }

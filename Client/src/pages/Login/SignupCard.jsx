@@ -85,6 +85,9 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
     setErrors({});
   };
 
+  // ===========================================================================
+  // FEATURE: Form Validation (Allows standard email domains for all roles)
+  // ===========================================================================
   const validateForm = () => {
     const newErrors = {};
 
@@ -284,7 +287,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4 my-4">
             
             {/* 1. Bidder Card */}
-            <div className="rounded-xl border border-blue-200/80 bg-white p-4 sm:p-4.5 flex flex-col justify-between hover:border-blue-500 hover:shadow-md transition-all group">
+            <div className="rounded-xl border border-blue-200/80 dark:border-blue-900/50 bg-white dark:bg-slate-900/60 p-4 sm:p-4.5 flex flex-col justify-between hover:border-blue-500 hover:shadow-md transition-all group">
               <div>
                 {/* Icon */}
                 <div className="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center mx-auto mb-2.5 shadow-sm group-hover:scale-105 transition-transform">
@@ -292,29 +295,29 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                 </div>
 
                 {/* Title & Desc */}
-                <h3 className="text-sm sm:text-[15px] font-bold text-slate-900 text-center">
+                <h3 className="text-sm sm:text-[15px] font-bold text-slate-900 dark:text-white text-center">
                   I'm a Bidder
                 </h3>
-                <p className="text-[11px] text-slate-500 text-center mt-1 mb-3 leading-snug min-h-[32px]">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 text-center mt-1 mb-3 leading-snug min-h-[32px]">
                   Submit bids, manage documents and track compliance status.
                 </p>
 
                 {/* Feature Checklist */}
-                <div className="space-y-1.5 text-[11px] text-slate-700">
+                <div className="space-y-1.5 text-[11px] text-slate-700 dark:text-slate-300">
                   <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
                     <span>Search and view tenders</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
                     <span>Upload and manage bids</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
                     <span>Check compliance with AI</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
                     <span>Track submission status</span>
                   </div>
                 </div>
@@ -332,37 +335,37 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
             </div>
 
             {/* 2. Government Officer Card */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-4.5 flex flex-col justify-between hover:border-blue-400 hover:shadow-md transition-all group">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-4 sm:p-4.5 flex flex-col justify-between hover:border-blue-400 hover:shadow-md transition-all group">
               <div>
                 {/* Icon */}
-                <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center mx-auto mb-2.5 border border-blue-100 group-hover:scale-105 transition-transform">
+                <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 flex items-center justify-center mx-auto mb-2.5 border border-blue-100 dark:border-blue-900 group-hover:scale-105 transition-transform">
                   <Landmark className="w-5 h-5 stroke-[2]" />
                 </div>
 
                 {/* Title & Desc */}
-                <h3 className="text-sm sm:text-[15px] font-bold text-slate-900 text-center">
+                <h3 className="text-sm sm:text-[15px] font-bold text-slate-900 dark:text-white text-center">
                   I'm a Government Officer
                 </h3>
-                <p className="text-[11px] text-slate-500 text-center mt-1 mb-3 leading-snug min-h-[32px]">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 text-center mt-1 mb-3 leading-snug min-h-[32px]">
                   Evaluate bids, verify compliance and manage tenders.
                 </p>
 
                 {/* Feature Checklist */}
-                <div className="space-y-1.5 text-[11px] text-slate-700">
+                <div className="space-y-1.5 text-[11px] text-slate-700 dark:text-slate-300">
                   <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
                     <span>Review and evaluate bids</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
                     <span>AI-powered compliance checks</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
                     <span>Manage tender lifecycle</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
                     <span>Generate reports and insights</span>
                   </div>
                 </div>
@@ -372,7 +375,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
               <button
                 type="button"
                 onClick={() => handleRoleSelect('officer')}
-                className="w-full mt-4 py-2 px-3 bg-white hover:bg-slate-50 active:scale-[0.99] border border-slate-300 hover:border-slate-400 text-slate-800 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 transition cursor-pointer"
+                className="w-full mt-4 py-2 px-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-[0.99] border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 text-xs font-semibold rounded-md flex items-center justify-center gap-1.5 transition cursor-pointer"
               >
                 <span>Continue as Officer</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -383,15 +386,15 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
 
           {/* OR Divider */}
           <div className="relative my-3 flex items-center justify-center">
-            <div className="w-full border-t border-slate-200" />
-            <span className="absolute px-2 text-[9.5px] uppercase tracking-wider font-semibold bg-white text-slate-400">
+            <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+            <span className="absolute px-2 text-[9.5px] uppercase tracking-wider font-semibold bg-white dark:bg-[#181818] text-slate-400">
               OR
             </span>
           </div>
 
           {/* Bottom Switch to Sign In */}
           <div className="text-center pt-1">
-            <span className="text-xs text-slate-600">
+            <span className="text-xs text-slate-600 dark:text-slate-400">
               Already have an account?{' '}
             </span>
             <Link
@@ -402,7 +405,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                   onSwitchToSignIn();
                 }
               }}
-              className="text-xs font-semibold text-[#0c396d] hover:underline transition cursor-pointer"
+              className="text-xs font-semibold text-[#0c396d] dark:text-blue-400 hover:underline transition cursor-pointer"
             >
               Sign In
             </Link>
@@ -416,21 +419,21 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
         <div className="w-full max-w-[560px] mx-auto rounded-2xl transition-all duration-300 p-5 sm:p-6 relative z-20 bg-white dark:bg-[#181818] border border-slate-100 dark:border-[#303030] shadow-xl text-slate-900 dark:text-slate-100">
           
           {/* Top Header Controls (Back button & Role Switcher) */}
-          <div className="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-100">
+          <div className="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={() => {
                 setStep('select_role');
                 setErrors({});
               }}
-              className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 transition cursor-pointer"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Back to role selection</span>
             </button>
 
             {/* Quick Role Switcher Pill */}
-            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-[10.5px] font-semibold">
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[10.5px] font-semibold">
               <button
                 type="button"
                 onClick={() => {
@@ -439,8 +442,8 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                 }}
                 className={`px-2.5 py-1 rounded-md transition ${
                   role === 'bidder'
-                    ? 'bg-white text-blue-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white dark:bg-slate-700 text-blue-700 dark:text-blue-300 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Bidder
@@ -453,8 +456,8 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                 }}
                 className={`px-2.5 py-1 rounded-md transition ${
                   role === 'officer'
-                    ? 'bg-white text-blue-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white dark:bg-slate-700 text-blue-700 dark:text-blue-300 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Govt Officer
@@ -467,14 +470,14 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
             <div>
               <div className="flex items-center gap-1.5">
                 <TricolorBar className="w-9 h-1 mb-1" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">
                   {role === 'bidder' ? 'Commercial Bidder Account' : 'Official Government Onboarding'}
                 </span>
               </div>
-              <h2 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
+              <h2 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white">
                 {role === 'bidder' ? 'Register as a Bidder' : 'Register as a Government Officer'}
               </h2>
-              <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 {role === 'bidder'
                   ? 'Enter company & authorized representative details'
                   : 'Official government credentials required for portal access'}
@@ -484,14 +487,14 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
 
           {/* Success Notification */}
           {registrationSuccess ? (
-            <div className="my-6 p-6 rounded-xl bg-emerald-50 border border-emerald-200 text-center animate-fadeIn">
-              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-3">
+            <div className="my-6 p-6 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-center animate-fadeIn">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 flex items-center justify-center mx-auto mb-3">
                 <Check className="w-6 h-6 stroke-[3]" />
               </div>
-              <h3 className="text-base font-bold text-emerald-900 mb-1">
+              <h3 className="text-base font-bold text-emerald-900 dark:text-emerald-200 mb-1">
                 Registration Successful!
               </h3>
-              <p className="text-xs text-emerald-700 max-w-sm mx-auto mb-4">
+              <p className="text-xs text-emerald-700 dark:text-emerald-300 max-w-sm mx-auto mb-4">
                 Your {role === 'bidder' ? 'Bidder' : 'Government Officer'} account has been initiated. You will now be redirected to sign in.
               </p>
               <button
@@ -532,7 +535,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                 
                 {/* Full Name */}
                 <div>
-                  <label className="block text-[11px] font-semibold mb-0.5 text-slate-700">
+                  <label className="block text-[11px] font-semibold mb-0.5 text-slate-700 dark:text-slate-300">
                     {role === 'bidder' ? 'Authorized Person Name' : 'Full Name (as per Govt ID)'} <span className="text-red-500 font-bold ml-0.5">*</span>
                   </label>
                   <div className="relative">
@@ -544,8 +547,8 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                       value={formData.fullName}
                       onChange={(e) => handleInputChange('fullName', e.target.value)}
                       placeholder={role === 'bidder' ? 'e.g. Rahul Sharma' : 'e.g. Dr. Rajesh Kumar'}
-                      className={`w-full pl-8 pr-2.5 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white placeholder-slate-400 ${
-                        errors.fullName ? 'border-rose-300 text-rose-900' : 'border-slate-200 text-slate-900 focus:border-blue-600'
+                      className={`w-full pl-8 pr-2.5 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-800 placeholder-slate-400 dark:placeholder-slate-500 ${
+                        errors.fullName ? 'border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200' : 'border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:border-blue-600 dark:focus:border-blue-500'
                       }`}
                     />
                   </div>
@@ -555,7 +558,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                 {/* Second Column in Row 1: Company Name (Bidder) or Ministry / Department (Officer) */}
                 {role === 'bidder' ? (
                   <div>
-                    <label className="block text-[11px] font-semibold mb-0.5 text-slate-700">
+                    <label className="block text-[11px] font-semibold mb-0.5 text-slate-700 dark:text-slate-300">
                       Company / Organization Name <span className="text-red-500 font-bold ml-0.5">*</span>
                     </label>
                     <div className="relative">
@@ -567,8 +570,8 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                         value={formData.organizationName}
                         onChange={(e) => handleInputChange('organizationName', e.target.value)}
                         placeholder="e.g. Apex Infotech Ltd"
-                        className={`w-full pl-8 pr-2.5 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white placeholder-slate-400 ${
-                          errors.organizationName ? 'border-rose-300 text-rose-900' : 'border-slate-200 text-slate-900 focus:border-blue-600'
+                        className={`w-full pl-8 pr-2.5 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-800 placeholder-slate-400 dark:placeholder-slate-500 ${
+                          errors.organizationName ? 'border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200' : 'border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:border-blue-600 dark:focus:border-blue-500'
                         }`}
                       />
                     </div>
@@ -576,7 +579,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                   </div>
                 ) : (
                   <div>
-                    <label className="block text-[11px] font-semibold mb-0.5 text-slate-700">
+                    <label className="block text-[11px] font-semibold mb-0.5 text-slate-700 dark:text-slate-300">
                       Ministry / Department <span className="text-red-500 font-bold ml-0.5">*</span>
                     </label>
                     <div className="relative">
@@ -588,8 +591,8 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                         value={formData.ministry}
                         onChange={(e) => handleInputChange('ministry', e.target.value)}
                         placeholder="e.g. Ministry of Finance"
-                        className={`w-full pl-8 pr-2.5 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white placeholder-slate-400 ${
-                          errors.ministry ? 'border-rose-300 text-rose-900' : 'border-slate-200 text-slate-900 focus:border-blue-600'
+                        className={`w-full pl-8 pr-2.5 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-800 placeholder-slate-400 dark:placeholder-slate-500 ${
+                          errors.ministry ? 'border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200' : 'border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:border-blue-600 dark:focus:border-blue-500'
                         }`}
                       />
                     </div>
@@ -599,7 +602,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
 
                 {/* Email Address */}
                 <div>
-                  <label className="block text-[11px] font-semibold mb-0.5 text-slate-700">
+                  <label className="block text-[11px] font-semibold mb-0.5 text-slate-700 dark:text-slate-300">
                     {role === 'bidder' ? 'Official Business Email' : 'Official Govt Email'} <span className="text-red-500 font-bold ml-0.5">*</span>
                   </label>
                   <div className="relative">
@@ -611,8 +614,8 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                       value={formData.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
                       placeholder={role === 'bidder' ? 'officer@company.com' : 'officer.dept@email.com'}
-                      className={`w-full pl-8 pr-2.5 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white placeholder-slate-400 ${
-                        errors.email ? 'border-rose-300 text-rose-900' : 'border-slate-200 text-slate-900 focus:border-blue-600'
+                      className={`w-full pl-8 pr-2.5 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-800 placeholder-slate-400 dark:placeholder-slate-500 ${
+                        errors.email ? 'border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200' : 'border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:border-blue-600 dark:focus:border-blue-500'
                       }`}
                     />
                   </div>
@@ -621,7 +624,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
 
                 {/* Mobile Number */}
                 <div>
-                  <label className="block text-[11px] font-semibold mb-0.5 text-slate-700">
+                  <label className="block text-[11px] font-semibold mb-0.5 text-slate-700 dark:text-slate-300">
                     Mobile Number <span className="text-red-500 font-bold ml-0.5">*</span>
                   </label>
                   <div className="relative">
@@ -633,8 +636,8 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                       value={formData.phone}
                       onChange={(e) => handleInputChange('phone', e.target.value)}
                       placeholder="+91 98765 43210"
-                      className={`w-full pl-8 pr-2.5 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white placeholder-slate-400 ${
-                        errors.phone ? 'border-rose-300 text-rose-900' : 'border-slate-200 text-slate-900 focus:border-blue-600'
+                      className={`w-full pl-8 pr-2.5 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-800 placeholder-slate-400 dark:placeholder-slate-500 ${
+                        errors.phone ? 'border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200' : 'border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:border-blue-600 dark:focus:border-blue-500'
                       }`}
                     />
                   </div>
@@ -644,7 +647,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                 {/* GSTIN Number (Only for Bidder) */}
                 {role === 'bidder' && (
                   <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-semibold mb-0.5 text-slate-700">
+                    <label className="block text-[11px] font-semibold mb-0.5 text-slate-700 dark:text-slate-300">
                       GSTIN Number <span className="text-red-500 font-bold ml-0.5">*</span>
                     </label>
                     <div className="relative">
@@ -656,8 +659,8 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                         value={formData.gstin}
                         onChange={(e) => handleInputChange('gstin', e.target.value.toUpperCase())}
                         placeholder="e.g. 09ARNAV9012H3Z7"
-                        className={`w-full pl-8 pr-2.5 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white placeholder-slate-400 uppercase ${
-                          errors.gstin ? 'border-rose-300 text-rose-900' : 'border-slate-200 text-slate-900 focus:border-blue-600'
+                        className={`w-full pl-8 pr-2.5 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-800 placeholder-slate-400 dark:placeholder-slate-500 uppercase ${
+                          errors.gstin ? 'border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200' : 'border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:border-blue-600 dark:focus:border-blue-500'
                         }`}
                       />
                     </div>
@@ -667,7 +670,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
 
                 {/* Password */}
                 <div>
-                  <label className="block text-[11px] font-semibold mb-0.5 text-slate-700">
+                  <label className="block text-[11px] font-semibold mb-0.5 text-slate-700 dark:text-slate-300">
                     Password <span className="text-red-500 font-bold ml-0.5">*</span>
                   </label>
                   <div className="relative">
@@ -679,14 +682,14 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                       value={formData.password}
                       onChange={(e) => handleInputChange('password', e.target.value)}
                       placeholder="Minimum 6 characters"
-                      className={`w-full pl-8 pr-8 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white placeholder-slate-400 ${
-                        errors.password ? 'border-rose-300 text-rose-900' : 'border-slate-200 text-slate-900 focus:border-blue-600'
+                      className={`w-full pl-8 pr-8 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-800 placeholder-slate-400 dark:placeholder-slate-500 ${
+                        errors.password ? 'border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200' : 'border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:border-blue-600 dark:focus:border-blue-500'
                       }`}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                     >
                       {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
@@ -696,7 +699,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
 
                 {/* Confirm Password */}
                 <div>
-                  <label className="block text-[11px] font-semibold mb-0.5 text-slate-700">
+                  <label className="block text-[11px] font-semibold mb-0.5 text-slate-700 dark:text-slate-300">
                     Confirm Password <span className="text-red-500 font-bold ml-0.5">*</span>
                   </label>
                   <div className="relative">
@@ -708,14 +711,14 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                       value={formData.confirmPassword}
                       onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
                       placeholder="Re-enter password"
-                      className={`w-full pl-8 pr-8 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white placeholder-slate-400 ${
-                        errors.confirmPassword ? 'border-rose-300 text-rose-900' : 'border-slate-200 text-slate-900 focus:border-blue-600'
+                      className={`w-full pl-8 pr-8 py-1.5 rounded-md border text-xs transition focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-800 placeholder-slate-400 dark:placeholder-slate-500 ${
+                        errors.confirmPassword ? 'border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200' : 'border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:border-blue-600 dark:focus:border-blue-500'
                       }`}
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                     >
                       {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
@@ -735,8 +738,8 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                       onChange={(e) => handleInputChange('agreedToTerms', e.target.checked)}
                       className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
-                    <span className="text-[10.5px] text-slate-600 leading-tight">
-                      I agree to the <span className="font-semibold text-blue-700">Terms of Service</span>, <span className="font-semibold text-blue-700">Privacy Policy</span>, and bidding compliance regulations.
+                    <span className="text-[10.5px] text-slate-600 dark:text-slate-400 leading-tight">
+                      I agree to the <span className="font-semibold text-blue-700 dark:text-blue-400">Terms of Service</span>, <span className="font-semibold text-blue-700 dark:text-blue-400">Privacy Policy</span>, and bidding compliance regulations.
                     </span>
                   </label>
                 ) : (
@@ -747,7 +750,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                       onChange={(e) => handleInputChange('declaration', e.target.checked)}
                       className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
-                    <span className="text-[10.5px] text-slate-600 leading-tight">
+                    <span className="text-[10.5px] text-slate-600 dark:text-slate-400 leading-tight">
                       I hereby declare that I am an authorized government official accessing GeM Compliflix for official duty.
                     </span>
                   </label>
@@ -783,8 +786,8 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
               </button>
 
               {/* Bottom Switch to Sign In */}
-              <div className="text-center pt-2 border-t border-slate-100 mt-2">
-                <span className="text-xs text-slate-600">
+              <div className="text-center pt-2 border-t border-slate-100 dark:border-slate-800 mt-2">
+                <span className="text-xs text-slate-600 dark:text-slate-400">
                   Already have an account?{' '}
                 </span>
                 <Link
@@ -795,7 +798,7 @@ const SignupCard = ({ onSwitchToSignIn, onPendingVerification }) => {
                       onSwitchToSignIn();
                     }
                   }}
-                  className="text-xs font-semibold text-[#0c396d] hover:underline transition cursor-pointer"
+                  className="text-xs font-semibold text-[#0c396d] dark:text-blue-400 hover:underline transition cursor-pointer"
                 >
                   Sign In
                 </Link>

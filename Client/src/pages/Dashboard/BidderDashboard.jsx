@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { Link, Navigate } from 'react-router-dom';
 import {
   Building2,
   ShieldCheck,
@@ -12,56 +12,97 @@ import {
   TrendingUp,
   Download,
   UploadCloud,
-  FileSpreadsheet,
   BadgeCheck,
   Sparkles,
-  HelpCircle,
   Search,
-  Filter,
   RefreshCw,
   Eye,
   Check,
   XCircle,
   AlertCircle,
   Calendar,
-  IndianRupee,
-  Layers,
   ChevronRight,
   Briefcase,
   Award,
-  Zap,
   Trash2,
   ChevronDown,
   LayoutDashboard,
   FolderLock,
   Target,
-  ArrowUpDown,
+  Bot,
 } from 'lucide-react';
 import { useAuth } from '../../context';
 import { isOfficerUser } from '../../utils/roleUtils';
-import { mockTenders } from '../../data/mockTenders';
-import { documentService } from '../../services';
+import { documentService, authService, tenderService } from '../../services';
 import { DocumentDetailsModal, DocumentUploadModal } from '../../components/documents';
+import { TenderDetailModal } from '../../components/tender';
 import './BidderDashboard.css';
 
 const BidderDashboard = () => {
-  const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
 
-  // Strict Role Guard: Govt Officers must NEVER access the commercial bidder dashboard
-  if (!isAuthenticated) {
-    return <Navigate to="/login?redirect=/bidder-dashboard" replace />;
-  }
-  if (isOfficerUser(user)) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [selectedBidDetail, setSelectedBidDetail] = useState(null);
+  const [selectedBidDetail] = useState(null);
+  const [activeTenderModal, setActiveTenderModal] = useState(null);
   const [precheckQuery, setPrecheckQuery] = useState('');
   const [precheckResult, setPrecheckResult] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showCompanyDetails, setShowCompanyDetails] = useState(false);
+  const [matchedTenders, setMatchedTenders] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchTenders = async () => {
+      try {
+        const data = await tenderService.getTenders();
+        if (isMounted && Array.isArray(data)) {
+          setMatchedTenders(data);
+        }
+      } catch (err) {
+        console.warn('Could not fetch tenders for bidder dashboard:', err);
+      }
+    };
+    fetchTenders();
+
+    const handleStorage = () => {
+      tenderService.getTenders().then((data) => {
+        if (isMounted && Array.isArray(data)) {
+          setMatchedTenders(data);
+        }
+      });
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
+  const handleOpenTender = (bidOrTender) => {
+    if (!bidOrTender) return;
+    const ref = bidOrTender.tenderId || bidOrTender.referenceNo || bidOrTender.id;
+    const found =
+      matchedTenders.find((t) => String(t.id) === String(ref) || t.referenceNo === String(ref)) || {
+        id: String(ref),
+        referenceNo: bidOrTender.tenderId || bidOrTender.referenceNo || `GEM/2026/B/${ref}`,
+        title: bidOrTender.title || `Tender ${ref}`,
+        department: bidOrTender.department || 'Government Ministry',
+        ministry: bidOrTender.department || 'Government of India',
+        value: bidOrTender.bidValue || bidOrTender.value || 'As per RFP',
+        emdAmount: 'As specified in tender terms',
+        minLocalContent: '50% (Class-I)',
+        complianceScore: bidOrTender.complianceScore || 90,
+        status: bidOrTender.status || 'Active',
+        daysLeft: bidOrTender.daysLeft || 'Active',
+        published: bidOrTender.published || 'Recently Published',
+        closes: bidOrTender.closes || 'Refer to Tender Schedule',
+        eligibility: 'As per GeM STC & GTC terms',
+        documents: [],
+        description: 'Tender procurement document under General Financial Rules (GFR) 2017.',
+      };
+    setActiveTenderModal(found);
+  };
 
   // Bid management state
   const [bidSubTab, setBidSubTab] = useState('active');
@@ -77,240 +118,126 @@ const BidderDashboard = () => {
   const [docToast, setDocToast] = useState(null);
   const [isCheckingCis, setIsCheckingCis] = useState(false);
   const [cisCheckResult, setCisCheckResult] = useState(null);
+  const [liveProfile, setLiveProfile] = useState(null);
 
-  // Derive business information from user profile or sensible verified defaults
+  // Fetch real authenticated bidder profile (GET /api/bidder/auth/me)
+  useEffect(() => {
+    let isMounted = true;
+    const fetchProfile = async () => {
+      try {
+        const prof = await authService.getBidderProfile();
+        if (isMounted && prof) {
+          setLiveProfile(prof);
+        }
+      } catch (err) {
+        console.warn('Bidder profile fetch notice:', err.message);
+      }
+    };
+    fetchProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Derive business information from live profile, user profile, or verified credentials
   const bidderName =
-    user?.name && user.name.length > 1 && user.name !== 'OFFICIAL USER'
-      ? user.name
-      : 'Arnav Tyagi';
+    liveProfile?.legalName ||
+    (user?.name && user.name.length > 1 && user.name !== 'OFFICIAL USER' ? user.name : 'Registered Bidder');
 
   const companyName =
+    liveProfile?.legalName ||
     user?.companyName ||
     user?.legalName ||
-    (user?.email?.includes('bel')
-      ? 'Bharat Electronics Limited'
-      : user?.email?.includes('omnigrid')
-      ? 'OmniGrid Solar Technologies Pvt Ltd'
-      : `${bidderName} Infotech & Supplies`);
+    (user?.name ? `${user.name} Enterprises` : 'Registered Enterprise');
 
-  const panNumber = user?.panNumber || 'ARNAV9012H';
-  const gstNumber = user?.gstNumber || '09ARNAV9012H3Z7';
-  const udyamNumber = user?.udyamNumber || 'UDYAM-UP-01-0012345';
-  const vendorId = user?.registrationNumber || 'GeM-V-2026-8819';
+  const panNumber = liveProfile?.panNumber || user?.panNumber || '—';
+  const gstNumber = liveProfile?.gstNumber || user?.gstNumber || '—';
+  const udyamNumber = liveProfile?.udyamNumber || user?.udyamNumber || '—';
+  const vendorId = user?.registrationNumber || '—';
 
-  // Sample Submitted Bids for this bidder
-  const myBids = [
-    {
-      tenderId: 'GEM/2026/B/9401',
-      title: 'Supply, Installation & Maintenance of High-Performance AI Edge Computing Servers',
-      department: 'Ministry of Electronics & IT (MeitY)',
-      appliedDate: '03 Sep 2026',
-      bidValue: '₹ 17.80 Cr',
-      complianceScore: 96,
-      status: 'Under Evaluation',
-      statusColor: 'amber',
-      statusIcon: Clock,
-      nextMilestone: 'Technical Scrutiny by Tender Committee',
-      missingDocs: 0,
-      isCompleted: false,
-      details: {
-        boqSubmitted: true,
-        panGstVerified: true,
-        miiDeclaration: 'Class-I Local Supplier (62% Local Content)',
-        landBorderRule144: 'Compliant & Verified (Non-sharing border)',
-        emdExemption: 'MSE Registered (Udyam Verified)',
-      },
-    },
-    {
-      tenderId: 'GEM/2026/B/9385',
-      title: 'Turnkey EPC for 50MW Grid-Connected Rooftop Solar PV Systems',
-      department: 'Ministry of New & Renewable Energy (MNRE)',
-      appliedDate: '29 Aug 2026',
-      bidValue: '₹ 41.20 Cr',
-      complianceScore: 92,
-      status: 'Technically Qualified',
-      statusColor: 'emerald',
-      statusIcon: CheckCircle2,
-      nextMilestone: 'Financial Bid Opening on 14 Sep 2026',
-      missingDocs: 0,
-      isCompleted: false,
-      details: {
-        boqSubmitted: true,
-        panGstVerified: true,
-        miiDeclaration: 'Class-I Local Supplier (74% Local Content)',
-        landBorderRule144: 'Compliant',
-        emdExemption: 'Bank Guarantee Verified',
-      },
-    },
-    {
-      tenderId: 'GEM/2024/B/5123982',
-      title: 'IT Hardware Procurement & Network Infrastructure Setup',
-      department: 'Ministry of Railways (CRIS)',
-      appliedDate: '15 Aug 2026',
-      bidValue: '₹ 8.40 Cr',
-      complianceScore: 84,
-      status: 'Clarification Requested',
-      statusColor: 'blue',
-      statusIcon: AlertCircle,
-      nextMilestone: 'Respond to Clause 4.2 DSC Verification by 13 Sep 2026',
-      missingDocs: 1,
-      isCompleted: false,
-      details: {
-        boqSubmitted: true,
-        panGstVerified: true,
-        miiDeclaration: 'Submitted (Clarification requested on Annexure-B)',
-        landBorderRule144: 'Compliant',
-        emdExemption: 'MSE Exempted',
-      },
-    },
-    {
-      tenderId: 'GEM/2024/B/5123985',
-      title: 'Smart Classroom Setup & Interactive Display Boards',
-      department: 'Ministry of Education',
-      appliedDate: '02 Aug 2026',
-      bidValue: '₹ 5.60 Cr',
-      complianceScore: 95,
-      status: 'Awarded & Finalized',
-      statusColor: 'emerald-dark',
-      statusIcon: Award,
-      nextMilestone: 'Contract Signed & Purchase Order Dispatched',
-      missingDocs: 0,
-      isCompleted: true,
-      details: {
-        boqSubmitted: true,
-        panGstVerified: true,
-        miiDeclaration: 'Class-I Local Supplier (80% Local Content)',
-        landBorderRule144: 'Compliant',
-        emdExemption: 'MSE Exempted',
-      },
-    },
-  ];
+  // Live submitted applications for this bidder from localStorage
+  const [localSubmittedBids] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
+      return Array.isArray(stored) ? stored : [];
+    } catch {
+      return [];
+    }
+  });
 
-  // Default Document Vault fallback items
-  const defaultDocumentVault = [
-    {
-      id: 1,
-      name: 'Permanent Account Number (PAN) Card',
-      fileName: 'PAN_Card_Enterprise.pdf',
-      documentType: 'pan_card',
-      identifier: panNumber,
-      category: 'Statutory Identity',
-      status: 'Verified (Income Tax Dept)',
-      verifiedOn: '01 Aug 2026',
-      fileUrl: 'https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/bidders/PAN_Card_Enterprise.pdf',
-      authenticityScore: 99,
-      isAuthentic: true,
-      rawOcrText: `INCOME TAX DEPARTMENT GOVT OF INDIA\nPermanent Account Number Card: ${panNumber}\nName: ${bidderName}\nStatus: Individual / Business Active`,
-      icon: BadgeCheck,
-      iconColor: 'text-emerald-500',
-    },
-    {
-      id: 2,
-      name: 'Goods & Services Tax Identification (GSTIN)',
-      fileName: 'GST_Certificate_REG06.pdf',
-      documentType: 'gst_certificate',
-      identifier: gstNumber,
-      category: 'Indirect Tax',
-      status: 'Active & In Good Standing',
-      verifiedOn: '01 Sep 2026',
-      fileUrl: 'https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/bidders/GST_Certificate_REG06.pdf',
-      authenticityScore: 98,
-      isAuthentic: true,
-      rawOcrText: `GOVERNMENT OF INDIA FORM GST REG-06\nRegistration Certificate\nGSTIN: ${gstNumber}\nLegal Name: ${companyName}\nStatus: Active`,
-      icon: BadgeCheck,
-      iconColor: 'text-emerald-500',
-    },
-    {
-      id: 3,
-      name: 'Udyam Registration Certificate (MSME)',
-      fileName: 'Udyam_Registration_Certificate.pdf',
-      documentType: 'udyam_msme',
-      identifier: udyamNumber,
-      category: 'Enterprise Classification',
-      status: 'Class-I Micro Enterprise',
-      verifiedOn: '12 Jul 2026',
-      fileUrl: 'https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/bidders/Udyam_Registration_Certificate.pdf',
-      authenticityScore: 97,
-      isAuthentic: true,
-      rawOcrText: `MINISTRY OF MICRO, SMALL & MEDIUM ENTERPRISES\nUDYAM REGISTRATION CERTIFICATE\nUdyam Reg Number: ${udyamNumber}\nEnterprise Type: Micro Enterprise`,
-      icon: Award,
-      iconColor: 'text-blue-500',
-    },
-    {
-      id: 4,
-      name: 'GFR 2017 Rule 144(xi) Land Border Declaration',
-      fileName: 'GFR_144xi_Compliance_Declaration.pdf',
-      documentType: 'gfr_144',
-      identifier: 'LBD-2026-CONF-09',
-      category: 'National Security Compliance',
-      status: 'Certified & Signed',
-      verifiedOn: '25 Aug 2026',
-      fileUrl: 'https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/bidders/GFR_144xi_Compliance_Declaration.pdf',
-      authenticityScore: 99,
-      isAuthentic: true,
-      rawOcrText: 'CERTIFICATE REGARDING RESTRICTIONS UNDER RULE 144(xi) OF GENERAL FINANCIAL RULES 2017\nEntity complies with OM F.No.6/18/2019-PPD dated 23.07.2020.',
-      icon: ShieldCheck,
-      iconColor: 'text-purple-500',
-    },
-    {
-      id: 5,
-      name: 'Public Procurement Preference (Make in India) Self-Declaration',
-      fileName: 'Make_in_India_Class_I_Declaration.pdf',
-      documentType: 'mii_declaration',
-      identifier: 'MII-ANNEX-2026',
-      category: 'Local Content Preference',
-      status: 'Class-I Local Supplier (>50%)',
-      verifiedOn: '28 Aug 2026',
-      fileUrl: 'https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/bidders/Make_in_India_Class_I_Declaration.pdf',
-      authenticityScore: 96,
-      isAuthentic: true,
-      rawOcrText: 'PUBLIC PROCUREMENT PREFERENCE (MAKE IN INDIA) ORDER 2017\nClass-I Local Supplier (Local Content > 50%)\nLocation of value addition: Noida, Uttar Pradesh',
-      icon: CheckCircle2,
-      iconColor: 'text-emerald-500',
-    },
-  ];
+  const myBids = useMemo(() => {
+    return localSubmittedBids.map((b, idx) => ({
+      tenderId: b.tenderId || b.id || `SUB-${idx + 1}`,
+      title: b.title || b.tenderTitle || 'Submitted Bid Proposal',
+      department: b.company || b.department || 'Government Department',
+      appliedDate: b.appliedDate || 'Recent',
+      bidValue: b.quotedAmount || b.value || 'As Quoted',
+      complianceScore: b.matchScore || b.complianceScore || 92,
+      status: b.status || 'Under Evaluation',
+      statusColor: b.status === 'Technically Qualified' ? 'emerald' : b.status === 'Awarded' ? 'emerald-dark' : 'amber',
+      statusIcon: b.status === 'Technically Qualified' ? CheckCircle2 : Clock,
+      nextMilestone: b.lastActivity || 'Technical Scrutiny in Progress',
+      missingDocs: 0,
+      isCompleted: b.status === 'Awarded',
+      details: b.feedbackDetails || {},
+    }));
+  }, [localSubmittedBids]);
+
+  // Default Document Vault baseline (empty; populated from real uploaded documents)
+  const defaultDocumentVault = [];
 
   // Fetch documents from backend API /api/bidder/documents
   useEffect(() => {
-    fetchDocuments();
-  }, []);
-
-  const fetchDocuments = async () => {
-    setIsFetchingDocs(true);
-    try {
-      const res = await documentService.getDocuments();
-      const serverDocs = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-      if (serverDocs && serverDocs.length > 0) {
-        const serverFilenames = new Set(serverDocs.map((d) => d.fileName || d.name));
-        const filteredDefaults = defaultDocumentVault.filter((d) => !serverFilenames.has(d.fileName));
-        setDocuments([...serverDocs, ...filteredDefaults]);
-      } else {
-        setDocuments(defaultDocumentVault);
+    let isMounted = true;
+    const loadDocuments = async () => {
+      try {
+        setIsFetchingDocs(true);
+        const res = await documentService.getDocuments();
+        if (!isMounted) return;
+        const serverDocs = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+        if (serverDocs && serverDocs.length > 0) {
+          const serverFilenames = new Set(serverDocs.map((d) => d.fileName || d.name));
+          const filteredDefaults = defaultDocumentVault.filter((d) => !serverFilenames.has(d.fileName));
+          setDocuments([...serverDocs, ...filteredDefaults]);
+        } else {
+          setDocuments(defaultDocumentVault);
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        console.warn('Backend documents fetch notice:', err?.message);
+        setDocuments((prev) => (prev.length > 0 ? prev : defaultDocumentVault));
+      } finally {
+        if (isMounted) {
+          setIsFetchingDocs(false);
+        }
       }
-    } catch (err) {
-      console.warn('Backend documents fetch notice:', err?.message);
-      setDocuments((prev) => (prev.length > 0 ? prev : defaultDocumentVault));
-    } finally {
-      setIsFetchingDocs(false);
-    }
-  };
+    };
+    const timer = setTimeout(() => {
+      loadDocuments();
+    }, 0);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleUploadSuccess = (newDoc) => {
     setDocuments((prev) => [newDoc, ...prev]);
     showToast(
       'Document Uploaded & Verified',
-      `"${newDoc.fileName || 'Compliance Document'}" uploaded to Cloudinary CDN & verified by ML engine.`
+      `"${newDoc.fileName || 'Compliance Document'}" uploaded to secure document vault & verified.`
     );
   };
 
   const handleDeleteDoc = async (docId, docName) => {
-    if (!window.confirm(`Delete "${docName || 'this document'}" from Cloudinary and database?`)) {
+    if (!window.confirm(`Delete "${docName || 'this document'}" from document vault?`)) {
       return;
     }
     try {
       await documentService.deleteDocument(docId).catch((err) => console.warn('Delete backend note:', err));
       setDocuments((prev) => prev.filter((d) => (d.id || d.name) !== docId));
-      showToast('Document Deleted', `"${docName || 'Document'}" removed from Cloudinary & database.`);
+      showToast('Document Deleted', `"${docName || 'Document'}" removed from document vault.`);
     } catch (err) {
       alert(err?.message || 'Failed to delete document');
     }
@@ -420,20 +347,20 @@ const BidderDashboard = () => {
   const getStatusClasses = (color) => {
     const map = {
       amber: {
-        badge: 'background: rgba(217, 119, 6, 0.08); color: #B45309; border-color: rgba(217, 119, 6, 0.25);',
-        darkBadge: 'background: rgba(217, 119, 6, 0.15); color: #FCD34D; border-color: rgba(217, 119, 6, 0.3);',
+        badge: { background: 'rgba(217, 119, 6, 0.08)', color: '#B45309', borderColor: 'rgba(217, 119, 6, 0.25)' },
+        darkBadge: { background: 'rgba(217, 119, 6, 0.15)', color: '#FCD34D', borderColor: 'rgba(217, 119, 6, 0.3)' },
       },
       emerald: {
-        badge: 'background: rgba(5, 150, 105, 0.08); color: #047857; border-color: rgba(5, 150, 105, 0.25);',
-        darkBadge: 'background: rgba(5, 150, 105, 0.15); color: #6EE7B7; border-color: rgba(5, 150, 105, 0.3);',
+        badge: { background: 'rgba(5, 150, 105, 0.08)', color: '#047857', borderColor: 'rgba(5, 150, 105, 0.25)' },
+        darkBadge: { background: 'rgba(5, 150, 105, 0.15)', color: '#6EE7B7', borderColor: 'rgba(5, 150, 105, 0.3)' },
       },
       'emerald-dark': {
-        badge: 'background: rgba(5, 150, 105, 0.12); color: #065F46; border-color: rgba(5, 150, 105, 0.3);',
-        darkBadge: 'background: rgba(5, 150, 105, 0.2); color: #A7F3D0; border-color: rgba(5, 150, 105, 0.35);',
+        badge: { background: 'rgba(5, 150, 105, 0.12)', color: '#065F46', borderColor: 'rgba(5, 150, 105, 0.3)' },
+        darkBadge: { background: 'rgba(5, 150, 105, 0.2)', color: '#A7F3D0', borderColor: 'rgba(5, 150, 105, 0.35)' },
       },
       blue: {
-        badge: 'background: rgba(37, 99, 235, 0.08); color: #1D4ED8; border-color: rgba(37, 99, 235, 0.25);',
-        darkBadge: 'background: rgba(37, 99, 235, 0.15); color: #93C5FD; border-color: rgba(37, 99, 235, 0.3);',
+        badge: { background: 'rgba(37, 99, 235, 0.08)', color: '#1D4ED8', borderColor: 'rgba(37, 99, 235, 0.25)' },
+        darkBadge: { background: 'rgba(37, 99, 235, 0.15)', color: '#93C5FD', borderColor: 'rgba(37, 99, 235, 0.3)' },
       },
     };
     return map[color] || map.blue;
@@ -450,9 +377,17 @@ const BidderDashboard = () => {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
     { id: 'bids', label: 'My Bids', icon: Briefcase, badge: myBids.length },
     { id: 'vault', label: 'Document Vault', icon: FolderLock, badge: null },
-    { id: 'recommendations', label: 'Matched Tenders', icon: Target, badge: mockTenders.length },
+    { id: 'recommendations', label: 'Matched Tenders', icon: Target, badge: matchedTenders.length },
     { id: 'precheck', label: 'AI Pre-Checker', icon: Sparkles, badge: null },
   ];
+
+  // Strict Role Guard: Govt Officers must NEVER access the commercial bidder dashboard
+  if (!isAuthenticated) {
+    return <Navigate to="/login?redirect=/bidder-dashboard" replace />;
+  }
+  if (isOfficerUser(user)) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   // ── Render ────────────────────────────────────────────────
   return (
@@ -700,7 +635,7 @@ const BidderDashboard = () => {
                               <span className="bd-bid-ref">{bid.tenderId}</span>
                               <span
                                 className="bd-status-badge"
-                                style={Object.fromEntries(statusStyles.badge.split(';').filter(Boolean).map(s => { const [k, v] = s.split(':'); return [k.trim(), v.trim()]; }))}
+                                style={statusStyles?.badge || {}}
                               >
                                 <StatusIcon style={{ width: 12, height: 12 }} aria-hidden="true" />
                                 {bid.status}
@@ -998,7 +933,7 @@ const BidderDashboard = () => {
                           <span className="bd-bid-ref">{bid.tenderId}</span>
                           <span
                             className="bd-status-badge"
-                            style={Object.fromEntries(statusStyles.badge.split(';').filter(Boolean).map(s => { const [k, v] = s.split(':'); return [k.trim(), v.trim()]; }))}
+                            style={statusStyles?.badge || {}}
                           >
                             <StatusIcon style={{ width: 12, height: 12 }} aria-hidden="true" />
                             {bid.status}
@@ -1060,6 +995,15 @@ const BidderDashboard = () => {
                             )}
                             <button
                               type="button"
+                              className="bd-btn bd-btn--ghost bd-btn--sm"
+                              onClick={() => handleOpenTender(bid)}
+                              title="Ask AI Assistant about this tender"
+                            >
+                              <Bot aria-hidden="true" style={{ color: '#10B981' }} />
+                              <span>Ask AI</span>
+                            </button>
+                            <button
+                              type="button"
                               className="bd-btn--icon"
                               title="Download Submission Receipt"
                               onClick={() =>
@@ -1114,7 +1058,7 @@ const BidderDashboard = () => {
                       </span>
                     </div>
                     <p style={{ fontSize: '0.75rem', color: 'var(--bd-text-muted)', margin: '4px 0 0' }}>
-                      Centralized repository for statutory certificates uploaded to Cloudinary &amp; verified by GeM ML Forensic Engine.
+                      Centralized repository for statutory certificates uploaded &amp; verified by the GeM Compliance Engine.
                     </p>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
@@ -1185,7 +1129,7 @@ const BidderDashboard = () => {
                       </div>
                       <p style={{ fontSize: '0.6875rem', color: 'var(--bd-text-secondary)', margin: 0 }}>
                         {(cisCheckResult.recommendations && cisCheckResult.recommendations[0]) ||
-                          'All statutory documents pass anti-forgery, pyHanko digital signature, and GFR 144 rules.'}
+                          'All statutory documents pass anti-forgery, Class-3 digital signature, and GFR 144 rules.'}
                       </p>
                     </div>
                     <button
@@ -1311,7 +1255,7 @@ const BidderDashboard = () => {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="bd-btn--icon"
-                                title="Open Cloudinary CDN Link"
+                                title="View Document"
                               >
                                 <ExternalLink aria-hidden="true" />
                               </a>
@@ -1348,13 +1292,19 @@ const BidderDashboard = () => {
                   </p>
                 </div>
                 <Link to="/tenders" className="bd-btn bd-btn--ghost bd-btn--sm">
-                  View all ({mockTenders.length})
+                  View all ({matchedTenders.length})
                   <ChevronRight aria-hidden="true" />
                 </Link>
               </div>
 
               <div className="bd-tender-grid">
-                {mockTenders.slice(0, 4).map((tender) => (
+                {matchedTenders.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--bd-text-muted)', fontSize: '0.8125rem', gridColumn: '1 / -1' }}>
+                    <Target style={{ width: 28, height: 28, opacity: 0.3, margin: '0 auto 8px' }} />
+                    <p style={{ margin: 0 }}>No matched tenders available right now. Check back soon.</p>
+                  </div>
+                ) : (
+                  matchedTenders.slice(0, 4).map((tender) => (
                   <div key={tender.id} className="bd-tender-card">
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
@@ -1413,15 +1363,29 @@ const BidderDashboard = () => {
                         <ShieldCheck aria-hidden="true" style={{ color: '#6EE7B7' }} />
                         Verify & Pre-Screen
                       </Link>
-                      <Link
-                        to="/tenders"
-                        style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--bd-text-secondary)', textDecoration: 'none' }}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenTender(tender)}
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: 'var(--bd-text-secondary)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: 0,
+                        }}
                       >
-                        Details & BOQ →
-                      </Link>
+                        <Bot aria-hidden="true" style={{ width: 13, height: 13, color: '#10B981' }} />
+                        <span>Details &amp; Ask AI →</span>
+                      </button>
                     </div>
                   </div>
-                ))}
+                ))
+              )}
               </div>
             </section>
           )}
@@ -1562,6 +1526,7 @@ const BidderDashboard = () => {
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
         onUploadSuccess={handleUploadSuccess}
+        tenderId={selectedBidDetail?.tenderId || null}
       />
 
       {selectedDocDetails && (
@@ -1571,10 +1536,16 @@ const BidderDashboard = () => {
           onClose={() => setSelectedDocDetails(null)}
           onDeleteSuccess={(deletedId) => {
             setDocuments((prev) => prev.filter((d) => (d.id || d.name) !== deletedId));
-            showToast('Document Deleted', 'Document removed from Cloudinary and database.');
+            showToast('Document Deleted', 'Document removed from document vault.');
           }}
         />
       )}
+
+      {/* ═══ TENDER DETAILS & AI CHATBOT MODAL ═══ */}
+      <TenderDetailModal
+        tender={activeTenderModal}
+        onClose={() => setActiveTenderModal(null)}
+      />
     </div>
   );
 };

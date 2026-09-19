@@ -41,8 +41,8 @@ const WhyChoose = () => {
     <section id="why-choose" className="py-14 sm:py-20 bg-white dark:bg-[#121212] select-none transition-colors duration-200">
       <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Section Header */}
-        <div className="text-center max-w-2xl mx-auto mb-12">
+        {/* Section Header - Left-aligned to match design system */}
+        <div className="max-w-2xl mb-12 text-left">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200/80 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-bold uppercase tracking-wider mb-3">
             <Zap className="w-3.5 h-3.5" />
             <span>Proven Procurement Advantage</span>
@@ -87,7 +87,7 @@ const WhyChoose = () => {
                 </div>
 
                 {/* Sub Benefit Tag */}
-                <div className="pt-3 border-t border-slate-200/70 dark:border-[#282828] flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                <div className="pt-3 border-t border-slate-200/70 dark:border-[#282828] flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                   <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                   <span>{pillar.benefit}</span>
                 </div>

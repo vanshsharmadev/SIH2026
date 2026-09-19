@@ -677,7 +677,7 @@ const AuditTrail = () => {
           </div>
 
           {/* Table */}
-          <div className="flex-1 overflow-auto rounded-xl border border-slate-200/80 dark:border-slate-800 min-h-0">
+          <div data-lenis-prevent="true" className="flex-1 overflow-auto rounded-xl border border-slate-200/80 dark:border-slate-800 min-h-0">
             <table className="w-full text-left text-xs min-w-[780px]">
               <thead className="sticky top-0 z-10 font-semibold text-[11px] bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800 shadow-2xs">
                 <tr>
@@ -943,7 +943,7 @@ const AuditTrail = () => {
             </div>
 
             {/* Scrollable Middle Content Container */}
-            <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-4 min-h-0">
+            <div data-lenis-prevent="true" className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-4 min-h-0">
               
               {/* Activity Hero Banner */}
               <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-750 space-y-3">

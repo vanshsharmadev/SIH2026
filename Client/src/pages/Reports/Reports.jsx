@@ -35,304 +35,56 @@ import {
 import { recordAuditLog } from '../../services';
 
 // --- MOCK TENDER COMPLIANCE DATA (Matching reference screenshot + realistic GeM records) ---
-const ALL_TENDERS_COMPLIANCE = [
-  {
-    id: 1,
-    refNo: 'GEM/2024/B/5123981',
-    title: 'Supply of Office Stationery Items',
-    org: 'Ministry of Education',
-    dept: 'Department of School Education',
-    category: 'Office Stationery',
-    stage: 'Final Audit',
-    totalSubmissions: 18,
-    compliant: 14,
-    compliantPct: 78,
-    nonCompliant: 3,
-    nonCompliantPct: 17,
-    underReview: 1,
-    underReviewPct: 5,
-    avgScore: 86,
-  },
-  {
-    id: 2,
-    refNo: 'GEM/2024/B/4987654',
-    title: 'IT Hardware Procurement',
-    org: 'Ministry of Railways',
-    dept: 'Railway Board',
-    category: 'IT Hardware',
-    stage: 'Technical Bid',
-    totalSubmissions: 22,
-    compliant: 15,
-    compliantPct: 68,
-    nonCompliant: 6,
-    nonCompliantPct: 27,
-    underReview: 1,
-    underReviewPct: 5,
-    avgScore: 74,
-  },
-  {
-    id: 3,
-    refNo: 'GEM/2024/B/4876543',
-    title: 'Road Construction Works',
-    org: 'PWD Department',
-    dept: 'State PWD',
-    category: 'Civil Works',
-    stage: 'Financial Bid',
-    totalSubmissions: 12,
-    compliant: 8,
-    compliantPct: 67,
-    nonCompliant: 3,
-    nonCompliantPct: 25,
-    underReview: 1,
-    underReviewPct: 8,
-    avgScore: 71,
-  },
-  {
-    id: 4,
-    refNo: 'GEM/2024/B/4765432',
-    title: 'Medical Equipment Supply',
-    org: 'Health Department',
-    dept: 'State Health Mission',
-    category: 'Medical Equipment',
-    stage: 'PQC Evaluation',
-    totalSubmissions: 16,
-    compliant: 11,
-    compliantPct: 69,
-    nonCompliant: 4,
-    nonCompliantPct: 25,
-    underReview: 1,
-    underReviewPct: 6,
-    avgScore: 76,
-  },
-  {
-    id: 5,
-    refNo: 'GEM/2024/B/4654321',
-    title: 'Smart Classroom Setup',
-    org: 'Ministry of Education',
-    dept: 'Department of School Education',
-    category: 'Classroom Infrastructure',
-    stage: 'Technical Bid',
-    totalSubmissions: 10,
-    compliant: 8,
-    compliantPct: 80,
-    nonCompliant: 1,
-    nonCompliantPct: 10,
-    underReview: 1,
-    underReviewPct: 10,
-    avgScore: 88,
-  },
-  {
-    id: 6,
-    refNo: 'GEM/2024/B/4543210',
-    title: 'Annual Maintenance Contract',
-    org: 'CPWD',
-    dept: 'CPWD Delhi',
-    category: 'AMC Services',
-    stage: 'Final Audit',
-    totalSubmissions: 8,
-    compliant: 6,
-    compliantPct: 75,
-    nonCompliant: 1,
-    nonCompliantPct: 13,
-    underReview: 1,
-    underReviewPct: 12,
-    avgScore: 81,
-  },
-  {
-    id: 7,
-    refNo: 'GEM/2024/B/4432109',
-    title: 'Supply of Laboratory Chemicals',
-    org: 'Higher Education Dept.',
-    dept: 'State University',
-    category: 'Chemicals',
-    stage: 'Technical Bid',
-    totalSubmissions: 9,
-    compliant: 5,
-    compliantPct: 56,
-    nonCompliant: 3,
-    nonCompliantPct: 33,
-    underReview: 1,
-    underReviewPct: 11,
-    avgScore: 63,
-  },
-  {
-    id: 8,
-    refNo: 'GEM/2024/B/4321098',
-    title: 'CCTV Surveillance for City Center',
-    org: 'Ministry of Home Affairs',
-    dept: 'Delhi Police IT Division',
-    category: 'IT Hardware',
-    stage: 'PQC Evaluation',
-    totalSubmissions: 14,
-    compliant: 12,
-    compliantPct: 86,
-    nonCompliant: 1,
-    nonCompliantPct: 7,
-    underReview: 1,
-    underReviewPct: 7,
-    avgScore: 89,
-  },
-  {
-    id: 9,
-    refNo: 'GEM/2024/B/4210987',
-    title: 'Solar Rooftop Power Panels 100KW',
-    org: 'Ministry of New & Renewable Energy',
-    dept: 'Solar Energy Corporation',
-    category: 'Civil Works',
-    stage: 'Financial Bid',
-    totalSubmissions: 20,
-    compliant: 16,
-    compliantPct: 80,
-    nonCompliant: 3,
-    nonCompliantPct: 15,
-    underReview: 1,
-    underReviewPct: 5,
-    avgScore: 84,
-  },
-  {
-    id: 10,
-    refNo: 'GEM/2024/B/4109876',
-    title: 'Hospital Ward Beds and ICU Furniture',
-    org: 'Health Department',
-    dept: 'State Health Mission',
-    category: 'Medical Equipment',
-    stage: 'Final Audit',
-    totalSubmissions: 15,
-    compliant: 13,
-    compliantPct: 87,
-    nonCompliant: 1,
-    nonCompliantPct: 7,
-    underReview: 1,
-    underReviewPct: 6,
-    avgScore: 91,
-  },
-  {
-    id: 11,
-    refNo: 'GEM/2024/B/4098765',
-    title: 'High Performance AI Server Cluster',
-    org: 'Ministry of Electronics & IT',
-    dept: 'C-DAC Supercomputing Cell',
-    category: 'IT Hardware',
-    stage: 'Technical Bid',
-    totalSubmissions: 11,
-    compliant: 9,
-    compliantPct: 82,
-    nonCompliant: 2,
-    nonCompliantPct: 18,
-    underReview: 0,
-    underReviewPct: 0,
-    avgScore: 85,
-  },
-  {
-    id: 12,
-    refNo: 'GEM/2024/B/3987654',
-    title: 'Supply of Electric Vehicles for Field Inspection',
-    org: 'Ministry of Heavy Industries',
-    dept: 'FAME-II Scheme Office',
-    category: 'Civil Works',
-    stage: 'Financial Bid',
-    totalSubmissions: 17,
-    compliant: 12,
-    compliantPct: 71,
-    nonCompliant: 4,
-    nonCompliantPct: 24,
-    underReview: 1,
-    underReviewPct: 5,
-    avgScore: 78,
-  },
-  {
-    id: 13,
-    refNo: 'GEM/2024/B/3876543',
-    title: 'Fire Safety & Smoke Evacuation Systems',
-    org: 'CPWD',
-    dept: 'CPWD Delhi',
-    category: 'Civil Works',
-    stage: 'Technical Bid',
-    totalSubmissions: 13,
-    compliant: 10,
-    compliantPct: 77,
-    nonCompliant: 2,
-    nonCompliantPct: 15,
-    underReview: 1,
-    underReviewPct: 8,
-    avgScore: 82,
-  },
-  {
-    id: 14,
-    refNo: 'GEM/2024/B/3765432',
-    title: 'Bio-Medical Waste Incinerators',
-    org: 'Health Department',
-    dept: 'State Health Mission',
-    category: 'Medical Equipment',
-    stage: 'Final Audit',
-    totalSubmissions: 9,
-    compliant: 7,
-    compliantPct: 78,
-    nonCompliant: 1,
-    nonCompliantPct: 11,
-    underReview: 1,
-    underReviewPct: 11,
-    avgScore: 79,
-  },
-  {
-    id: 15,
-    refNo: 'GEM/2024/B/3654321',
-    title: 'Interactive Digital Whiteboards (75")',
-    org: 'Ministry of Education',
-    dept: 'Department of School Education',
-    category: 'Classroom Infrastructure',
-    stage: 'Financial Bid',
-    totalSubmissions: 14,
-    compliant: 11,
-    compliantPct: 79,
-    nonCompliant: 2,
-    nonCompliantPct: 14,
-    underReview: 1,
-    underReviewPct: 7,
-    avgScore: 87,
-  },
-];
-
-// --- COMPLIANCE TREND TIME-SERIES DATA ---
-const TREND_POINTS = [
-  { date: '01 May', comp: 75, nonComp: 28, compCount: 150, nonCompCount: 56 },
-  { date: '04 May', comp: 75, nonComp: 25, compCount: 154, nonCompCount: 51 },
-  { date: '07 May', comp: 78, nonComp: 22, compCount: 162, nonCompCount: 46 },
-  { date: '10 May', comp: 80, nonComp: 20, compCount: 168, nonCompCount: 42 },
-  { date: '13 May', comp: 83, nonComp: 17, compCount: 175, nonCompCount: 36 },
-  { date: '16 May', comp: 85, nonComp: 15, compCount: 181, nonCompCount: 32 },
-  { date: '19 May', comp: 82, nonComp: 18, compCount: 165, nonCompCount: 67 },
-];
-
-// --- COMPLIANCE BY CATEGORY BREAKDOWN ---
-const CATEGORY_DATA = [
-  { name: 'Technical', pct: 42, count: 104, color: '#3B82F6' },
-  { name: 'Financial', pct: 22, count: 55, color: '#10B981' },
-  { name: 'Legal & Statutory', pct: 14, count: 35, color: '#F59E0B' },
-  { name: 'Certificate & Declarations', pct: 12, count: 30, color: '#8B5CF6' },
-  { name: 'Others', pct: 10, count: 24, color: '#06B6D4' },
-];
-
-// --- COMPLIANCE SCORE DISTRIBUTION ---
-const SCORE_DISTRIBUTION = [
-  { label: '90 - 100% (High)', count: 82, pct: 33, color: '#10B981' },
-  { label: '70 - 89% (Medium)', count: 96, pct: 39, color: '#06B6D4' },
-  { label: '50 - 69% (Low)', count: 46, pct: 19, color: '#F59E0B' },
-  { label: '0 - 49% (Critical)', count: 24, pct: 9, color: '#EF4444' },
-];
-
-// --- TOP NON-COMPLIANCE REASONS ---
-const ROOT_CAUSES = [
-  { reason: 'Document Missing / Invalid', count: 24, pct: 36, desc: 'Notarized affidavits or mandatory GFR certificates missing.' },
-  { reason: 'Certificate Expired', count: 12, pct: 18, desc: 'ISO, GST, or OEM Authorization past validity date.' },
-  { reason: 'Technical Specification Mismatch', count: 10, pct: 15, desc: 'Offered specs deviate from tender schedule.' },
-  { reason: 'Financial Criteria Not Met', count: 8, pct: 12, desc: 'Annual turnover or net worth below tender threshold.' },
-  { reason: 'Other Reasons', count: 13, pct: 19, desc: 'Land border declaration or EMD exemption issues.' },
-];
+// --- COMPLIANCE DATA (Dynamically populated from live tenders) ---
+const TREND_POINTS = [];
+const CATEGORY_DATA = [];
+const SCORE_DISTRIBUTION = [];
+const ROOT_CAUSES = [];
 
 const Reports = () => {
   const location = useLocation();
   const isStandalone = location.pathname === '/reports';
+
+  // Dynamic Tenders State loaded from real submissions & tenders
+  const [allTendersCompliance] = useState(() => {
+    try {
+      const savedTenders = JSON.parse(localStorage.getItem('gem_officer_tenders') || '[]');
+      const savedSubmissions = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
+      if (Array.isArray(savedTenders) && savedTenders.length > 0) {
+        return savedTenders.map((t, idx) => {
+          const subs = savedSubmissions.filter((s) => String(s.tenderId) === String(t.id) || s.tenderRef === t.tenderId);
+          const totalSubmissions = subs.length;
+          const compliant = subs.filter((s) => s.status === 'Compliant' || s.overallStatus === 'COMPLIANT' || s.score >= 70).length;
+          const nonCompliant = subs.filter((s) => s.status === 'Non-Compliant' || s.overallStatus === 'NON_COMPLIANT' || (s.score > 0 && s.score < 70)).length;
+          const underReview = subs.filter((s) => s.status === 'Pending' || s.status === 'Under Review' || !s.overallStatus).length;
+          const compliantPct = totalSubmissions > 0 ? Math.round((compliant / totalSubmissions) * 100) : 0;
+          const nonCompliantPct = totalSubmissions > 0 ? Math.round((nonCompliant / totalSubmissions) * 100) : 0;
+          const underReviewPct = totalSubmissions > 0 ? Math.round((underReview / totalSubmissions) * 100) : 0;
+          const avgScore = totalSubmissions > 0 ? Math.round(subs.reduce((acc, s) => acc + (s.score || 0), 0) / totalSubmissions) : 0;
+          return {
+            id: t.id || idx + 1,
+            refNo: t.tenderId || t.refNo || `GEM/TND/${t.id || idx + 1}`,
+            title: t.title || t.tenderTitle || 'Untitled Tender',
+            org: t.organization || t.org || 'GeM Organization',
+            dept: t.department || t.dept || 'Procurement Division',
+            category: t.category || 'General',
+            stage: t.status || 'Active',
+            totalSubmissions,
+            compliant,
+            compliantPct,
+            nonCompliant,
+            nonCompliantPct,
+            underReview,
+            underReviewPct,
+            avgScore,
+          };
+        });
+      }
+    } catch (e) {
+      console.warn('Could not read real tenders for reports:', e);
+    }
+    return [];
+  });
 
   // Filters State
   const [dateRange, setDateRange] = useState('01 May 2024 - 20 May 2024');
@@ -385,7 +137,7 @@ const Reports = () => {
 
   // Filtered List calculation
   const filteredTenders = useMemo(() => {
-    let result = ALL_TENDERS_COMPLIANCE.filter((item) => {
+    let result = allTendersCompliance.filter((item) => {
       if (selectedDept !== 'All Departments' && item.org !== selectedDept) return false;
       if (selectedOrg !== 'All Organizations' && item.dept !== selectedOrg) return false;
       if (selectedCategory !== 'All Categories' && item.category !== selectedCategory) return false;
@@ -415,7 +167,7 @@ const Reports = () => {
     });
 
     return result;
-  }, [selectedDept, selectedOrg, selectedCategory, selectedStage, minScoreFilter, searchQuery, sortField, sortOrder]);
+  }, [allTendersCompliance, selectedDept, selectedOrg, selectedCategory, selectedStage, minScoreFilter, searchQuery, sortField, sortOrder]);
 
   // Paginated List
   const totalResults = filteredTenders.length;
@@ -424,6 +176,26 @@ const Reports = () => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredTenders.slice(start, start + itemsPerPage);
   }, [filteredTenders, currentPage, itemsPerPage]);
+
+  const totalSubmissionsSum = useMemo(
+    () => filteredTenders.reduce((sum, t) => sum + (t.totalSubmissions || 0), 0),
+    [filteredTenders]
+  );
+  const compliantSum = useMemo(
+    () => filteredTenders.reduce((sum, t) => sum + (t.compliant || 0), 0),
+    [filteredTenders]
+  );
+  const nonCompliantSum = useMemo(
+    () => filteredTenders.reduce((sum, t) => sum + (t.nonCompliant || 0), 0),
+    [filteredTenders]
+  );
+  const underReviewSum = useMemo(
+    () => filteredTenders.reduce((sum, t) => sum + (t.underReview || 0), 0),
+    [filteredTenders]
+  );
+  const complianceRate = totalSubmissionsSum > 0 ? Math.round((compliantSum / totalSubmissionsSum) * 100) : 0;
+  const nonComplianceRate = totalSubmissionsSum > 0 ? Math.round((nonCompliantSum / totalSubmissionsSum) * 100) : 0;
+  const underReviewPct = totalSubmissionsSum > 0 ? Math.round((underReviewSum / totalSubmissionsSum) * 100) : 0;
 
   // Working CSV Download
   const handleExportReport = () => {
@@ -458,7 +230,7 @@ const Reports = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     // Auto record in real audit trail
     recordAuditLog({
       activity: 'Report Generated',
@@ -542,12 +314,12 @@ const Reports = () => {
           Column 2 (Right 4 cols): Buttons -> Under Review -> Score Dist -> Avg Score -> Top Reasons
           ========================================================================= */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-        
+
         {/* =======================================================================
             LEFT PRIMARY WORKSPACE (xl:col-span-8)
             ======================================================================= */}
         <div className="xl:col-span-8 space-y-4">
-          
+
           {/* 1. TOP 4 KPI METRIC CARDS */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Card 1: Overall Compliance */}
@@ -559,12 +331,12 @@ const Reports = () => {
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Compliance</p>
                   <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                    82%
+                    {complianceRate}%
                   </h3>
                 </div>
               </div>
               <div className="flex items-center justify-between gap-1 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">+8% <span className="text-slate-400 font-normal">vs 30d</span></p>
+                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Live platform status</p>
                 <div className="w-10 h-3 shrink-0">
                   <svg viewBox="0 0 40 14" className="w-full h-full overflow-visible">
                     <polyline fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points="2,12 12,10 22,11 30,5 38,2" />
@@ -582,12 +354,12 @@ const Reports = () => {
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Evaluations</p>
                   <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                    248
+                    {totalSubmissionsSum}
                   </h3>
                 </div>
               </div>
               <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">+24 <span className="text-slate-400 font-normal">vs 30d</span></p>
+                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">+{totalSubmissionsSum} <span className="text-slate-400 font-normal">total</span></p>
               </div>
             </div>
 
@@ -600,12 +372,12 @@ const Reports = () => {
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Compliant</p>
                   <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                    165 <span className="text-xs font-semibold text-slate-400">(67%)</span>
+                    {compliantSum} <span className="text-xs font-semibold text-slate-400">({complianceRate}%)</span>
                   </h3>
                 </div>
               </div>
               <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">+18 <span className="text-slate-400 font-normal">vs 30d</span></p>
+                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{compliantSum} <span className="text-slate-400 font-normal">passed</span></p>
               </div>
             </div>
 
@@ -618,12 +390,12 @@ const Reports = () => {
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Non-compliant</p>
                   <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                    67 <span className="text-xs font-semibold text-slate-400">(27%)</span>
+                    {nonCompliantSum} <span className="text-xs font-semibold text-slate-400">({nonComplianceRate}%)</span>
                   </h3>
                 </div>
               </div>
               <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400">+5 <span className="text-slate-400 font-normal">vs 30d</span></p>
+                <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400">{nonCompliantSum} <span className="text-slate-400 font-normal">flagged</span></p>
               </div>
             </div>
           </div>
@@ -655,205 +427,204 @@ const Reports = () => {
             {showFilters && (
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3 animate-in fade-in duration-150">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              {/* Date Range Picker */}
-              <div>
-                <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Date Range
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    readOnly
-                    value={dateRange}
-                    className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-white pr-8 cursor-pointer focus:outline-none focus:border-blue-500"
-                    onClick={() => {
-                      setDateRange(
-                        dateRange === '01 May 2024 - 20 May 2024'
-                          ? '01 Apr 2024 - 30 Apr 2024'
-                          : '01 May 2024 - 20 May 2024'
-                      );
-                    }}
-                  />
-                  <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-
-              {/* Department Filter */}
-              <div>
-                <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Department
-                </label>
-                <select
-                  value={selectedDept}
-                  onChange={(e) => {
-                    setSelectedDept(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
-                >
-                  {departmentOptions.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Organization / Buyer Filter */}
-              <div>
-                <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Organization / Buyer
-                </label>
-                <select
-                  value={selectedOrg}
-                  onChange={(e) => {
-                    setSelectedOrg(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
-                >
-                  <option value="All Organizations">All Organizations</option>
-                  <option value="Department of School Education">Department of School Education</option>
-                  <option value="Railway Board">Railway Board</option>
-                  <option value="State PWD">State PWD</option>
-                  <option value="State Health Mission">State Health Mission</option>
-                  <option value="CPWD Delhi">CPWD Delhi</option>
-                  <option value="State University">State University</option>
-                </select>
-              </div>
-
-              {/* Tender Category */}
-              <div>
-                <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Tender Category
-                </label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => {
-                    setSelectedCategory(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
-                >
-                  {categoryOptions.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Evaluation Stage */}
-              <div>
-                <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Evaluation Stage
-                </label>
-                <select
-                  value={selectedStage}
-                  onChange={(e) => {
-                    setSelectedStage(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
-                >
-                  <option value="All Stages">All Stages</option>
-                  <option value="Technical Bid">Technical Bid</option>
-                  <option value="Financial Bid">Financial Bid</option>
-                  <option value="Final Audit">Final Audit</option>
-                  <option value="PQC Evaluation">PQC Evaluation</option>
-                </select>
-              </div>
-
-              {/* More Filters Toggle */}
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  onClick={() => setMoreFiltersOpen(!moreFiltersOpen)}
-                  className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition cursor-pointer ${
-                    moreFiltersOpen
-                      ? 'border-blue-500 bg-blue-50/70 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
-                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                  <span>More Filters</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Expandable Advanced Filters Drawer */}
-            {moreFiltersOpen && (
-              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3 items-center animate-in fade-in">
-                <div>
-                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                    <span>Minimum Score Filter</span>
-                    <span className="font-mono text-blue-600 dark:text-blue-400 font-bold">{minScoreFilter}%</span>
+                  {/* Date Range Picker */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                      Date Range
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        readOnly
+                        value={dateRange}
+                        className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-white pr-8 cursor-pointer focus:outline-none focus:border-blue-500"
+                        onClick={() => {
+                          setDateRange(
+                            dateRange === '01 May 2024 - 20 May 2024'
+                              ? '01 Apr 2024 - 30 Apr 2024'
+                              : '01 May 2024 - 20 May 2024'
+                          );
+                        }}
+                      />
+                      <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="90"
-                    step="5"
-                    value={minScoreFilter}
-                    onChange={(e) => {
-                      setMinScoreFilter(Number(e.target.value));
-                      setCurrentPage(1);
-                    }}
-                    className="w-full accent-blue-600 cursor-pointer"
-                  />
+
+                  {/* Department Filter */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                      Department
+                    </label>
+                    <select
+                      value={selectedDept}
+                      onChange={(e) => {
+                        setSelectedDept(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                    >
+                      {departmentOptions.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Organization / Buyer Filter */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                      Organization / Buyer
+                    </label>
+                    <select
+                      value={selectedOrg}
+                      onChange={(e) => {
+                        setSelectedOrg(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                    >
+                      <option value="All Organizations">All Organizations</option>
+                      <option value="Department of School Education">Department of School Education</option>
+                      <option value="Railway Board">Railway Board</option>
+                      <option value="State PWD">State PWD</option>
+                      <option value="State Health Mission">State Health Mission</option>
+                      <option value="CPWD Delhi">CPWD Delhi</option>
+                      <option value="State University">State University</option>
+                    </select>
+                  </div>
+
+                  {/* Tender Category */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                      Tender Category
+                    </label>
+                    <select
+                      value={selectedCategory}
+                      onChange={(e) => {
+                        setSelectedCategory(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                    >
+                      {categoryOptions.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Evaluation Stage */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                      Evaluation Stage
+                    </label>
+                    <select
+                      value={selectedStage}
+                      onChange={(e) => {
+                        setSelectedStage(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                    >
+                      <option value="All Stages">All Stages</option>
+                      <option value="Technical Bid">Technical Bid</option>
+                      <option value="Financial Bid">Financial Bid</option>
+                      <option value="Final Audit">Final Audit</option>
+                      <option value="PQC Evaluation">PQC Evaluation</option>
+                    </select>
+                  </div>
+
+                  {/* More Filters Toggle */}
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => setMoreFiltersOpen(!moreFiltersOpen)}
+                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition cursor-pointer ${moreFiltersOpen
+                          ? 'border-blue-500 bg-blue-50/70 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                          : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                        }`}
+                    >
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>More Filters</span>
+                    </button>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
-                    Sort Order
-                  </label>
-                  <select
-                    value={`${sortField}-${sortOrder}`}
-                    onChange={(e) => {
-                      const [field, order] = e.target.value.split('-');
-                      setSortField(field);
-                      setSortOrder(order);
-                    }}
-                    className="w-full text-xs font-medium px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-white"
-                  >
-                    <option value="id-asc">Default Order</option>
-                    <option value="avgScore-desc">Highest Score First</option>
-                    <option value="avgScore-asc">Lowest Score First</option>
-                    <option value="totalSubmissions-desc">Most Submissions</option>
-                    <option value="nonCompliant-desc">Highest Non-compliant</option>
-                  </select>
-                </div>
+                {/* Expandable Advanced Filters Drawer */}
+                {moreFiltersOpen && (
+                  <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3 items-center animate-in fade-in">
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                        <span>Minimum Score Filter</span>
+                        <span className="font-mono text-blue-600 dark:text-blue-400 font-bold">{minScoreFilter}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="90"
+                        step="5"
+                        value={minScoreFilter}
+                        onChange={(e) => {
+                          setMinScoreFilter(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="w-full accent-blue-600 cursor-pointer"
+                      />
+                    </div>
 
-                <div className="flex items-end justify-end gap-2 pt-2 sm:pt-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedDept('All Departments');
-                      setSelectedOrg('All Organizations');
-                      setSelectedCategory('All Categories');
-                      setSelectedStage('All Stages');
-                      setMinScoreFilter(0);
-                      setSearchQuery('');
-                      setSortField('id');
-                      setSortOrder('asc');
-                      setCurrentPage(1);
-                      showNotification('All filters reset.');
-                    }}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    <span>Reset All</span>
-                  </button>
-                </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                        Sort Order
+                      </label>
+                      <select
+                        value={`${sortField}-${sortOrder}`}
+                        onChange={(e) => {
+                          const [field, order] = e.target.value.split('-');
+                          setSortField(field);
+                          setSortOrder(order);
+                        }}
+                        className="w-full text-xs font-medium px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 text-slate-900 dark:text-white"
+                      >
+                        <option value="id-asc">Default Order</option>
+                        <option value="avgScore-desc">Highest Score First</option>
+                        <option value="avgScore-asc">Lowest Score First</option>
+                        <option value="totalSubmissions-desc">Most Submissions</option>
+                        <option value="nonCompliant-desc">Highest Non-compliant</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-end justify-end gap-2 pt-2 sm:pt-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedDept('All Departments');
+                          setSelectedOrg('All Organizations');
+                          setSelectedCategory('All Categories');
+                          setSelectedStage('All Stages');
+                          setMinScoreFilter(0);
+                          setSearchQuery('');
+                          setSortField('id');
+                          setSortOrder('asc');
+                          setCurrentPage(1);
+                          showNotification('All filters reset.');
+                        }}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Reset All</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
-      </div>
 
           {/* 3. VISUAL ANALYTICS: 2 CARDS SIDE-BY-SIDE (Compliance Trend + Compliance by Category) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
-            
+
             {/* Left Card: Compliance Trend (lg:col-span-7) */}
             <div className="lg:col-span-7 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs flex flex-col justify-between">
               <div>
@@ -876,143 +647,133 @@ const Reports = () => {
                 </div>
 
                 {/* Interactive SVG Trend Chart with Exact Curved Path */}
-                <div className="relative w-full h-[200px]">
-                  <svg viewBox="0 0 520 185" className="w-full h-full overflow-visible">
-                    {/* Horizontal Grid lines */}
-                    {[0, 25, 50, 75, 100].map((val) => {
-                      const y = 150 - (val / 100) * 125;
-                      return (
-                        <g key={val}>
-                          <line
-                            x1="35"
-                            y1={y}
-                            x2="500"
-                            y2={y}
-                            stroke="currentColor"
-                            strokeDasharray="2 3"
-                            className="text-slate-100 dark:text-slate-800"
-                            strokeWidth="1"
-                          />
-                          <text
-                            x="28"
-                            y={y + 3.5}
-                            textAnchor="end"
-                            className="fill-slate-400 text-[9.5px] font-medium"
-                          >
-                            {val}
-                          </text>
-                        </g>
-                      );
-                    })}
-
-                    {/* Y-axis title */}
-                    <text
-                      x="10"
-                      y="90"
-                      textAnchor="middle"
-                      transform="rotate(-90 10 90)"
-                      className="fill-slate-400 text-[9px] font-medium"
-                    >
-                      Percentage (%)
-                    </text>
-
-                    {/* Smooth Curve: Compliance % (Blue) */}
-                    <path
-                      d="M 50,56.25 C 85,56.25 90,56.25 125,56.25 C 160,56.25 165,52.5 200,52.5 C 235,52.5 240,50 275,50 C 310,50 315,46.25 350,46.25 C 385,46.25 390,43.75 425,43.75 C 460,43.75 465,47.5 480,47.5"
-                      fill="none"
-                      stroke="#3B82F6"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                    />
-
-                    {/* Smooth Curve: Non-compliance % (Red) */}
-                    <path
-                      d="M 50,115 C 85,118.75 90,118.75 125,118.75 C 160,118.75 165,122.5 200,122.5 C 235,122.5 240,125 275,125 C 310,125 315,128.75 350,128.75 C 385,128.75 390,131.25 425,131.25 C 460,131.25 465,127.5 480,127.5"
-                      fill="none"
-                      stroke="#EF4444"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                    />
-
-                    {/* Interactive Points and Labels */}
-                    {TREND_POINTS.map((pt, i) => {
-                      const x = 50 + i * (430 / (TREND_POINTS.length - 1));
-                      const yComp = 150 - (pt.comp / 100) * 125;
-                      const yNonComp = 150 - (pt.nonComp / 100) * 125;
-
-                      return (
-                        <g
-                          key={i}
-                          className="cursor-pointer group"
-                          onMouseEnter={() => setHoveredTrendIdx(i)}
-                          onMouseLeave={() => setHoveredTrendIdx(null)}
-                        >
-                          {/* Vertical Hover Guide */}
-                          {hoveredTrendIdx === i && (
+                {TREND_POINTS.length > 1 ? (
+                  <div className="relative w-full h-[200px]">
+                    <svg viewBox="0 0 520 185" className="w-full h-full overflow-visible">
+                      {/* Horizontal Grid lines */}
+                      {[0, 25, 50, 75, 100].map((val) => {
+                        const y = 150 - (val / 100) * 125;
+                        return (
+                          <g key={val}>
                             <line
-                              x1={x}
-                              y1="20"
-                              x2={x}
-                              y2="155"
-                              stroke="#94A3B8"
-                              strokeWidth="1.5"
-                              strokeDasharray="2 2"
-                              opacity="0.6"
+                              x1="35"
+                              y1={y}
+                              x2="500"
+                              y2={y}
+                              stroke="currentColor"
+                              strokeDasharray="2 3"
+                              className="text-slate-100 dark:text-slate-800"
+                              strokeWidth="1"
                             />
-                          )}
+                            <text
+                              x="28"
+                              y={y + 3.5}
+                              textAnchor="end"
+                              className="fill-slate-400 text-[9.5px] font-medium"
+                            >
+                              {val}
+                            </text>
+                          </g>
+                        );
+                      })}
 
-                          {/* Blue Dot (Compliance) */}
-                          <circle
-                            cx={x}
-                            cy={yComp}
-                            r={hoveredTrendIdx === i ? 5.5 : 3.5}
-                            fill="#3B82F6"
-                            stroke="#ffffff"
-                            strokeWidth="1.8"
-                            className="transition-all"
-                          />
-                          <text
-                            x={x}
-                            y={yComp - 6}
-                            textAnchor="middle"
-                            className="fill-slate-800 dark:fill-slate-200 text-[9px] font-bold"
-                          >
-                            {pt.comp}%
-                          </text>
+                      {/* Y-axis title */}
+                      <text
+                        x="10"
+                        y="90"
+                        textAnchor="middle"
+                        transform="rotate(-90 10 90)"
+                        className="fill-slate-400 text-[9px] font-medium"
+                      >
+                        Percentage (%)
+                      </text>
 
-                          {/* Red Dot (Non-compliance) */}
-                          <circle
-                            cx={x}
-                            cy={yNonComp}
-                            r={hoveredTrendIdx === i ? 5.5 : 3.5}
-                            fill="#EF4444"
-                            stroke="#ffffff"
-                            strokeWidth="1.8"
-                            className="transition-all"
-                          />
-                          <text
-                            x={x}
-                            y={yNonComp - 6}
-                            textAnchor="middle"
-                            className="fill-rose-600 dark:fill-rose-400 text-[9px] font-bold"
-                          >
-                            {pt.nonComp}%
-                          </text>
+                      {/* Interactive Points and Labels */}
+                      {TREND_POINTS.map((pt, i) => {
+                        const x = 50 + i * (430 / (TREND_POINTS.length - 1));
+                        const yComp = 150 - (pt.comp / 100) * 125;
+                        const yNonComp = 150 - (pt.nonComp / 100) * 125;
 
-                          {/* X-axis Date */}
-                          <text
-                            x={x}
-                            y="170"
-                            textAnchor="middle"
-                            className="fill-slate-500 dark:fill-slate-400 text-[9.5px] font-medium"
+                        return (
+                          <g
+                            key={i}
+                            className="cursor-pointer group"
+                            onMouseEnter={() => setHoveredTrendIdx(i)}
+                            onMouseLeave={() => setHoveredTrendIdx(null)}
                           >
-                            {pt.date}
-                          </text>
-                        </g>
-                      );
-                    })}
-                  </svg>
-                </div>
+                            {/* Vertical Hover Guide */}
+                            {hoveredTrendIdx === i && (
+                              <line
+                                x1={x}
+                                y1="20"
+                                x2={x}
+                                y2="155"
+                                stroke="#94A3B8"
+                                strokeWidth="1.5"
+                                strokeDasharray="2 2"
+                                opacity="0.6"
+                              />
+                            )}
+
+                            {/* Blue Dot (Compliance) */}
+                            <circle
+                              cx={x}
+                              cy={yComp}
+                              r={hoveredTrendIdx === i ? 5.5 : 3.5}
+                              fill="#3B82F6"
+                              stroke="#ffffff"
+                              strokeWidth="1.8"
+                              className="transition-all"
+                            />
+                            <text
+                              x={x}
+                              y={yComp - 6}
+                              textAnchor="middle"
+                              className="fill-slate-800 dark:fill-slate-200 text-[9px] font-bold"
+                            >
+                              {pt.comp}%
+                            </text>
+
+                            {/* Red Dot (Non-compliance) */}
+                            <circle
+                              cx={x}
+                              cy={yNonComp}
+                              r={hoveredTrendIdx === i ? 5.5 : 3.5}
+                              fill="#EF4444"
+                              stroke="#ffffff"
+                              strokeWidth="1.8"
+                              className="transition-all"
+                            />
+                            <text
+                              x={x}
+                              y={yNonComp - 6}
+                              textAnchor="middle"
+                              className="fill-rose-600 dark:fill-rose-400 text-[9px] font-bold"
+                            >
+                              {pt.nonComp}%
+                            </text>
+
+                            {/* X-axis Date */}
+                            <text
+                              x={x}
+                              y="170"
+                              textAnchor="middle"
+                              className="fill-slate-500 dark:fill-slate-400 text-[9.5px] font-medium"
+                            >
+                              {pt.date}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="relative w-full h-[200px] flex flex-col items-center justify-center text-center p-6 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                    <FileText className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">No trend history available</p>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500">Compliance trends will appear as bid evaluations progress over time</p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1023,49 +784,60 @@ const Reports = () => {
                   Compliance by Category
                 </h3>
 
-                <div className="flex flex-col sm:flex-row items-center justify-around gap-4 pt-1">
-                  {/* Donut Chart SVG */}
-                  <div className="relative w-36 h-36 flex items-center justify-center shrink-0">
-                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                      <circle cx="50" cy="50" r="38" stroke="currentColor" strokeWidth="15" fill="none" className="text-slate-100 dark:text-slate-800" />
-                      {/* Technical (42%) */}
-                      <circle cx="50" cy="50" r="38" stroke="#3B82F6" strokeWidth="15" strokeDasharray="100.28 238.76" fill="none" />
-                      {/* Financial (22%) */}
-                      <circle cx="50" cy="50" r="38" stroke="#10B981" strokeWidth="15" strokeDasharray="52.53 238.76" strokeDashoffset="-100.28" fill="none" />
-                      {/* Legal (14%) */}
-                      <circle cx="50" cy="50" r="38" stroke="#F59E0B" strokeWidth="15" strokeDasharray="33.43 238.76" strokeDashoffset="-152.81" fill="none" />
-                      {/* Certificate (12%) */}
-                      <circle cx="50" cy="50" r="38" stroke="#8B5CF6" strokeWidth="15" strokeDasharray="28.65 238.76" strokeDashoffset="-186.24" fill="none" />
-                      {/* Others (10%) */}
-                      <circle cx="50" cy="50" r="38" stroke="#06B6D4" strokeWidth="15" strokeDasharray="23.88 238.76" strokeDashoffset="-214.89" fill="none" />
-                    </svg>
+                {CATEGORY_DATA.length > 0 ? (
+                  <div className="flex flex-col sm:flex-row items-center justify-around gap-4 pt-1">
+                    {/* Donut Chart SVG */}
+                    <div className="relative w-36 h-36 flex items-center justify-center shrink-0">
+                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="38" stroke="currentColor" strokeWidth="15" fill="none" className="text-slate-100 dark:text-slate-800" />
+                        {CATEGORY_DATA.map((cat, idx) => (
+                          <circle
+                            key={idx}
+                            cx="50"
+                            cy="50"
+                            r="38"
+                            stroke={cat.color}
+                            strokeWidth="15"
+                            strokeDasharray={`${(cat.pct / 100) * 238.76} 238.76`}
+                            strokeDashoffset={`-${CATEGORY_DATA.slice(0, idx).reduce((acc, c) => acc + (c.pct / 100) * 238.76, 0)}`}
+                            fill="none"
+                          />
+                        ))}
+                      </svg>
 
-                    {/* Center text: 248 Total */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                      <span className="text-xl font-black text-slate-900 dark:text-white leading-none">
-                        248
-                      </span>
-                      <span className="text-[10px] font-semibold text-slate-400 mt-0.5">
-                        Total
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Legend List */}
-                  <div className="space-y-2 flex-1 text-[11px] font-semibold w-full">
-                    {CATEGORY_DATA.map((cat, idx) => (
-                      <div key={idx} className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 truncate">
-                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                          <span className="text-slate-600 dark:text-slate-400 truncate">{cat.name}</span>
-                        </div>
-                        <span className="text-slate-900 dark:text-white font-bold shrink-0">
-                          {cat.pct}% <span className="text-slate-400 font-normal">({cat.count})</span>
+                      {/* Center text */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                        <span className="text-xl font-black text-slate-900 dark:text-white leading-none">
+                          {totalSubmissionsSum}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                          Total
                         </span>
                       </div>
-                    ))}
+                    </div>
+
+                    {/* Legend List */}
+                    <div className="space-y-2 flex-1 text-[11px] font-semibold w-full">
+                      {CATEGORY_DATA.map((cat, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                            <span className="text-slate-600 dark:text-slate-400 truncate">{cat.name}</span>
+                          </div>
+                          <span className="text-slate-900 dark:text-white font-bold shrink-0">
+                            {cat.pct}% <span className="text-slate-400 font-normal">({cat.count})</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-center py-8 px-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                    <FileText className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">No category breakdown</p>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500">Categories will be calculated once tenders are evaluated</p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1073,7 +845,7 @@ const Reports = () => {
 
           {/* 4. COMPLIANCE BY TENDER TABLE */}
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs space-y-4">
-            
+
             {/* Table Header: Title + Search */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
@@ -1099,7 +871,7 @@ const Reports = () => {
             </div>
 
             {/* Table */}
-            <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-800">
+            <div data-lenis-prevent="true" className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-slate-800">
               <table className="w-full text-left text-xs">
                 <thead className="font-semibold text-[11px] bg-slate-50/80 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800">
                   <tr>
@@ -1202,13 +974,12 @@ const Reports = () => {
                         </td>
                         <td className="p-3 text-center">
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold ${
-                              tender.avgScore >= 80
+                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold ${tender.avgScore >= 80
                                 ? 'text-emerald-600 dark:text-emerald-400'
                                 : tender.avgScore >= 70
-                                ? 'text-blue-600 dark:text-blue-400'
-                                : 'text-amber-600 dark:text-amber-400'
-                            }`}
+                                  ? 'text-blue-600 dark:text-blue-400'
+                                  : 'text-amber-600 dark:text-amber-400'
+                              }`}
                           >
                             {tender.avgScore}%
                           </span>
@@ -1257,11 +1028,10 @@ const Reports = () => {
                       key={page}
                       type="button"
                       onClick={() => setCurrentPage(page)}
-                      className={`w-7 h-7 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        currentPage === page
+                      className={`w-7 h-7 rounded-lg text-xs font-bold transition cursor-pointer ${currentPage === page
                           ? 'bg-blue-600 text-white shadow-2xs'
                           : 'border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                      }`}
+                        }`}
                     >
                       {page}
                     </button>
@@ -1302,7 +1072,7 @@ const Reports = () => {
             Contains: Buttons -> Under Review -> Score Dist -> Avg Score -> Top Reasons
             ======================================================================= */}
         <div className="xl:col-span-4 space-y-3.5">
-          
+
           {/* 1. TOP ACTION BUTTONS */}
           <div className="flex items-center gap-2">
             <button
@@ -1333,11 +1103,10 @@ const Reports = () => {
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">Under Review</p>
                 <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-                  16 <span className="text-sm font-semibold text-slate-400">(6%)</span>
+                  {underReviewSum} <span className="text-sm font-semibold text-slate-400">({underReviewPct}%)</span>
                 </h3>
-                <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
-                  <span>+1</span>
-                  <span className="text-slate-400 font-normal">vs last 30 days</span>
+                <p className="text-[11px] font-bold text-slate-400 mt-1 flex items-center gap-1">
+                  <span>{underReviewSum > 0 ? `${underReviewSum} pending clearance` : 'No pending reviews'}</span>
                 </p>
               </div>
             </div>
@@ -1349,33 +1118,48 @@ const Reports = () => {
               Score Distribution
             </h4>
 
-            <div className="flex items-start gap-3">
-              {/* Mini Donut Chart */}
-              <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="38" stroke="currentColor" strokeWidth="16" fill="none" className="text-slate-100 dark:text-slate-800" />
-                  <circle cx="50" cy="50" r="38" stroke="#10B981" strokeWidth="16" strokeDasharray="78.8 238.76" fill="none" />
-                  <circle cx="50" cy="50" r="38" stroke="#06B6D4" strokeWidth="16" strokeDasharray="93.1 238.76" strokeDashoffset="-78.8" fill="none" />
-                  <circle cx="50" cy="50" r="38" stroke="#F59E0B" strokeWidth="16" strokeDasharray="45.3 238.76" strokeDashoffset="-171.9" fill="none" />
-                  <circle cx="50" cy="50" r="38" stroke="#EF4444" strokeWidth="16" strokeDasharray="21.5 238.76" strokeDashoffset="-217.2" fill="none" />
-                </svg>
-              </div>
+            {SCORE_DISTRIBUTION.length > 0 ? (
+              <div className="flex items-start gap-3">
+                {/* Mini Donut Chart */}
+                <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
+                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="38" stroke="currentColor" strokeWidth="16" fill="none" className="text-slate-100 dark:text-slate-800" />
+                    {SCORE_DISTRIBUTION.map((item, idx) => (
+                      <circle
+                        key={idx}
+                        cx="50"
+                        cy="50"
+                        r="38"
+                        stroke={item.color}
+                        strokeWidth="16"
+                        strokeDasharray={`${(item.pct / 100) * 238.76} 238.76`}
+                        strokeDashoffset={`-${SCORE_DISTRIBUTION.slice(0, idx).reduce((acc, it) => acc + (it.pct / 100) * 238.76, 0)}`}
+                        fill="none"
+                      />
+                    ))}
+                  </svg>
+                </div>
 
-              {/* Distribution Legend */}
-              <div className="space-y-1.5 flex-1 min-w-0 text-[10.5px] font-semibold">
-                {SCORE_DISTRIBUTION.map((item, i) => (
-                  <div key={i} className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                      <span className="text-slate-600 dark:text-slate-400 truncate text-[10px]">{item.label}</span>
+                {/* Distribution Legend */}
+                <div className="space-y-1.5 flex-1 min-w-0 text-[10.5px] font-semibold">
+                  {SCORE_DISTRIBUTION.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                        <span className="text-slate-600 dark:text-slate-400 truncate text-[10px]">{item.label}</span>
+                      </div>
+                      <span className="text-slate-900 dark:text-white font-bold whitespace-nowrap text-[10.5px]">
+                        {item.count} <span className="text-slate-400 font-normal">({item.pct}%)</span>
+                      </span>
                     </div>
-                    <span className="text-slate-900 dark:text-white font-bold whitespace-nowrap text-[10.5px]">
-                      {item.count} <span className="text-slate-400 font-normal">({item.pct}%)</span>
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="py-3 text-center text-slate-400 dark:text-slate-500 text-xs italic">
+                No score distribution data yet
+              </div>
+            )}
           </div>
 
           {/* 4. AVERAGE COMPLIANCE SCORE */}
@@ -1386,28 +1170,29 @@ const Reports = () => {
                   Average Compliance Score
                 </p>
                 <h3 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight mt-1">
-                  82%
+                  {complianceRate}%
                 </h3>
-                <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
-                  <span>↑ 8%</span>
-                  <span className="text-slate-400 font-normal">vs last 30 days</span>
+                <p className="text-[11px] font-bold text-slate-400 mt-1 flex items-center gap-1">
+                  <span>{totalSubmissionsSum > 0 ? `Based on ${totalSubmissionsSum} submissions` : 'Live evaluated average'}</span>
                 </p>
               </div>
 
               {/* Sparkline curve */}
-              <div className="w-24 h-10">
-                <svg viewBox="0 0 100 40" className="w-full h-full overflow-visible">
-                  <polyline
-                    fill="none"
-                    stroke="#10B981"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    points="5,32 20,28 40,30 60,20 80,18 95,8"
-                  />
-                  <circle cx="95" cy="8" r="3.5" fill="#10B981" stroke="#ffffff" strokeWidth="1.5" />
-                </svg>
-              </div>
+              {totalSubmissionsSum > 0 && (
+                <div className="w-24 h-10">
+                  <svg viewBox="0 0 100 40" className="w-full h-full overflow-visible">
+                    <polyline
+                      fill="none"
+                      stroke="#10B981"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      points="5,32 20,28 40,30 60,20 80,18 95,8"
+                    />
+                    <circle cx="95" cy="8" r="3.5" fill="#10B981" stroke="#ffffff" strokeWidth="1.5" />
+                  </svg>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1417,18 +1202,24 @@ const Reports = () => {
               Top Non-compliance Reasons
             </h4>
 
-            <div className="space-y-2 text-[10.5px] font-semibold">
-              {ROOT_CAUSES.map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between gap-2 py-0.5">
-                  <span className="text-slate-700 dark:text-slate-300 truncate font-medium min-w-0">
-                    {item.reason}
-                  </span>
-                  <span className="text-slate-900 dark:text-white font-bold shrink-0 whitespace-nowrap">
-                    {item.count} <span className="text-slate-400 font-normal">({item.pct}%)</span>
-                  </span>
-                </div>
-              ))}
-            </div>
+            {ROOT_CAUSES.length > 0 ? (
+              <div className="space-y-2 text-[10.5px] font-semibold">
+                {ROOT_CAUSES.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between gap-2 py-0.5">
+                    <span className="text-slate-700 dark:text-slate-300 truncate font-medium min-w-0">
+                      {item.reason}
+                    </span>
+                    <span className="text-slate-900 dark:text-white font-bold shrink-0 whitespace-nowrap">
+                      {item.count} <span className="text-slate-400 font-normal">({item.pct}%)</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-3 text-center text-slate-400 dark:text-slate-500 text-xs italic">
+                No non-compliance violations recorded
+              </div>
+            )}
 
             <button
               type="button"
@@ -1471,11 +1262,10 @@ const Reports = () => {
                       type="button"
                       key={freq}
                       onClick={() => setScheduleFrequency(freq)}
-                      className={`py-2 rounded-xl border text-center transition font-bold cursor-pointer ${
-                        scheduleFrequency === freq
+                      className={`py-2 rounded-xl border text-center transition font-bold cursor-pointer ${scheduleFrequency === freq
                           ? 'border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
                           : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-                      }`}
+                        }`}
                     >
                       {freq}
                     </button>
@@ -1536,7 +1326,7 @@ const Reports = () => {
           ======================================================================= */}
       {inspectTender && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+          <div data-lenis-prevent="true" className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
                 <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">
@@ -1652,24 +1442,30 @@ const Reports = () => {
               </button>
             </div>
             <div className="space-y-3 text-xs">
-              {ROOT_CAUSES.map((rc, i) => (
-                <div key={i} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-between">
-                  <div>
-                    <p className="font-bold text-slate-900 dark:text-white">{rc.reason}</p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      {rc.desc}
-                    </p>
+              {ROOT_CAUSES.length > 0 ? (
+                ROOT_CAUSES.map((rc, i) => (
+                  <div key={i} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-slate-900 dark:text-white">{rc.reason}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        {rc.desc}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-mono font-bold text-rose-600 dark:text-rose-400 text-sm block">
+                        {rc.pct}%
+                      </span>
+                      <span className="text-[10.5px] text-slate-400 font-medium">
+                        ({rc.count} bids)
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <span className="font-mono font-bold text-rose-600 dark:text-rose-400 text-sm block">
-                      {rc.pct}%
-                    </span>
-                    <span className="text-[10.5px] text-slate-400 font-medium">
-                      ({rc.count} bids)
-                    </span>
-                  </div>
+                ))
+              ) : (
+                <div className="py-6 text-center text-slate-400 dark:text-slate-500 text-xs italic">
+                  No non-compliance violations recorded across evaluated tenders.
                 </div>
-              ))}
+              )}
             </div>
             <div className="flex justify-end pt-2">
               <button

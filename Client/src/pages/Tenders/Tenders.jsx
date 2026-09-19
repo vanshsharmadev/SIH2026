@@ -1,21 +1,13 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Search,
   Filter,
   ChevronDown,
-  SlidersHorizontal,
-  FileSpreadsheet,
-  Building2,
-  Clock,
-  IndianRupee,
   ShieldCheck,
-  Sparkles,
-  ArrowUpDown,
-  CheckCircle2,
 } from 'lucide-react';
 import TenderCard from '../../components/tender/TenderCard';
 import TenderDetailModal from '../../components/tender/TenderDetailModal';
-import mockTenders from '../../data/mockTenders';
 import { tenderService } from '../../services';
 
 import { isTenderClosed } from '../../utils';
@@ -35,15 +27,34 @@ const categories = [
 ];
 
 const Tenders = () => {
-  const [tendersList, setTendersList] = useState(mockTenders);
+  const [searchParams] = useSearchParams();
+  const queryTenderId = searchParams.get('tenderId') || searchParams.get('tender');
+  const [tendersList, setTendersList] = useState([]);
   const [isLoadingTenders, setIsLoadingTenders] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showFilters, setShowFilters] = useState(false); // Closed by default per user UX request
+  const [showFilters, setShowFilters] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [sortBy, setSortBy] = useState('default');
   const [activeTenderModal, setActiveTenderModal] = useState(null);
   const [isStuck, setIsStuck] = useState(false);
+
+  // Auto-open modal if query parameter tenderId or tender is present
+  useEffect(() => {
+    if (queryTenderId && tendersList.length > 0) {
+      const matched = tendersList.find(
+        (t) =>
+          String(t.id) === String(queryTenderId) ||
+          t.referenceNo?.toLowerCase() === String(queryTenderId).toLowerCase()
+      );
+      if (matched) {
+        const timer = setTimeout(() => {
+          setActiveTenderModal(matched);
+        }, 0);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [queryTenderId, tendersList]);
 
   // Fetch real tenders from deployed backend API (or fallback to mockTenders)
   useEffect(() => {
@@ -51,12 +62,32 @@ const Tenders = () => {
     const loadTenders = async () => {
       try {
         setIsLoadingTenders(true);
-        const remoteData = await tenderService.getTenders();
-        if (isMounted && Array.isArray(remoteData) && remoteData.length > 0) {
+        const role = localStorage.getItem('role');
+        const token = localStorage.getItem('token');
+        let remoteData = null;
+
+        // If officer session, call GET /api/officer/tenders
+        if (role === 'OFFICER' || token) {
+          try {
+            const officerData = await tenderService.getOfficerTenders();
+            if (Array.isArray(officerData) && officerData.length > 0) {
+              remoteData = officerData;
+            }
+          } catch (e) {
+            console.warn('getOfficerTenders fallback notice:', e);
+          }
+        }
+
+        // Otherwise fallback to general /tenders
+        if (!remoteData) {
+          remoteData = await tenderService.getTenders();
+        }
+
+        if (isMounted && Array.isArray(remoteData)) {
           setTendersList(remoteData);
         }
       } catch (err) {
-        console.warn('Backend /tenders unavailable, using mock data:', err);
+        console.warn('Backend tenders load notice:', err);
       } finally {
         if (isMounted) setIsLoadingTenders(false);
       }
@@ -217,11 +248,11 @@ const Tenders = () => {
       {/* 3. Sticky Search & Filter Bar */}
       <div
         style={{ top: 'var(--navbar-height, 84px)' }}
-        className={`sticky z-30 pt-1 pb-3 -mx-2 px-2 sm:-mx-3 sm:px-3 bg-[#f8fafc]/95 dark:bg-[#121212]/95 backdrop-blur-md transition-all duration-200 ${
-          isStuck ? 'border-b border-slate-200/80 dark:border-[#282828] shadow-md dark:shadow-black/40' : ''
+        className={`sticky z-30 pt-1 pb-3 -mx-2 px-2 sm:-mx-3 sm:px-3  bg-[#f8fafc]/95 dark:bg-[#121212]/95 backdrop-blur-md transition-all duration-200 ${
+          isStuck ? 'border-b border-slate-200/80 dark:border-[#282828] ' : ''
         }`}
       >
-        <div className="bg-white dark:bg-[#181818] p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 dark:border-[#303030] shadow-sm space-y-3">
+        <div className="bg-white dark:bg-[#181818] p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 dark:border-[#303030]  space-y-3">
           <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 items-stretch sm:items-center">
             {/* Keyword Search */}
             <div className="relative flex-1">
@@ -304,7 +335,7 @@ const Tenders = () => {
               </div>
 
               {/* Status Filter Tabs */}
-              <div className="flex items-center gap-2 overflow-x-auto pt-1 pb-0.5 text-xs font-semibold">
+              <div data-lenis-prevent="true" className="flex items-center gap-2 overflow-x-auto pt-1 pb-0.5 text-xs font-semibold">
                 <span className="text-slate-400 dark:text-slate-500 shrink-0 mr-1 flex items-center gap-1">
                   <Filter className="w-3.5 h-3.5" />
                   Status:
@@ -337,7 +368,7 @@ const Tenders = () => {
       {/* 4. Results Counter */}
       <div className="flex items-center justify-between px-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
         <span>
-          Showing <strong className="text-slate-800 dark:text-slate-200">{filteredTenders.length}</strong> of {mockTenders.length} tenders
+          Showing <strong className="text-slate-800 dark:text-slate-200">{filteredTenders.length}</strong> of {tendersList.length} tenders
         </span>
         {(searchQuery || selectedCategory !== 'All' || selectedStatus !== 'All') && (
           <button
@@ -355,7 +386,33 @@ const Tenders = () => {
       </div>
 
       {/* 5. Tenders Grid */}
-      {filteredTenders.length > 0 ? (
+      {isLoadingTenders ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5" aria-busy="true" aria-label="Loading tenders">
+          {[1, 2, 3, 4, 5, 6].map((idx) => (
+            <div
+              key={idx}
+              className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-4 animate-pulse"
+            >
+              <div className="flex items-center justify-between">
+                <div className="h-5 w-24 bg-slate-200 dark:bg-slate-800 rounded-md" />
+                <div className="h-5 w-16 bg-slate-200 dark:bg-slate-800 rounded-full" />
+              </div>
+              <div className="space-y-2">
+                <div className="h-4 w-3/4 bg-slate-200 dark:bg-slate-800 rounded" />
+                <div className="h-3 w-1/2 bg-slate-200 dark:bg-slate-800 rounded" />
+              </div>
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2">
+                <div className="h-8 bg-slate-100 dark:bg-slate-800/60 rounded-lg" />
+                <div className="h-8 bg-slate-100 dark:bg-slate-800/60 rounded-lg" />
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <div className="h-4 w-28 bg-slate-200 dark:bg-slate-800 rounded" />
+                <div className="h-8 w-24 bg-slate-200 dark:bg-slate-800 rounded-xl" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : filteredTenders.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
           {filteredTenders.map((tender) => (
             <TenderCard
@@ -385,7 +442,7 @@ const Tenders = () => {
             }}
             className="px-4 py-2 bg-[#073567] hover:bg-[#05284f] text-white text-xs font-semibold rounded-lg shadow-2xs transition cursor-pointer"
           >
-            Show All 10 Tenders
+            Show All Tenders
           </button>
         </div>
       )}
