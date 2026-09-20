@@ -2,7 +2,6 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import LandingPage from '../pages/LandingPage';
 import Login from '../pages/Login';
 import Tenders, { TenderDetails } from '../pages/Tenders';
-import Verification from '../pages/Verification';
 import Reports from '../pages/Reports';
 import Bidders from '../pages/Bidders';
 import Dashboard, { BidderDashboard } from '../pages/Dashboard';
@@ -35,21 +34,6 @@ const BidderRoute = ({ children }) => {
   const role = (user?.role || '').toUpperCase();
   if (role === 'OFFICER' || isOfficerUser(user)) {
     return <Navigate to="/dashboard" replace />;
-  }
-  return children;
-};
-
-// Protected: Bidder Verification Portal (Pre-screening & Bid submission)
-// Officers get redirected to /dashboard?tab=compliance
-const BidderVerificationRoute = ({ children }) => {
-  const { user, isAuthenticated } = useAuth();
-  const location = useLocation();
-  if (!isAuthenticated) {
-    return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
-  }
-  const role = (user?.role || '').toUpperCase();
-  if (role === 'OFFICER' || isOfficerUser(user)) {
-    return <Navigate to="/dashboard?tab=compliance" replace />;
   }
   return children;
 };
@@ -102,23 +86,9 @@ const AppRoutes = () => {
       <Route path="/tenders/:tenderId" element={<TenderDetails />} />
       <Route path="/bidders" element={<Bidders />} />
 
-      {/* Bidder-Only Verification & Pre-screening (Blocked for Officers -> /dashboard?tab=compliance) */}
-      <Route
-        path="/verification"
-        element={
-          <BidderVerificationRoute>
-            <Verification />
-          </BidderVerificationRoute>
-        }
-      />
-      <Route
-        path="/verification/:tenderId"
-        element={
-          <BidderVerificationRoute>
-            <Verification />
-          </BidderVerificationRoute>
-        }
-      />
+      {/* Verification page retired: Redirection to /tenders with in-modal compliance verification */}
+      <Route path="/verification" element={<Navigate to="/tenders" replace />} />
+      <Route path="/verification/:tenderId" element={<Navigate to="/tenders" replace />} />
 
       {/* Bidder-Only Routes: /bidder/*, /bidder-dashboard, /my-applications (Blocked for Officers -> /dashboard) */}
       <Route
@@ -188,6 +158,22 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/officer/upload-extract"
+        element={
+          <OfficerRoute>
+            <Dashboard defaultTab="upload-extract" />
+          </OfficerRoute>
+        }
+      />
+      <Route
+        path="/officer/upload"
+        element={
+          <OfficerRoute>
+            <Dashboard defaultTab="upload-extract" />
+          </OfficerRoute>
+        }
+      />
+      <Route
         path="/officer/*"
         element={
           <OfficerRoute>
@@ -200,6 +186,14 @@ const AppRoutes = () => {
         element={
           <OfficerRoute>
             <Dashboard />
+          </OfficerRoute>
+        }
+      />
+      <Route
+        path="/upload-extract"
+        element={
+          <OfficerRoute>
+            <Dashboard defaultTab="upload-extract" />
           </OfficerRoute>
         }
       />

@@ -12,13 +12,10 @@ dist
 dist-ssr
 *.local
 .env
-#feature/ai-rag
 .env.*
 *.env
 !.env.example
 .env.ai-rag
-
-=======
 
 # Editor directories and files
 .vscode/*
@@ -30,4 +27,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-#main
+
+# Frontend Automated Testing (Jest / RTL / Coverage / Mocks)
+Client/coverage/
+Client/babel.config.cjs
+Client/jest.config.cjs
+Client/src/__tests__/
+Client/src/__mocks__/
+Client/src/setupTests.cjs
+Client/src/setupTestsAfterEnv.cjs
+coverage/

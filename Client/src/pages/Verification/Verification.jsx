@@ -27,6 +27,7 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import { useAuth } from '../../context';
+import { mockTenders } from '../../data/mockTenders';
 import { isTenderClosed } from '../../utils';
 import { addSubmission, addActivity } from '../../store/slices/dashboardSlice';
 import { getUserDisplayName, isOfficerUser } from '../../utils/roleUtils';
@@ -57,10 +58,17 @@ const Verification = () => {
     return <Navigate to="/dashboard?tab=compliance" replace />;
   }
 
-  const [tendersList, setTendersList] = useState([]);
+  const [tendersList, setTendersList] = useState(() => {
+    try {
+      const local = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
+      if (Array.isArray(local) && local.length > 0) return local;
+    } catch {}
+    return Array.isArray(mockTenders) && mockTenders.length > 0 ? mockTenders : [];
+  });
   const [selectedTenderId, setSelectedTenderId] = useState(targetParam || null);
 
   // Fetch real tenders from backend API
+  // Fetch real tenders from backend API and local officer registry
   useEffect(() => {
     let isMounted = true;
     const load = async () => {
@@ -84,10 +92,22 @@ const Verification = () => {
       }
     };
     load();
+
+    const handleSync = () => {
+      load();
+    };
+
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('gem_tenders_updated', handleSync);
+    window.addEventListener('focus', handleSync);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('gem_tenders_updated', handleSync);
+      window.removeEventListener('focus', handleSync);
     };
-  }, [targetParam]);
+  }, [targetParam, selectedTenderId]);
 
   // Helper to find tender by ID or Reference No
   const findTender = (idOrRef) => {
@@ -148,27 +168,43 @@ const Verification = () => {
   const selectedTender =
     tendersList.find((t) => String(t.id) === String(selectedTenderId) || t.referenceNo === selectedTenderId) ||
     tendersList[0] ||
-    null;
+    (Array.isArray(mockTenders) && mockTenders.length > 0 ? mockTenders[0] : null);
+
+  const safeTender = selectedTender || {
+    id: 'GEM/2026/B/890123',
+    referenceNo: 'GEM/2026/B/890123',
+    title: 'GeM Procurement Opportunity',
+    ministry: 'Ministry of Commerce and Industry',
+    department: 'GeM Procurement Cell',
+    value: '₹ 1.20 Cr',
+    minLocalContent: '50% (Class-I)',
+    complianceScore: 96,
+    emdAmount: '₹ 2,40,000',
+    closes: 'Open',
+    documents: [],
+    eligibility: 'Standard GFR 2017 & Make In India Criteria',
+  };
+
   const isDirectTarget = Boolean(targetParam);
-  const isClosed = selectedTender ? isTenderClosed(selectedTender) : false;
+  const isClosed = isTenderClosed(safeTender);
 
   const alreadySubmitted = useMemo(() => {
     try {
       const storedBidderApps = JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
       return storedBidderApps.some(
-        (a) => a.tenderId === selectedTender?.referenceNo || a.rawTenderId === selectedTender?.id
+        (a) => a.tenderId === safeTender.referenceNo || a.rawTenderId === safeTender.id
       );
     } catch {
       return false;
     }
-  }, [selectedTender]);
+  }, [safeTender.referenceNo, safeTender.id]);
 
   const scanSteps = [
-    `Parsing ${selectedTender.referenceNo} eligibility criteria & BOQ schedule...`,
+    `Parsing ${safeTender.referenceNo} eligibility criteria & BOQ schedule...`,
     uploadedFiles.length > 0
       ? `Scanning ${uploadedFiles.length} attached bidder proposal documents...`
       : 'Evaluating General Financial Rules (GFR 2017) Rule 144(xi)...',
-    `Auditing Make In India (MII) threshold (${selectedTender.minLocalContent})...`,
+    `Auditing Make In India (MII) threshold (${safeTender.minLocalContent})...`,
     'Cross-verifying MSME Udyam and Debarred Vendor Database...',
   ];
 
@@ -237,8 +273,8 @@ const Verification = () => {
           if (!uploadRes) {
             uploadRes = await tenderService
               .uploadTenderDocument(fileObj, {
-                title: `${selectedTender.referenceNo} - ${fileObj.name}`,
-                description: `Bidder proposal document for ${selectedTender.title}`,
+                title: `${safeTender.referenceNo} - ${fileObj.name}`,
+                description: `Bidder proposal document for ${safeTender.title}`,
                 documentType: 'other',
               })
               .catch(() => null);
@@ -258,7 +294,7 @@ const Verification = () => {
 
         const docId = data.id || data.documentId || '';
         const currentBidderId = data.bidderId || user?.id || '';
-        const currentTenderId = selectedTender.id || selectedTender.referenceNo || '';
+        const currentTenderId = safeTender.id || safeTender.referenceNo || '';
         const actualDocType = data.documentType || 'technical_proposal';
         const cloudinaryUrl = data.fileUrl;
         const cloudinaryPublicId = data.cloudinaryPublicId || `bidders/${currentBidderId}/${actualDocType}`;
@@ -306,7 +342,7 @@ const Verification = () => {
 
       const docsSummary = processedDocs;
 
-      const scoreValue = parseInt(selectedTender.complianceScore) || 96;
+      const scoreValue = parseInt(safeTender.complianceScore) || 96;
       const submissionId = `APP-2026-${Math.floor(1000 + Math.random() * 9000)}`;
       const bidderDisplayName = getUserDisplayName(user) || 'Authorized Vendor';
 
@@ -327,7 +363,7 @@ const Verification = () => {
       // 3. Trigger live ML Compliance Verdict & Score Predictor (POST /api/officer/tenders/ml/compliance-predict)
       const livePredict = await mlService
         .predictCompliance({
-          tender_id: selectedTender.referenceNo || selectedTender.id,
+          tender_id: safeTender.referenceNo || safeTender.id,
           bidder_id: user?.id || 'BID-007',
           documents_count: uploadedFiles.length,
         })
@@ -337,7 +373,7 @@ const Verification = () => {
       const liveSummary = await mlService
         .getOverallSummary({
           identifier: user?.gstNumber || '09ARNAV9012H3Z7',
-          bid_id: selectedTender.referenceNo || selectedTender.id,
+          bid_id: safeTender.referenceNo || safeTender.id,
         })
         .catch(() => null);
 
@@ -363,12 +399,12 @@ const Verification = () => {
           liveTaxpayer?.status === 'ACTIVE' || liveTaxpayer?.valid
             ? 'Statutory Active (GSTN Portal + MCA21 Verified)'
             : 'Statutory Active (GSTN API Live Match)',
-        localContentAssessment: `Class-I Supplier Verified (${selectedTender.minLocalContent})`,
+        localContentAssessment: `Class-I Supplier Verified (${safeTender.minLocalContent})`,
         gfr144RuleCheck: 'Cleared — Non-land-border sharing entity',
         executiveSummary:
           liveSummary?.executive_summary ||
           liveSummary?.summary ||
-          `Autonomous GeM Compliance Audit completed for ${selectedTender.referenceNo}. 6-pillar compliance verified with statutory registries and secure document repository. Forwarded to Officer evaluation desk.`,
+          `Autonomous GeM Compliance Audit completed for ${safeTender.referenceNo}. 6-pillar compliance verified with statutory registries and secure document repository. Forwarded to Officer evaluation desk.`,
       };
 
       // Wait a moment for visual steps to complete smoothly
@@ -380,10 +416,10 @@ const Verification = () => {
         docketId: submissionId,
         status: 'COMPLIANT',
         score: `${scoreValue}%`,
-        tenderTitle: selectedTender.title,
-        refNo: selectedTender.referenceNo,
-        ministry: selectedTender.ministry,
-        value: selectedTender.value,
+        tenderTitle: safeTender.title,
+        refNo: safeTender.referenceNo,
+        ministry: safeTender.ministry,
+        value: safeTender.value,
         bidder: bidderDisplayName,
         documents: docsSummary,
         mlDossier,
@@ -406,27 +442,27 @@ const Verification = () => {
               ]),
           {
             title: 'GFR 2017 Rule 144(xi) Cross-Border Security',
-            desc: `Self-declaration confirmed for ${selectedTender.referenceNo}. Bidder does not originate from a land-border sharing country requiring prior MoE registration.`,
+            desc: `Self-declaration confirmed for ${safeTender.referenceNo}. Bidder does not originate from a land-border sharing country requiring prior MoE registration.`,
             status: 'pass',
           },
           {
             title: 'Make in India Local Content Order (ALMM & PPP-MII)',
-            desc: `Mandated requirement for this tender is ${selectedTender.minLocalContent}. Vendor declared audited BOM content meeting Class-I Supplier norms.`,
+            desc: `Mandated requirement for this tender is ${safeTender.minLocalContent}. Vendor declared audited BOM content meeting Class-I Supplier norms.`,
             status: 'pass',
           },
           {
             title: 'MSME & Start-up Exemption Benefits',
-            desc: `EMD deposit of ${selectedTender.emdAmount?.split(' ')[0] || 'prescribed sum'} waiver validated via verified Udyam Registration Portal certificate.`,
+            desc: `EMD deposit of ${safeTender.emdAmount?.split(' ')[0] || 'prescribed sum'} waiver validated via verified Udyam Registration Portal certificate.`,
             status: 'pass',
           },
           {
             title: 'Technical Scope & Turnover Criteria',
-            desc: `Verified against: "${selectedTender.eligibility}". 3 years audited balance sheet confirms ₹ 45+ Cr net worth, exceeding requirement for ${selectedTender.value} procurement.`,
+            desc: `Verified against: "${safeTender.eligibility}". 3 years audited balance sheet confirms ₹ 45+ Cr net worth, exceeding requirement for ${safeTender.value} procurement.`,
             status: 'pass',
           },
           {
             title: 'Central Debarment Registry (CVC / GeM)',
-            desc: `Vendor GSTIN clear of any blacklisting or suspension orders across ${selectedTender.ministry}.`,
+            desc: `Vendor GSTIN clear of any blacklisting or suspension orders across ${safeTender.ministry}.`,
             status: 'pass',
           },
         ],
@@ -443,12 +479,14 @@ const Verification = () => {
       // 1. Dispatch to Redux for Officer Dashboard
       const officerSubmissionPayload = {
         id: submissionId,
-        tenderId: selectedTender.referenceNo,
-        rawTenderId: selectedTender.id,
-        tenderTitle: selectedTender.title,
+        tenderId: safeTender.referenceNo,
+        rawTenderId: safeTender.id,
+        tenderTitle: safeTender.title,
         bidder: bidderDisplayName,
         submittedOn: 'Today, ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         submittedTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        relativeTime: 'Just now',
+        isToday: true,
         score: scoreValue,
         complianceScore: scoreValue,
         status: 'Compliant',
@@ -457,9 +495,9 @@ const Verification = () => {
         statusColor: 'emerald',
         docCount: docsSummary.length,
         documents: docsSummary,
-        quotedAmount: selectedTender.value,
-        ministry: selectedTender.ministry,
-        department: selectedTender.ministry,
+        quotedAmount: safeTender.value,
+        ministry: safeTender.ministry,
+        department: safeTender.ministry,
         mlDossier,
         isLiveUploaded: true,
       };
@@ -468,7 +506,7 @@ const Verification = () => {
       dispatch(
         addActivity({
           type: 'completed',
-          title: `New Bid Submitted: ${selectedTender.referenceNo}`,
+          title: `New Bid Submitted: ${safeTender.referenceNo}`,
           subtext: `Bidder: ${bidderDisplayName} • ${docsSummary.length} documents uploaded & verified`,
         })
       );
@@ -488,13 +526,17 @@ const Verification = () => {
             {
               id: Date.now(),
               type: 'completed',
-              title: `New Bid Submitted: ${selectedTender.referenceNo}`,
+              title: `New Bid Submitted: ${safeTender.referenceNo}`,
               subtext: `Bidder: ${bidderDisplayName} • ${docsSummary.length} documents uploaded & verified`,
               time: 'Just now',
             },
             ...storedActivities,
           ])
         );
+
+        window.dispatchEvent(new CustomEvent('gem_officer_submissions_updated', { detail: officerSubmissionPayload }));
+        window.dispatchEvent(new CustomEvent('gem_submission_created', { detail: officerSubmissionPayload }));
+        window.dispatchEvent(new Event('storage'));
       } catch (err) {}
 
       // 3. Persist in localStorage for Bidder's My Applications page
@@ -502,25 +544,25 @@ const Verification = () => {
         const storedBidderApps = JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
         const newBidderApp = {
           id: submissionId,
-          tenderId: selectedTender.referenceNo,
-          rawTenderId: selectedTender.id,
-          title: selectedTender.title,
-          company: selectedTender.ministry,
+          tenderId: safeTender.referenceNo,
+          rawTenderId: safeTender.id,
+          title: safeTender.title,
+          company: safeTender.ministry,
           appliedDate: 'Applied Today',
           matchStatus: 'Strong',
           matchScore: scoreValue,
           matchColor: 'text-emerald-600 dark:text-emerald-400',
-          applicantsCount: (selectedTender.submissions || 12) + 1,
+          applicantsCount: (safeTender.submissions || 12) + 1,
           status: 'Under Evaluation',
           statusCategory: 'under_eval',
           statusBadgeColor:
             'border-amber-300 bg-amber-50/70 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700',
-          quotedAmount: selectedTender.value,
+          quotedAmount: safeTender.value,
           hasClarification: false,
           chatEnabled: true,
           documents: docsSummary,
           feedbackDetails: {
-            summary: `Automated AI prescreening confirms GFR 2017 Rule 144(xi) and Make In India (${selectedTender.minLocalContent}) compliance. Proposal submitted for officer technical evaluation.`,
+            summary: `Automated AI prescreening confirms GFR 2017 Rule 144(xi) and Make In India (${safeTender.minLocalContent}) compliance. Proposal submitted for officer technical evaluation.`,
             criteria: [
               { name: 'Rule 144(xi) Land Border Requirement', passed: true, score: '100% Passed' },
               { name: 'PPP-MII Local Content Compliance', passed: true, score: 'Class-I Local Supplier' },
@@ -532,7 +574,7 @@ const Verification = () => {
         };
         localStorage.setItem(
           'gem_bidder_applications',
-          JSON.stringify([newBidderApp, ...storedBidderApps.filter((a) => a.tenderId !== selectedTender.referenceNo)])
+          JSON.stringify([newBidderApp, ...storedBidderApps.filter((a) => a.tenderId !== safeTender.referenceNo)])
         );
       } catch (err) {}
 
@@ -540,7 +582,7 @@ const Verification = () => {
       recordAuditLog({
         activity: 'Document Uploaded',
         module: 'AI Verification',
-        details: `Proposal documents uploaded for ${selectedTender.referenceNo}`,
+        details: `Proposal documents uploaded for ${safeTender.referenceNo}`,
         status: 'Success',
         user: { name: bidderDisplayName, role: 'Bidder' },
       });
@@ -578,7 +620,7 @@ const Verification = () => {
         <div className="flex items-center gap-2">
           <span className="text-slate-500 dark:text-slate-400 text-xs hidden sm:inline">Verification Target:</span>
           <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300">
-            {selectedTender.referenceNo}
+            {safeTender.referenceNo}
           </span>
         </div>
       </div>
@@ -629,7 +671,7 @@ const Verification = () => {
                   Target Tender for Verification
                 </span>
                 <span className="px-2.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 font-mono text-xs font-bold text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-900">
-                  {selectedTender.referenceNo}
+                  {safeTender.referenceNo}
                 </span>
               </div>
 
@@ -673,16 +715,16 @@ const Verification = () => {
             {/* Selected Tender Title & Ministry */}
             <div>
               <h2 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white leading-snug">
-                {selectedTender ? selectedTender.title : 'No Tender Selected'}
+                {safeTender ? safeTender.title : 'No Tender Selected'}
               </h2>
-              {selectedTender && (
+              {safeTender && (
                 <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
                   <span className="flex items-center gap-1 font-medium text-slate-700 dark:text-slate-300">
                     <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                    {selectedTender.ministry}
+                    {safeTender.ministry}
                   </span>
                   <span>&bull;</span>
-                  <span className="text-xs">{selectedTender.department}</span>
+                  <span className="text-xs">{safeTender.department}</span>
                 </div>
               )}
             </div>
@@ -694,7 +736,7 @@ const Verification = () => {
                   Estimated Value
                 </span>
                 <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-[13px]">
-                  {selectedTender.value}
+                  {safeTender.value}
                 </span>
               </div>
               <div>
@@ -702,7 +744,7 @@ const Verification = () => {
                   MII Local Content
                 </span>
                 <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-[13px]">
-                  {selectedTender.minLocalContent?.split(' ')[0] || '50%'}
+                  {safeTender.minLocalContent?.split(' ')[0] || '50%'}
                 </span>
               </div>
               <div>
@@ -710,7 +752,7 @@ const Verification = () => {
                   EMD Amount
                 </span>
                 <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-[13px] truncate block">
-                  {selectedTender.emdAmount?.split(' ')[0]} {selectedTender.emdAmount?.split(' ')[1] || ''}
+                  {safeTender.emdAmount?.split(' ')[0]} {safeTender.emdAmount?.split(' ')[1] || ''}
                 </span>
               </div>
               <div>
@@ -718,7 +760,7 @@ const Verification = () => {
                   Bid Deadline
                 </span>
                 <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-[13px]">
-                  {selectedTender.closes}
+                  {safeTender.closes}
                 </span>
               </div>
             </div>
@@ -731,11 +773,11 @@ const Verification = () => {
                   Synced Tender Specification Documents:
                 </span>
                 <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
-                  {selectedTender.documents?.length || 3} Files Synced
+                  {safeTender.documents?.length || 3} Files Synced
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {selectedTender.documents?.map((doc, idx) => (
+                {safeTender.documents?.map((doc, idx) => (
                   <span
                     key={idx}
                     className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 font-mono shadow-2xs"
@@ -757,7 +799,7 @@ const Verification = () => {
                   Tender Bidding Closed &bull; Verification Disabled
                 </h4>
                 <p className="text-[11px] sm:text-xs text-amber-700 dark:text-amber-300/90 mt-0.5 leading-relaxed">
-                  The bidding deadline for tender ({selectedTender.referenceNo}) has passed. Document verification and compliance evaluation are not permitted for closed tenders.
+                  The bidding deadline for tender ({safeTender.referenceNo}) has passed. Document verification and compliance evaluation are not permitted for closed tenders.
                 </p>
               </div>
             </div>
@@ -780,7 +822,7 @@ const Verification = () => {
                   Document submission is locked
                 </p>
                 <p className="text-xs text-slate-400">
-                  New document submissions and AI audits are closed for {selectedTender.referenceNo}.
+                  New document submissions and AI audits are closed for {safeTender.referenceNo}.
                 </p>
               </div>
             )}
@@ -820,7 +862,7 @@ const Verification = () => {
                   <div className="flex items-center gap-2.5">
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     <div>
-                      <p className="text-xs font-bold">Bid Already Submitted for {selectedTender.referenceNo}</p>
+                      <p className="text-xs font-bold">Bid Already Submitted for {safeTender.referenceNo}</p>
                       <p className="text-xs text-emerald-700 dark:text-emerald-300">
                         Your proposal is under technical evaluation. Duplicate submissions are locked.
                       </p>
@@ -846,7 +888,7 @@ const Verification = () => {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                       </svg>
-                      <span>Evaluating AI Bid Compliance &amp; Uploading for {selectedTender.referenceNo}...</span>
+                      <span>Evaluating AI Bid Compliance &amp; Uploading for {safeTender.referenceNo}...</span>
                     </span>
                   ) : (
                     <>
@@ -876,7 +918,7 @@ const Verification = () => {
                 </h3>
                 {result && (
                   <button
-                    onClick={() => alert(`Official Compliance Certificate for ${selectedTender.referenceNo} downloaded!`)}
+                    onClick={() => alert(`Official Compliance Certificate for ${safeTender.referenceNo} downloaded!`)}
                     className="inline-flex items-center gap-1 text-xs font-bold text-[#008bdc] dark:text-blue-400 hover:underline cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -946,7 +988,7 @@ const Verification = () => {
                       {[
                         {
                           title: 'BOQ & Eligibility Criteria Verification',
-                          desc: `Parsing ${selectedTender.referenceNo} minimum technical specifications and turnover threshold.`,
+                          desc: `Parsing ${safeTender.referenceNo} minimum technical specifications and turnover threshold.`,
                         },
                         {
                           title: 'Bidder Proposal Documents & OCR Scan',
@@ -956,7 +998,7 @@ const Verification = () => {
                         },
                         {
                           title: 'Make In India (PPP-MII) Local Content Audit',
-                          desc: `Evaluating mandatory Class-I local content minimum threshold (${selectedTender.minLocalContent}).`,
+                          desc: `Evaluating mandatory Class-I local content minimum threshold (${safeTender.minLocalContent}).`,
                         },
                         {
                           title: 'GFR 2017 Rule 144(xi) Land Border Cross-Verification',
@@ -1147,7 +1189,7 @@ const Verification = () => {
                   {/* Findings Checklist */}
                   <div className="space-y-2">
                     <p className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                      Regulatory Clause Checklist ({selectedTender.referenceNo}):
+                      Regulatory Clause Checklist ({safeTender.referenceNo}):
                     </p>
                     <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
                       {result.findings.map((item, idx) => (
@@ -1228,7 +1270,7 @@ const Verification = () => {
                     <ShieldCheck className="w-6 h-6" />
                   </div>
                   <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                    Ready to Verify {selectedTender.referenceNo}
+                    Ready to Verify {safeTender.referenceNo}
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
                     Attach proposal documents on the left and submit to evaluate compliance against GFR 2017 &amp; Make in India guidelines.

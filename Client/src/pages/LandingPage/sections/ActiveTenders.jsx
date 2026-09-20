@@ -14,8 +14,14 @@ const categories = [
 const ActiveTenders = () => {
   const [selectedCategory, setSelectedCategory] = useState('All Sectors');
   const [copiedRef, setCopiedRef] = useState(null);
-  const [tenders, setTenders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tenders, setTenders] = useState(() => {
+    try {
+      const local = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
+      if (Array.isArray(local) && local.length > 0) return local;
+    } catch {}
+    return [];
+  });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -33,8 +39,24 @@ const ActiveTenders = () => {
       }
     };
     fetchActive();
+
+    const handleSync = () => {
+      tenderService.getTenders().then((data) => {
+        if (isMounted && Array.isArray(data)) {
+          setTenders(data);
+        }
+      });
+    };
+
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('gem_tenders_updated', handleSync);
+    window.addEventListener('focus', handleSync);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('gem_tenders_updated', handleSync);
+      window.removeEventListener('focus', handleSync);
     };
   }, []);
 
@@ -219,10 +241,10 @@ const ActiveTenders = () => {
                       View Details
                     </Link>
                     <Link
-                      to={`/verification?tenderId=${tender.id}`}
+                      to={`/tenders?tenderId=${tender.id}&tab=compliance`}
                       className="flex items-center justify-center gap-1 py-2 px-2.5 rounded-lg bg-[#073567] hover:bg-[#05284f] dark:bg-[#4da3ff] dark:hover:bg-[#3b82f6] text-white dark:text-slate-950 text-xs font-bold transition shadow-xs"
                     >
-                      <span>Pre-Check</span>
+                      <span>Apply &amp; Verify</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </Link>
                   </div>

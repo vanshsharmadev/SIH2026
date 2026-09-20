@@ -403,10 +403,10 @@ const MyApplications = () => {
                   <span>Vault status: <strong className="text-slate-800 dark:text-slate-200">100% Cryptographically Verified</strong></span>
                 </div>
                 <Link
-                  to="/verification"
+                  to="/tenders"
                   className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-lg border border-[#008BDC] text-[#008BDC] hover:bg-[#008BDC] hover:text-white dark:text-[#38BDF8] dark:border-[#38BDF8] dark:hover:bg-[#008BDC] dark:hover:text-white text-xs font-semibold transition cursor-pointer"
                 >
-                  <span>Get Compliance Feedback</span>
+                  <span>Explore Open Tenders</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
@@ -849,7 +849,7 @@ const MyApplications = () => {
                         <td className="py-4 px-6 align-middle">
                           <div className="flex items-start gap-1.5">
                             <Link
-                              to={`/verification?tenderId=${app.rawTenderId}`}
+                              to={`/tenders?tenderId=${app.rawTenderId || app.tenderId}`}
                               className="font-bold text-slate-900 dark:text-white hover:text-[#008BDC] dark:hover:text-blue-400 transition leading-snug"
                             >
                               {app.title}
@@ -1111,7 +1111,7 @@ const MyApplications = () => {
                     {/* Header: Title & Badges */}
                     <div className="flex items-start justify-between gap-2">
                       <Link
-                        to={`/verification?tenderId=${app.rawTenderId}`}
+                        to={`/tenders?tenderId=${app.rawTenderId || app.tenderId}`}
                         className="font-bold text-sm text-slate-900 dark:text-white leading-snug"
                       >
                         {app.title}

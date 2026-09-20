@@ -16,13 +16,16 @@ const resolveRoleDestination = (userObj, requestedTarget) => {
     if (requestedTarget && (requestedTarget.startsWith('/reports') || requestedTarget.startsWith('/officer'))) {
       return requestedTarget;
     }
-    if (requestedTarget && requestedTarget.startsWith('/verification')) {
-      return '/dashboard?tab=compliance';
+    if (requestedTarget && (requestedTarget.startsWith('/verification') || requestedTarget.startsWith('/tenders'))) {
+      return requestedTarget.startsWith('/verification') ? '/dashboard?tab=compliance' : requestedTarget;
     }
     return '/dashboard';
   } else {
-    if (requestedTarget && (requestedTarget.startsWith('/my-applications') || requestedTarget.startsWith('/verification') || requestedTarget.startsWith('/bidder'))) {
+    if (requestedTarget && (requestedTarget.startsWith('/my-applications') || requestedTarget.startsWith('/tenders') || requestedTarget.startsWith('/bidder'))) {
       return requestedTarget;
+    }
+    if (requestedTarget && requestedTarget.startsWith('/verification')) {
+      return '/tenders';
     }
     return '/bidder-dashboard';
   }

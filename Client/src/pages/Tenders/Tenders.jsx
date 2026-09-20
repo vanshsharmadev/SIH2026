@@ -29,7 +29,14 @@ const categories = [
 const Tenders = () => {
   const [searchParams] = useSearchParams();
   const queryTenderId = searchParams.get('tenderId') || searchParams.get('tender');
-  const [tendersList, setTendersList] = useState([]);
+  const queryTab = searchParams.get('tab');
+  const [tendersList, setTendersList] = useState(() => {
+    try {
+      const local = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
+      if (Array.isArray(local) && local.length > 0) return local;
+    } catch {}
+    return [];
+  });
   const [isLoadingTenders, setIsLoadingTenders] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -37,52 +44,39 @@ const Tenders = () => {
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [sortBy, setSortBy] = useState('default');
   const [activeTenderModal, setActiveTenderModal] = useState(null);
+  const [modalInitialTab, setModalInitialTab] = useState(queryTab === 'compliance' ? 'compliance' : 'overview');
   const [isStuck, setIsStuck] = useState(false);
 
   // Auto-open modal if query parameter tenderId or tender is present
   useEffect(() => {
     if (queryTenderId && tendersList.length > 0) {
+      const cleanQ = String(queryTenderId).toLowerCase().trim();
       const matched = tendersList.find(
         (t) =>
-          String(t.id) === String(queryTenderId) ||
-          t.referenceNo?.toLowerCase() === String(queryTenderId).toLowerCase()
+          String(t.id).toLowerCase() === cleanQ ||
+          t.referenceNo?.toLowerCase() === cleanQ ||
+          t.tenderId?.toLowerCase() === cleanQ ||
+          t.referenceNo?.toLowerCase().includes(cleanQ)
       );
       if (matched) {
+        if (queryTab === 'compliance') {
+          setModalInitialTab('compliance');
+        }
         const timer = setTimeout(() => {
           setActiveTenderModal(matched);
         }, 0);
         return () => clearTimeout(timer);
       }
     }
-  }, [queryTenderId, tendersList]);
+  }, [queryTenderId, queryTab, tendersList]);
 
-  // Fetch real tenders from deployed backend API (or fallback to mockTenders)
+  // Fetch real tenders from deployed backend API and local officer registry
   useEffect(() => {
     let isMounted = true;
     const loadTenders = async () => {
       try {
         setIsLoadingTenders(true);
-        const role = localStorage.getItem('role');
-        const token = localStorage.getItem('token');
-        let remoteData = null;
-
-        // If officer session, call GET /api/officer/tenders
-        if (role === 'OFFICER' || token) {
-          try {
-            const officerData = await tenderService.getOfficerTenders();
-            if (Array.isArray(officerData) && officerData.length > 0) {
-              remoteData = officerData;
-            }
-          } catch (e) {
-            console.warn('getOfficerTenders fallback notice:', e);
-          }
-        }
-
-        // Otherwise fallback to general /tenders
-        if (!remoteData) {
-          remoteData = await tenderService.getTenders();
-        }
-
+        const remoteData = await tenderService.getTenders();
         if (isMounted && Array.isArray(remoteData)) {
           setTendersList(remoteData);
         }
@@ -93,8 +87,20 @@ const Tenders = () => {
       }
     };
     loadTenders();
+
+    const handleSync = () => {
+      loadTenders();
+    };
+
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('gem_tenders_updated', handleSync);
+    window.addEventListener('focus', handleSync);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('gem_tenders_updated', handleSync);
+      window.removeEventListener('focus', handleSync);
     };
   }, []);
 
@@ -116,19 +122,24 @@ const Tenders = () => {
           !query ||
           tender.title?.toLowerCase().includes(query) ||
           tender.referenceNo?.toLowerCase().includes(query) ||
+          tender.tenderId?.toLowerCase().includes(query) ||
           tender.ministry?.toLowerCase().includes(query) ||
+          tender.department?.toLowerCase().includes(query) ||
           tender.category?.toLowerCase().includes(query) ||
           (tender.location && tender.location.toLowerCase().includes(query));
 
         const matchesCategory =
-          selectedCategory === 'All' || tender.category === selectedCategory;
+          selectedCategory === 'All' ||
+          tender.category === selectedCategory ||
+          (tender.category && tender.category.toLowerCase().includes(selectedCategory.toLowerCase())) ||
+          (selectedCategory.toLowerCase().includes((tender.category || '').toLowerCase()));
 
         const matchesStatus =
           selectedStatus === 'All'
             ? true
             : selectedStatus === 'Closed'
             ? isTenderClosed(tender)
-            : tender.status === selectedStatus;
+            : tender.status === selectedStatus || (selectedStatus === 'Open' && tender.status === 'Active');
 
         return matchesSearch && matchesCategory && matchesStatus;
       })
@@ -418,7 +429,10 @@ const Tenders = () => {
             <TenderCard
               key={tender.id}
               tender={tender}
-              onViewDetails={(t) => setActiveTenderModal(t)}
+              onViewDetails={(t, tab = 'overview') => {
+                setModalInitialTab(tab);
+                setActiveTenderModal(t);
+              }}
             />
           ))}
         </div>
@@ -450,6 +464,7 @@ const Tenders = () => {
       {/* 6. Tender Details Modal */}
       <TenderDetailModal
         tender={activeTenderModal}
+        initialTab={modalInitialTab}
         onClose={() => setActiveTenderModal(null)}
       />
 

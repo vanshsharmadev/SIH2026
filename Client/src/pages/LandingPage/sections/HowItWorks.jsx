@@ -189,10 +189,10 @@ const HowItWorks = () => {
         {/* Process Action CTA */}
         <div className="mt-10 flex items-center justify-center">
           <Link
-            to={role === 'bidder' ? '/verification' : '/dashboard'}
+            to={role === 'bidder' ? '/tenders' : '/dashboard'}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#073567] hover:bg-[#05284f] dark:bg-[#4da3ff] dark:hover:bg-[#3b82f6] text-white dark:text-slate-950 font-bold text-sm shadow-md hover:shadow-lg transition-all hover:scale-[1.01]"
           >
-            <span>{role === 'bidder' ? 'Run Free AI Pre-Check on Your Tender' : 'Open Buyer Evaluation Portal'}</span>
+            <span>{role === 'bidder' ? 'Explore Opportunities & Submit Bids' : 'Open Buyer Evaluation Portal'}</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>

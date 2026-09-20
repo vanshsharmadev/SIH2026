@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -26,7 +26,7 @@ import { isOfficerUser } from '../../utils/roleUtils';
 import { isTenderClosed } from '../../utils';
 import { documentService } from '../../services';
 import TenderChatbot from './TenderChatbot';
-import QcbsBiddersRanking from './QcbsBiddersRanking';
+import ComplianceBadge from '../compliance/ComplianceBadge';
 
 const COMPLIANCE_DOC_TYPES = [
   { id: 'gst', value: 'gst', label: 'GST Registration Certificate (REG-06)', required: true },
@@ -45,9 +45,11 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
   const isOfficer = Boolean(isAuthenticated && isOfficerUser(user));
   const isClosed = isTenderClosed(tender);
 
-  // Tab state: 'overview' vs 'compliance' vs 'qcbs'
-  const [activeTab, setActiveTab] = useState(initialTab);
+  // Tab state: 'overview' vs 'compliance'
+  const [activeTab, setActiveTab] = useState(initialTab === 'qcbs' ? 'overview' : initialTab);
   const [isAiChatOpen, setIsAiChatOpen] = useState(false);
+  const [submittingProposal, setSubmittingProposal] = useState(false);
+  const [submittedJustNow, setSubmittedJustNow] = useState(false);
 
   useEffect(() => {
     if (initialTab) {
@@ -55,9 +57,25 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
     }
   }, [initialTab]);
 
-  // Compliance Document Upload & AI Processing States
+  const alreadySubmitted = useMemo(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
+      return stored.some(
+        (a) =>
+          a.tenderId === tender?.referenceNo ||
+          a.rawTenderId === tender?.id ||
+          (tender?.id && String(a.rawTenderId) === String(tender.id))
+      );
+    } catch {
+      return false;
+    }
+  }, [tender, submittedJustNow]);
+
+  // Bidder Document Vault & Submission States
+  const [vaultDocs, setVaultDocs] = useState([]);
+  const [loadingVault, setLoadingVault] = useState(false);
   const [complianceDocs, setComplianceDocs] = useState([]);
-  const [selectedDocType, setSelectedDocType] = useState('gst');
+  const [selectedDocType, setSelectedDocType] = useState('mii_declaration');
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -105,17 +123,25 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
     };
   }, [tender, onClose]);
 
-  // Load existing compliance documents on open
+  // Load existing vault documents & tender submission documents on open
   useEffect(() => {
     if (!tender) return;
     let isMounted = true;
     const fetchTenderDocs = async () => {
       try {
+        setLoadingVault(true);
+        const vDocs = await documentService.getVaultDocuments();
+        if (isMounted && Array.isArray(vDocs)) {
+          setVaultDocs(vDocs);
+        }
+
         const tenderRef = tender.id || tender.referenceNo;
         const docs = await documentService.getDocuments();
         if (Array.isArray(docs) && isMounted) {
           const relevant = docs.filter(
-            (d) => String(d.tenderId) === String(tenderRef) || !d.tenderId
+            (d) =>
+              d.sourceType === 'TENDER_SUBMISSION' &&
+              (String(d.tenderId) === String(tenderRef) || !d.tenderId)
           );
           if (relevant.length > 0) {
             setComplianceDocs(
@@ -126,6 +152,7 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
                 documentId: d.id || d.documentId,
                 fileName: d.fileName || d.name || 'document.pdf',
                 documentType: d.documentType || 'generic',
+                sourceType: 'TENDER_SUBMISSION',
                 pdfUrl: d.fileUrl,
                 publicId: d.cloudinaryPublicId,
                 fileSize: d.fileSize || 1024 * 1024,
@@ -138,6 +165,8 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
         }
       } catch (e) {
         console.warn('Notice loading documents:', e);
+      } finally {
+        if (isMounted) setLoadingVault(false);
       }
     };
     fetchTenderDocs();
@@ -145,6 +174,28 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
       isMounted = false;
     };
   }, [tender]);
+
+  const matchedRequirements = useMemo(() => {
+    return documentService.matchVaultWithTender(vaultDocs, tender, complianceDocs);
+  }, [vaultDocs, tender, complianceDocs]);
+
+  const bidderComplianceScore = useMemo(() => {
+    return documentService.calculateBidderComplianceScore(matchedRequirements);
+  }, [matchedRequirements]);
+
+  const vaultDocsReused = useMemo(() => {
+    return matchedRequirements
+      .filter((r) => r.isAvailable && r.source === 'VENDOR_VAULT')
+      .map((r) => ({
+        name: r.matchedDoc?.fileName || r.label,
+        fileName: r.matchedDoc?.fileName || r.label,
+        type: r.label,
+        documentType: r.key,
+        sourceType: 'VENDOR_VAULT',
+        status: 'Verified from Vault',
+        url: r.matchedDoc?.fileUrl,
+      }));
+  }, [matchedRequirements]);
 
   if (!tender) return null;
 
@@ -201,6 +252,10 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
             const percent = Math.round((progressEvent.loaded * 45) / progressEvent.total);
             setUploadProgress(Math.max(15, percent));
           }
+        },
+        {
+          sourceType: 'TENDER_SUBMISSION',
+          tenderId: tender.id || tender.referenceNo,
         }
       );
 
@@ -236,6 +291,7 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
       documentId: createdDocumentId,
       fileName: selectedFile.name,
       documentType: actualDocumentType,
+      sourceType: 'TENDER_SUBMISSION',
       pdfUrl: cloudinarySecureUrl,
       publicId: cloudinaryPublicId,
       fileSize: selectedFile.size,
@@ -252,6 +308,16 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
     setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setUploading(false);
+  };
+
+  /**
+   * Quick trigger to upload a missing document for a specific requirement
+   */
+  const handleSelectMissingForUpload = (reqKey) => {
+    setSelectedDocType(reqKey);
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
   /**
@@ -318,6 +384,76 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
     setNonBlockingNotice(null);
     setStageMessage('Retrying compliance analysis...');
     await executeAiProcess(docRecord);
+  };
+
+  const handleFinalizeSubmitBid = async () => {
+    if (alreadySubmitted || submittedJustNow) {
+      onClose();
+      navigate('/my-applications');
+      return;
+    }
+
+    if (!isAuthenticated) {
+      onClose();
+      navigate('/login', {
+        state: { redirectTo: `/tenders?tenderId=${tender.id}&tab=compliance` },
+      });
+      return;
+    }
+
+    setSubmittingProposal(true);
+    setUploadError(null);
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+
+      const submissionId = `APP-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+
+      const newDocsSubmitted = complianceDocs.map((d) => ({
+        name: d.fileName || 'Compliance_Doc.pdf',
+        fileName: d.fileName || 'Compliance_Doc.pdf',
+        type: d.documentType || 'Statutory Compliance',
+        documentType: d.documentType,
+        sourceType: 'TENDER_SUBMISSION',
+        status: 'Verified',
+        url: d.pdfUrl,
+      }));
+
+      const allSubmissionDocs = [...vaultDocsReused, ...newDocsSubmitted];
+
+      const effectiveRefNo = tender.referenceNo || tender.tenderId || tender.id;
+
+      const applicationPayload = {
+        id: submissionId,
+        tenderId: effectiveRefNo,
+        tenderReferenceNo: effectiveRefNo,
+        rawTenderId: tender.id,
+        tenderTitle: tender.title,
+        department: tender.ministry || tender.department || 'Government of India',
+        bidderName: user?.companyName || user?.name || 'Registered Commercial Bidder Corp',
+        complianceScore: bidderComplianceScore,
+        quotedAmount: tender.value || '₹ 48,50,000',
+        documents: allSubmissionDocs,
+        vaultDocuments: vaultDocsReused,
+        submissionDocuments: newDocsSubmitted,
+        requirementsBreakdown: matchedRequirements.map((r) => ({
+          name: r.label,
+          category: r.category,
+          status: r.status,
+          mandatory: r.mandatory,
+          source: r.source,
+          isAvailable: r.isAvailable,
+          tenderText: r.tenderText,
+        })),
+      };
+
+      await documentService.submitTenderApplication(applicationPayload);
+      setSubmittedJustNow(true);
+    } catch {
+      setUploadError('Submission error. Please try again.');
+    } finally {
+      setSubmittingProposal(false);
+    }
   };
 
   return createPortal(
@@ -412,21 +548,6 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
               </span>
             )}
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('qcbs')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'qcbs'
-                ? 'border-amber-500 text-amber-600 dark:text-amber-400 bg-white/60 dark:bg-slate-800/40'
-                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            }`}
-          >
-            <Trophy className={`w-3.5 h-3.5 ${activeTab === 'qcbs' ? 'text-amber-500 fill-amber-500/20' : 'text-amber-500/80'}`} />
-            <span>Top Evaluated Bidders (QCBS Ranking)</span>
-            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold border border-amber-300/60 dark:border-amber-700/60">
-              Top 10 &bull; 70:30
-            </span>
-          </button>
         </div>
 
         {/* Scrollable Body */}
@@ -501,27 +622,21 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
                 </p>
               </div>
 
-              {/* Compliance & Eligibility */}
+              {/* Statutory Criteria & Policies */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50">
                   <div className="flex items-center gap-1.5 font-bold text-xs text-emerald-700 dark:text-emerald-400 mb-1">
                     <ShieldCheck className="w-4 h-4" />
-                    <span>AI Compliance Rating</span>
+                    <span>Tender Requirements Criteria</span>
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-2xl font-black text-slate-900 dark:text-white">
-                      {tender.complianceScore}%
-                    </span>
-                    <span className="text-[11px] text-slate-500 font-medium">
-                      Verified against GFR 2017 & GeM Norms
+                      {Array.isArray(tender.eligibilityCriteria) ? tender.eligibilityCriteria.length : 5} Mandatory Rules
                     </span>
                   </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mt-2">
-                    <div
-                      className="bg-emerald-500 h-full rounded-full"
-                      style={{ width: `${tender.complianceScore}%` }}
-                    />
-                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium mt-1">
+                    Source of requirements for bidder eligibility under GFR 2017 &amp; GeM GTC.
+                  </p>
                 </div>
 
                 <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50">
@@ -533,7 +648,7 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
                     {tender.minLocalContent}
                   </span>
                   <span className="text-[11px] text-slate-500 block mt-1">
-                    Bid Type: {tender.bidType}
+                    Bid Type: {tender.bidType || 'Statutory Public Procurement'}
                   </span>
                 </div>
               </div>
@@ -622,24 +737,216 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
                 </div>
               </div>
             </>
-          ) : activeTab === 'compliance' ? (
+          ) : (
             /* ═══ COMPLIANCE DOCUMENTS TAB ═══ */
-            <div className="space-y-4">
-              {/* Pipeline Info Banner */}
-              <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200/90 dark:border-blue-900/60 text-xs space-y-1 text-slate-700 dark:text-slate-300">
-                <div className="flex items-center gap-2 font-bold text-blue-700 dark:text-blue-400">
-                  <Database className="w-4 h-4" />
-                  <span>GeM Compliance Verification Intake</span>
+            <div className="space-y-5">
+              {/* Proposal Submission Status Banner */}
+              {(alreadySubmitted || submittedJustNow) && (
+                <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between gap-3 text-emerald-900 dark:text-emerald-200 animate-in fade-in">
+                  <div className="flex items-center gap-2.5">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold">Bid Proposal Submitted for {tender.referenceNo}</p>
+                      <p className="text-[11px] text-emerald-700 dark:text-emerald-300">
+                        Your compliance verification and bid package are under technical evaluation. Duplicate submissions are locked.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      navigate('/my-applications');
+                    }}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  >
+                    <span>View Application</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                  Uploaded compliance documents are securely stored and automatically processed for compliance verification and audit checks.
-                </p>
+              )}
+
+              {/* 1. Bidder Compliance Score & Readiness Card */}
+              <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-gradient-to-br from-blue-50/70 via-indigo-50/30 to-white dark:from-slate-800/80 dark:via-slate-800/40 dark:to-slate-900 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-blue-100 dark:border-slate-700/60">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                        Bidder Compliance Score (Your Application)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Evaluated against tender criteria using your Bidder Document Vault credentials and submission uploads.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-right">
+                      <div className="text-2xl font-black text-slate-900 dark:text-white leading-none">
+                        {bidderComplianceScore}%
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        {bidderComplianceScore >= 80
+                          ? 'Highly Compliant'
+                          : bidderComplianceScore >= 50
+                          ? 'Partially Compliant'
+                          : 'Action Required'}
+                      </span>
+                    </div>
+                    <div className="w-12 h-12 rounded-full border-4 border-blue-600/20 dark:border-blue-500/20 flex items-center justify-center p-1 relative">
+                      <div
+                        className={`text-xs font-bold ${
+                          bidderComplianceScore >= 80
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : bidderComplianceScore >= 50
+                            ? 'text-amber-600 dark:text-amber-400'
+                            : 'text-rose-600 dark:text-rose-400'
+                        }`}
+                      >
+                        {bidderComplianceScore}%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="w-full bg-slate-200 dark:bg-slate-700/70 rounded-full h-2 my-3 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      bidderComplianceScore >= 80
+                        ? 'bg-emerald-500'
+                        : bidderComplianceScore >= 50
+                        ? 'bg-amber-500'
+                        : 'bg-rose-500'
+                    }`}
+                    style={{ width: `${bidderComplianceScore}%` }}
+                  />
+                </div>
+
+                {/* Summary stat pills */}
+                <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                  <div className="p-2 rounded-lg bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60">
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Auto-Matched from Vault</div>
+                    <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                      {vaultDocsReused.length} docs
+                    </div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60">
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Tender Uploads</div>
+                    <div className="text-xs font-bold text-blue-600 dark:text-blue-400 mt-0.5">
+                      {complianceDocs.length} docs
+                    </div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60">
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Missing Requirements</div>
+                    <div className={`text-xs font-bold mt-0.5 ${
+                      matchedRequirements.filter((r) => !r.isAvailable).length > 0
+                        ? 'text-rose-600 dark:text-rose-400'
+                        : 'text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                      {matchedRequirements.filter((r) => !r.isAvailable).length} remaining
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Upload Form Box */}
+              {/* 2. Bidder Document Vault Automatic Matching Matrix */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Database className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <span>Bidder Document Vault Automatic Matching</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Permanent business documents from your vault are matched automatically to avoid re-uploading.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800">
+                    {matchedRequirements.filter((r) => r.isAvailable).length} of {matchedRequirements.length} Matched
+                  </span>
+                </div>
+
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-800/50">
+                  {matchedRequirements.map((req, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/60 dark:hover:bg-slate-800/80 transition"
+                    >
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-xs text-slate-900 dark:text-slate-100">
+                            {req.label}
+                          </span>
+                          {req.mandatory ? (
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900">
+                              Mandatory
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                              Optional
+                            </span>
+                          )}
+                          <span className="text-[10px] font-mono text-slate-400">
+                            ({req.category})
+                          </span>
+                        </div>
+
+                        {req.isAvailable ? (
+                          <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
+                            <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>
+                              {req.source === 'VENDOR_VAULT'
+                                ? `Available in Vault: ${req.matchedDoc?.fileName || req.label}`
+                                : `Uploaded for Submission: ${req.matchedDoc?.fileName || req.label}`}
+                            </span>
+                            <span className="text-[9.5px] font-bold px-1.5 py-0.2 rounded bg-emerald-100/70 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 uppercase tracking-wider ml-1">
+                              {req.source === 'VENDOR_VAULT' ? 'From Vault' : 'Tender Upload'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                            <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                            <span>Not found in Document Vault or current uploads</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                        <ComplianceBadge status={req.status} />
+                        {!req.isAvailable && !isClosed && (
+                          <button
+                            type="button"
+                            onClick={() => handleSelectMissingForUpload(req.key)}
+                            disabled={uploading}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900 text-blue-700 dark:text-blue-300 font-bold text-[11px] transition cursor-pointer border border-blue-200 dark:border-blue-800"
+                          >
+                            <UploadCloud className="w-3 h-3" />
+                            <span>Upload This</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. Upload Missing / Tender-Specific Documents Form */}
               {!isClosed ? (
                 <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <UploadCloud className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        <span>Upload Missing or Tender-Specific Documents</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Uploaded documents will be classified as Tender Submission Documents (sourceType: 'TENDER_SUBMISSION') and attached to this bid package.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
                         Document Category / Type
@@ -716,7 +1023,7 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
                     </div>
                   )}
 
-                  {/* Error Notification (Case 1 & Case 2) */}
+                  {/* Error Notification */}
                   {uploadError && (
                     <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -724,7 +1031,7 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
                     </div>
                   )}
 
-                  {/* Non-Blocking Notice (Case 3 - Document saved, AI failed) */}
+                  {/* Non-Blocking Notice */}
                   {nonBlockingNotice && (
                     <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
@@ -758,7 +1065,7 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
                       ) : (
                         <>
                           <UploadCloud className="w-3.5 h-3.5" />
-                          <span>Upload &amp; Process Document</span>
+                          <span>Upload &amp; Add to Bid Submission</span>
                         </>
                       )}
                     </button>
@@ -771,87 +1078,136 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
                 </div>
               )}
 
-              {/* Uploaded Documents List */}
-              <div>
-                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
-                  Uploaded Compliance Documents ({complianceDocs.length})
+              {/* 4. Segregated Submission Document Review */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Submission Documents Package Review
                 </h4>
 
-                {complianceDocs.length === 0 ? (
-                  <div className="p-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
-                    No compliance documents uploaded for {tender.referenceNo} yet. Select a document type above and upload.
+                {/* Sub-section A: Reused from Bidder Vault */}
+                <div className="p-3.5 rounded-xl border border-indigo-100 dark:border-indigo-950/60 bg-indigo-50/40 dark:bg-indigo-950/20 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Database className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                      <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200">
+                        1. Reused from Bidder Document Vault ({vaultDocsReused.length})
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                      Permanent &bull; Reusable
+                    </span>
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    {complianceDocs.map((doc) => {
-                      const isComplete = doc.aiStatus === 'COMPLETED';
-                      const isFailed = doc.aiStatus === 'FAILED';
-                      const isPending = doc.aiStatus === 'PROCESSING';
 
-                      return (
+                  {vaultDocsReused.length === 0 ? (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 italic py-1">
+                      No vault documents currently matched. Add documents in your Bidder Document Vault to reuse them automatically.
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {vaultDocsReused.map((doc, idx) => (
                         <div
-                          key={doc.id}
-                          className="p-3 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-800 flex items-center justify-between gap-3 text-xs"
+                          key={idx}
+                          className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 text-xs"
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-                              <FileText className="w-4 h-4" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-bold text-slate-900 dark:text-white truncate">
-                                {doc.fileName}
-                              </p>
-                              <div className="flex items-center gap-2 text-[10.5px] text-slate-500 dark:text-slate-400">
-                                <span className="uppercase font-mono font-semibold">{doc.documentType}</span>
-                                <span>&bull;</span>
-                                <span>Doc ID: #{doc.id}</span>
-                                <span>&bull;</span>
-                                <span>{doc.uploadedAt}</span>
-                              </div>
-                            </div>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                            <span className="font-medium text-slate-800 dark:text-slate-200 truncate">
+                              {doc.fileName}
+                            </span>
+                            <span className="text-[10px] text-slate-400 shrink-0">({doc.type})</span>
                           </div>
-
-                          {/* AI Pipeline Status Badge */}
-                          <div className="flex items-center gap-2 shrink-0">
-                            {isComplete && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                                <Check className="w-3 h-3" />
-                                <span>Verified &amp; Indexed</span>
-                              </span>
-                            )}
-                            {isFailed && (
-                              <div className="flex items-center gap-1.5">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-                                  <AlertTriangle className="w-3 h-3" />
-                                  <span>Saved &bull; AI Pending</span>
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRetryAi(doc)}
-                                  disabled={uploading}
-                                  className="px-2 py-0.5 rounded bg-blue-600 text-white text-[10.5px] font-bold hover:bg-blue-700 cursor-pointer"
-                                >
-                                  Retry AI
-                                </button>
-                              </div>
-                            )}
-                            {isPending && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 animate-pulse">
-                                <RefreshCw className="w-3 h-3 animate-spin" />
-                                <span>Chunking...</span>
-                              </span>
-                            )}
-                          </div>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 shrink-0">
+                            Vault Verified
+                          </span>
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Sub-section B: Tender-Specific Uploads */}
+                <div className="p-3.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-800/40 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <UploadCloud className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        2. Tender-Specific Uploads ({complianceDocs.length})
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                      Specific to {tender.referenceNo}
+                    </span>
                   </div>
-                )}
+
+                  {complianceDocs.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic py-1">
+                      No tender-specific documents uploaded yet. Upload any missing mandatory documents above.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {complianceDocs.map((doc) => {
+                        const isComplete = doc.aiStatus === 'COMPLETED';
+                        const isFailed = doc.aiStatus === 'FAILED';
+                        const isPending = doc.aiStatus === 'PROCESSING';
+
+                        return (
+                          <div
+                            key={doc.id}
+                            className="p-2.5 rounded-lg border border-slate-200/90 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-800/80 flex items-center justify-between gap-3 text-xs"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <FileText className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-900 dark:text-white truncate">
+                                  {doc.fileName}
+                                </p>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+                                  <span className="uppercase font-mono font-semibold">{doc.documentType}</span>
+                                  <span>&bull;</span>
+                                  <span>{doc.uploadedAt}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* AI Status */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              {isComplete && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                  <Check className="w-3 h-3" />
+                                  <span>Verified &amp; Indexed</span>
+                                </span>
+                              )}
+                              {isFailed && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    <span>Saved &bull; AI Pending</span>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRetryAi(doc)}
+                                    disabled={uploading}
+                                    className="px-2 py-0.5 rounded bg-blue-600 text-white text-[10px] font-bold hover:bg-blue-700 cursor-pointer"
+                                  >
+                                    Retry AI
+                                  </button>
+                                </div>
+                              )}
+                              {isPending && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 animate-pulse">
+                                  <RefreshCw className="w-3 h-3 animate-spin" />
+                                  <span>Chunking...</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          ) : (
-            /* ═══ QCBS TOP 10 BIDDERS TAB ═══ */
-            <QcbsBiddersRanking tender={tender} tenderId={tender.id || tender.referenceNo} />
           )}
         </div>
 
@@ -864,17 +1220,6 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
             >
               Close
             </button>
-            {activeTab !== 'qcbs' && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('qcbs')}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-400/40 text-amber-700 dark:text-amber-300 text-xs font-bold rounded-lg transition cursor-pointer"
-                title="View QCBS Rule 192 Top 10 Bidders ranking"
-              >
-                <Trophy className="w-3.5 h-3.5 text-amber-500" />
-                <span>View QCBS Rankings</span>
-              </button>
-            )}
           </div>
           <div className="flex items-center gap-2">
             {!isClosed ? (
@@ -909,17 +1254,42 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
                     <span>Compliance Docs &amp; Apply</span>
                   </button>
                 </div>
+              ) : (alreadySubmitted || submittedJustNow) ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Bid Submitted</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      navigate('/my-applications');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md transition cursor-pointer"
+                  >
+                    <span>Track in My Applications</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
               ) : (
                 <button
                   type="button"
-                  onClick={() => {
-                    onClose();
-                    navigate(`/verification?tenderId=${tender.id}`);
-                  }}
-                  className="inline-flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md transition hover:scale-[1.02] cursor-pointer"
+                  onClick={handleFinalizeSubmitBid}
+                  disabled={submittingProposal}
+                  className="inline-flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md transition hover:scale-[1.02] cursor-pointer disabled:opacity-60"
                 >
-                  <CheckCircle2 className="w-4 h-4 text-white" />
-                  <span>Finalize &amp; Submit Bid Proposal</span>
+                  {submittingProposal ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                      <span>Submitting Bid Package...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-white" />
+                      <span>Finalize &amp; Submit Bid Proposal</span>
+                    </>
+                  )}
                 </button>
               )
             ) : (

@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { tenderService } from '../../services';
 import TenderChatbot from '../../components/tender/TenderChatbot';
-import QcbsBiddersRanking from '../../components/tender/QcbsBiddersRanking';
 
 const TenderDetails = () => {
   const { tenderId } = useParams();
@@ -248,18 +247,18 @@ const TenderDetails = () => {
             </p>
           </div>
 
-          {/* Compliance & Eligibility */}
+          {/* Statutory Criteria & Policies */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-2">
               <div className="flex items-center gap-1.5 font-bold text-xs text-emerald-700 dark:text-emerald-400">
                 <ShieldCheck className="w-4 h-4" />
-                <span>AI Compliance Rating</span>
+                <span>Tender Compliance Criteria</span>
               </div>
               <p className="text-2xl font-black text-slate-900 dark:text-white">
-                {tender.complianceScore}%
+                {Array.isArray(tender.eligibilityCriteria) ? tender.eligibilityCriteria.length : 5} Mandatory Rules
               </p>
               <p className="text-[11px] text-slate-500">
-                Audited against GFR 2017 &amp; GeM General Terms.
+                Source of requirements for bidder eligibility under GFR 2017 &amp; GeM GTC.
               </p>
             </div>
 
@@ -279,9 +278,14 @@ const TenderDetails = () => {
 
           {/* Bidder Eligibility Criteria */}
           <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Bidder Eligibility Criteria
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Bidder Eligibility Requirements
+              </h2>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                SOURCE: TENDER
+              </span>
+            </div>
             <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
               <span>{tender.eligibility}</span>
@@ -290,9 +294,17 @@ const TenderDetails = () => {
 
           {/* Official Tender Documents */}
           <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Official Tender Documents &amp; BOQ
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Official Tender Documents &amp; BOQ
+              </h2>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                SOURCE: TENDER
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              These documents are uploaded by the Procurement Officer and define what a bidder needs to satisfy.
+            </p>
             <div className="space-y-2">
               {tender.documents?.map((doc, idx) => (
                 <div
@@ -305,6 +317,9 @@ const TenderDetails = () => {
                       {doc.name}
                     </span>
                     <span className="text-[10px] text-slate-400 shrink-0">({doc.size})</span>
+                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 shrink-0">
+                      Tender Doc
+                    </span>
                   </div>
                   <button
                     type="button"
@@ -328,11 +343,11 @@ const TenderDetails = () => {
               </p>
             </div>
             <Link
-              to={`/verification?tenderId=${effectiveTenderId}`}
+              to={`/tenders?tenderId=${effectiveTenderId}&tab=compliance`}
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold shadow-sm transition hover:scale-105 shrink-0"
             >
               <ShieldCheck className="w-4 h-4" />
-              <span>Verify &amp; Submit Bid</span>
+              <span>Verify Compliance &amp; Apply</span>
             </Link>
           </div>
         </div>
@@ -352,11 +367,6 @@ const TenderDetails = () => {
             />
           </div>
         </div>
-      </div>
-
-      {/* Full-Width QCBS Evaluation Section */}
-      <div className="pt-6 border-t border-slate-200 dark:border-slate-800 space-y-4">
-        <QcbsBiddersRanking tender={tender} tenderId={effectiveTenderId} />
       </div>
     </div>
   );
