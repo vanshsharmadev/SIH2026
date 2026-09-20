@@ -364,7 +364,7 @@ const Verification = () => {
       const livePredict = await mlService
         .predictCompliance({
           tender_id: safeTender.referenceNo || safeTender.id,
-          bidder_id: user?.id || 'BID-007',
+          bidder_id: user?.id || user?.bidderId || null,
           documents_count: uploadedFiles.length,
         })
         .catch(() => null);

@@ -8,6 +8,7 @@ const summaryRoutes = require("./routes/summary.routes");
 const bidderTenderChatRoutes = require("./routes/bidderTenderChat.routes");
 const compareRoutes = require("./routes/compare.routes");
 const bidderChatForTenderRoutes = require("./routes/bidderChatForTender.route");
+const copilotRoutes = require("./routes/copilot.routes");
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use(
   "/api/ai/bidder-chat",
   bidderChatForTenderRoutes
 );
+app.use("/api/ai/copilot", copilotRoutes);
 
 
 // Port

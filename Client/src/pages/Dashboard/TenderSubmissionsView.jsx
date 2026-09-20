@@ -868,10 +868,11 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
           <button
             type="button"
             onClick={() => {
+              const targetTenderId = selectedSubmission?.tenderId || (filterTenderId && filterTenderId !== 'all' ? filterTenderId : null);
               setQcbsModalTender({
-                id: selectedSubmission?.tenderId || filterTenderId || '1',
-                referenceNo: selectedSubmission?.tenderId || filterTenderId || 'GEM/2024/B/5123981',
-                title: selectedSubmission?.tenderTitle || 'Solar Power Installation & Infrastructure Project',
+                id: targetTenderId || 'TND-DEFAULT',
+                referenceNo: targetTenderId || selectedSubmission?.referenceNo || 'GEM/2026/B/REF',
+                title: selectedSubmission?.tenderTitle || 'Selected Tender Project',
                 value: '₹ 18.50 Cr',
               });
             }}
@@ -1547,13 +1548,13 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
         onSelectBidder={(selected) => setAiDrawerBidder(selected)}
       />
 
-      {/* Bidder Contextual Chatbot — Bound to POST /api/officer/tenders/chat */}
+      {/* Bidder Contextual Chatbot — Bound to POST /api/officer/tenders/:id/chat */}
       <BidderChatBot
         isOpen={chatBotOpen}
         onClose={() => setChatBotOpen(false)}
         bidderData={selectedSubmission}
-        tenderId={selectedSubmission?.tenderId || filterTenderId || '1'}
-        bidderId={selectedSubmission?.bidderId || selectedSubmission?.id || 'BID-007'}
+        tenderId={selectedSubmission?.tenderId || (filterTenderId && filterTenderId !== 'all' ? filterTenderId : null)}
+        bidderId={selectedSubmission?.bidderId || selectedSubmission?.id || null}
       />
 
       {/* QCBS Top 10 Bidders Evaluation Modal */}

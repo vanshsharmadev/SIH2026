@@ -122,12 +122,12 @@ const BidderChatBot = ({
   const [showContext, setShowContext] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Active target tender & bidder IDs (defaults to prop / bidderData or '1' & 'BID-007')
+  // Active target tender & bidder IDs (genuine IDs from props or bidderData)
   const [activeTenderId, setActiveTenderId] = useState(
-    () => propTenderId || bidderData?.tenderId || bidderData?.rawTenderId || '1'
+    () => propTenderId || bidderData?.tenderId || bidderData?.rawTenderId || null
   );
   const [activeBidderId, setActiveBidderId] = useState(
-    () => propBidderId || bidderData?.bidderId || bidderData?.id || 'BID-007'
+    () => propBidderId || bidderData?.bidderId || bidderData?.id || null
   );
 
   // Keep in sync with incoming props/selection
@@ -153,17 +153,21 @@ const BidderChatBot = ({
   useEffect(() => {
     if (isOpen) {
       const bName = bidderData?.bidder || 'Selected Bidder';
-      const tId = activeTenderId || bidderData?.tenderId || '1';
-      const bId = activeBidderId || bidderData?.bidderId || 'BID-007';
+      const tId = activeTenderId || bidderData?.tenderId || null;
+      const bId = activeBidderId || bidderData?.bidderId || null;
+
+      const welcomeText = bId
+        ? `Namaste Officer! I am your AI Tender & Bidder Compliance Assistant.\n\nEvaluating **${bName}** (${bId}) for tender **${tId || 'Selected Tender'}**.\n\nYou can ask me specific questions like turnover requirements, financial criteria, Make in India local content, or statutory document verification.`
+        : `Namaste Officer! Please select a specific bidder from the Tender Submissions view to inspect and evaluate their compliance records, GST status, and financial qualifications.`;
 
       setMessages([
         {
           id: 'welcome-bidder',
           sender: 'bot',
-          text: `Namaste Officer! I am your AI Tender & Compliance Assistant.\n\nEvaluating **${bName}** (${bId}) for tender **${tId}**.\n\nYou can ask me specific questions like turnover requirements, financial criteria, Make in India local content, or statutory document verification.`,
+          text: welcomeText,
           timestamp: 'Just now',
-          citation: `Evaluation Context • Tender: ${tId} • Bidder: ${bId}`,
-          confidence: 'Context Verified',
+          citation: bId ? `Evaluation Context • Tender: ${tId || 'Active'} • Bidder: ${bId}` : 'Context Required',
+          confidence: bId ? 'Context Verified' : 'Awaiting Selection',
         },
       ]);
     }
@@ -222,14 +226,14 @@ const BidderChatBot = ({
     setInput('');
     setIsTyping(true);
 
-    const tId = activeTenderId || '1';
-    const bId = activeBidderId || 'BID-007';
+    const tId = activeTenderId || null;
+    const bId = activeBidderId || null;
 
     // 1. Call official backend endpoint: POST /api/officer/tenders/chat
     try {
       const res = await tenderService.officerTenderChat({
-        tenderId: tId,
-        bidderId: bId,
+        tenderId: tId || undefined,
+        bidderId: bId || undefined,
         query,
       });
 
@@ -300,16 +304,18 @@ const BidderChatBot = ({
 
   const handleClearChat = () => {
     const bName = bidderData?.bidder || 'Selected Bidder';
-    const tId = activeTenderId || '1';
-    const bId = activeBidderId || 'BID-007';
+    const tId = activeTenderId || null;
+    const bId = activeBidderId || null;
 
     setMessages([
       {
         id: 'welcome-bidder-reset',
         sender: 'bot',
-        text: `Chat cleared. Active context reset for **${bName}** (${bId}) on tender **${tId}**. How may I assist your evaluation?`,
+        text: bId
+          ? `Chat cleared. Active context reset for **${bName}** (${bId}) on tender **${tId || 'Selected'}**. How may I assist your evaluation?`
+          : 'Chat cleared. Please select a bidder from Tender Submissions to evaluate compliance.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        citation: `Evaluation Context • Tender ${tId} • ${bId}`,
+        citation: bId ? `Evaluation Context • Tender ${tId || 'Active'} • ${bId}` : 'Context Required',
         confidence: 'Context Loaded',
       },
     ]);
