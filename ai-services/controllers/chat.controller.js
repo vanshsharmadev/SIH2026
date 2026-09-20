@@ -14,20 +14,6 @@ const {
       // Validate request
       // -----------------------------
   
-      if (!tenderId) {
-        return res.status(400).json({
-          success: false,
-          message: "tenderId is required",
-        });
-      }
-  
-      if (!bidderId) {
-        return res.status(400).json({
-          success: false,
-          message: "bidderId is required",
-        });
-      }
-  
       if (!query || !query.trim()) {
         return res.status(400).json({
           success: false,
@@ -40,9 +26,9 @@ const {
       // -----------------------------
   
       const result = await answerBidderTenderQuery({
-        tenderId,
-        bidderId,
-        query,
+        tenderId: tenderId ? String(tenderId).trim() : null,
+        bidderId: bidderId ? String(bidderId).trim() : null,
+        query: String(query).trim(),
       });
   
       // -----------------------------

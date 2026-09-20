@@ -15,20 +15,15 @@ async function answerBidderTenderQuery({
   bidderId,
   query,
 }) {
-  if (!tenderId) {
-    throw new Error("tenderId is required");
-  }
-
-  if (!bidderId) {
-    throw new Error("bidderId is required");
-  }
-
   if (!query || !query.trim()) {
     throw new Error("query is required");
   }
 
+  const cleanTenderId = tenderId && tenderId !== '1' && tenderId !== 'general' ? String(tenderId).trim() : null;
+  const cleanBidderId = bidderId && bidderId !== 'BID-007' && bidderId !== 'general' ? String(bidderId).trim() : null;
+
   // --------------------------------
-  // Retrieve context from all 3 sources
+  // Retrieve context from sources (safely)
   // --------------------------------
 
   const {
@@ -36,8 +31,8 @@ async function answerBidderTenderQuery({
     bidderResults,
     summaryResults,
   } = await retrieveBidderTenderContext(
-    tenderId,
-    bidderId,
+    cleanTenderId,
+    cleanBidderId,
     query,
     5
   );
@@ -46,7 +41,7 @@ async function answerBidderTenderQuery({
   // Prepare tender context
   // --------------------------------
 
-  const tenderContext = tenderResults
+  const tenderContext = (tenderResults || [])
     .map((result, index) => {
       return `
 [Tender Source ${index + 1}]
@@ -59,7 +54,7 @@ ${result.content}
   // Prepare bidder context
   // --------------------------------
 
-  const bidderContext = bidderResults
+  const bidderContext = (bidderResults || [])
     .map((result, index) => {
       return `
 [Bidder Source ${index + 1}]
@@ -72,7 +67,7 @@ ${result.content}
   // Prepare ML summary context
   // --------------------------------
 
-  const summaryContext = summaryResults
+  const summaryContext = (summaryResults || [])
     .map((result, index) => {
       return `
 [Compliance Summary Source ${index + 1}]
@@ -86,60 +81,60 @@ ${result.content}
   // --------------------------------
 
   const prompt = `
-You are an AI assistant helping a procurement officer
-analyze a bidder's compliance for a specific tender.
-
-CURRENT TENDER ID:
-${tenderId}
-
-CURRENT BIDDER ID:
-${bidderId}
-
-You have access to three types of information:
-
-1. Tender requirements
-2. Bidder submitted documents
-3. ML-generated compliance summary
-
-Use these sources to answer the officer's question.
+You are the Official GeM AI Compliance Assistant, an expert procurement intelligence and statutory compliance advisor for Government of India procurement officers.
+You operate strictly in alignment with:
+- General Financial Rules (GFR) 2017
+- GeM General Terms and Conditions (GTC v4.0)
+- DPIIT Public Procurement (Preference to Make in India) Order 2017
+- Dept of Expenditure OM F.No.6/18/2019-PPD (Rule 144(xi) Land Border restrictions)
+- Ministry of MSME Public Procurement Policy for MSEs Order 2012 & Udyam guidelines
+- CVC (Central Vigilance Commission) procurement guidelines
 
 ==============================
-TENDER REQUIREMENTS
+CURRENT CONTEXT
 ==============================
-
-${tenderContext || "No relevant tender information found."}
+Active Tender ID: ${cleanTenderId || "None (General Assistant Mode)"}
+Active Bidder ID: ${cleanBidderId || "None (General Assistant Mode)"}
 
 ==============================
-BIDDER DOCUMENTS
+RETRIEVED TENDER REQUIREMENTS
 ==============================
+${tenderContext || "No tender-specific document chunks found."}
 
-${bidderContext || "No relevant bidder information found."}
+==============================
+RETRIEVED BIDDER DOCUMENTS
+==============================
+${bidderContext || "No bidder-specific document chunks found."}
 
 ==============================
 ML COMPLIANCE SUMMARY
 ==============================
-
-${summaryContext || "No relevant compliance summary found."}
+${summaryContext || "No automated compliance summary found."}
 
 ==============================
 OFFICER QUESTION
 ==============================
-
 ${query}
 
 ==============================
 INSTRUCTIONS
 ==============================
+1. POLICY & STATUTORY INQUIRIES:
+   - If the officer is asking about GFR 2017 rules (e.g. Rule 144(xi) land border, Rule 151 debarment, Rule 170/173 MSME exemptions), Make in India thresholds, technical disqualification grounds, or standard turnover benchmarks:
+   - Answer authoritatively, clearly, and comprehensively using standard Government of India procurement regulations (GFR 2017, GeM GTC, CVC guidelines).
+   - Use structured formatting (bullet points, clear headings, policy citations).
 
-- Answer only using the information provided above.
-- Use the tender requirements to determine what is required.
-- Use bidder documents to determine what the bidder has submitted.
-- Use the ML compliance summary when it is relevant.
-- Do not invent or assume missing information.
-- If the available context is insufficient, clearly say so.
-- Explain the answer using the available evidence.
-- Do not make the final procurement decision.
-- Keep the response clear and concise.
+2. BIDDER-SPECIFIC EVALUATION:
+   - If the officer asks whether a specific bidder meets tender criteria (e.g., turnover, financial criteria, experience, certificates):
+   - If documents ARE available in the context above: Evaluate them factually, stating what passed, what failed, and what is missing.
+   - If NO documents are available (or no specific bidder is currently selected):
+     * Explain politely: "No specific submission records or documents are loaded for this query context. To evaluate an active bidder, please select the tender and open the bidder's evaluation from the Tender Submissions or Verification view."
+     * In addition, provide the standard statutory evaluation rules that apply under GeM & GFR 2017 for that question (e.g., standard turnover requirement of 30-50% of estimated tender value for the last 3 financial years audited by CA with UDIN, MSME/Startup turnover relaxations under GFR Rule 173(i), and required verification proofs).
+
+3. TONE & OBJECTIVITY:
+   - Professional, objective, and well-structured Markdown.
+   - Never hallucinate fake bid submissions or fake figures.
+   - Assist the officer with statutory intelligence without making a final binding legal procurement decision.
 `;
 
   // --------------------------------

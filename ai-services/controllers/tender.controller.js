@@ -12,49 +12,48 @@ const {
 
 async function processTenderController(req, res) {
   try {
-
     const {
       tenderId,
       title,
       pdfUrl,
-      publicId
+      publicId,
+      ocrText,
+      text,
     } = req.body;
 
-    if (!tenderId) {
+    const cleanTenderId = String(tenderId ?? '').trim();
+
+    if (!cleanTenderId) {
       return res.status(400).json({
         success: false,
         message: "tenderId is required"
       });
     }
 
-    if (!pdfUrl) {
+    const directText = (ocrText || text || '').trim();
+
+    if (!pdfUrl && !directText) {
       return res.status(400).json({
         success: false,
-        message: "pdfUrl is required"
+        message: "Either pdfUrl or ocrText/text is required for indexing"
       });
     }
 
-    // Download PDF
-    const filePath = await downloadPdf(
-      pdfUrl,
-      tenderId
-    );
-
-
-    // const filePath = path.join(
-    //   __dirname,
-    //    "../test-data/test-tender.pdf"
-    // );
-
-    // console.log(
-    //   `Using local tender PDF: ${filePath}`
-    // );
-
+    let filePath = null;
+    if (pdfUrl) {
+      try {
+        filePath = await downloadPdf(pdfUrl, cleanTenderId);
+      } catch (dlErr) {
+        console.warn(`[TENDER_INDEX] Download failed (${dlErr.message}), checking if direct text available`);
+        if (!directText) throw dlErr;
+      }
+    }
 
     // Parse → chunk → embed
     const result = await processTender(
-      tenderId,
-      filePath
+      cleanTenderId,
+      filePath,
+      directText || null
     );
 
     // Save generated embeddings
@@ -63,12 +62,14 @@ async function processTenderController(req, res) {
       result.chunks
     );
 
+    console.log(`[TENDER_INDEX] Stored in pgvector for tender: ${cleanTenderId} (${saved.savedChunks} chunks)`);
+    console.log(`[TENDER_INDEX] Completed for tender: ${cleanTenderId}`);
+
     return res.status(200).json({
       success: true,
       message: "Tender processed successfully",
-
       data: {
-        tenderId,
+        tenderId: cleanTenderId,
         title,
         publicId,
         totalChunks: result.totalChunks,
@@ -77,9 +78,8 @@ async function processTenderController(req, res) {
     });
 
   } catch (error) {
-
     console.error(
-      "Tender processing failed:",
+      "[TENDER_INDEX] Tender processing failed:",
       error
     );
 
@@ -90,6 +90,7 @@ async function processTenderController(req, res) {
     });
   }
 }
+
 module.exports = {
   processTenderController
 };

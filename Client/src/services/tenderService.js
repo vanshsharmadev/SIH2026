@@ -1,5 +1,7 @@
 import api from './api';
 import { mockTenders } from '../data/mockTenders';
+import { normalizeTenderId } from '../utils/tenderIdUtils';
+import { processTenderPdf, askBidderTenderAI as aiAskBidderTender } from './aiService';
 
 /**
  * Normalizes a tender object so all views (Tenders, BidderDashboard, Verification, Modals)
@@ -187,6 +189,17 @@ export const tenderService = {
         localStorage.setItem('gem_created_tenders', JSON.stringify(updated));
         window.dispatchEvent(new Event('storage'));
         window.dispatchEvent(new CustomEvent('gem_tenders_updated', { detail: saved }));
+
+        // Trigger asynchronous RAG vectorization for newly created tender
+        const tenderIdToProcess = normalizeTenderId(saved.id || saved.referenceNo);
+        if (tenderIdToProcess) {
+          processTenderPdf({
+            tenderId: tenderIdToProcess,
+            pdfUrl: saved.documents?.[0]?.url,
+            title: saved.title,
+            ocrText: saved.rawOcrText || saved.description,
+          }).catch((e) => console.warn('[TENDER_INDEX] Background indexing note:', e.message));
+        }
       } catch {
         // ignore
       }
@@ -368,14 +381,18 @@ export const tenderService = {
   // ═══════════════════════════════════════════════════════════════════════
   officerTenderChat: async ({ tenderId, bidderId, query }) => {
     const payload = {
-      tenderId: tenderId !== undefined && tenderId !== null ? String(tenderId) : '1',
-      bidderId: bidderId !== undefined && bidderId !== null ? String(bidderId) : 'BID-007',
       query: String(query || '').trim(),
     };
+    if (tenderId && tenderId !== '1') {
+      payload.tenderId = String(tenderId);
+    }
+    if (bidderId && bidderId !== 'BID-007') {
+      payload.bidderId = String(bidderId);
+    }
     try {
-      if (tenderId) {
+      if (payload.tenderId) {
         try {
-          return await api.post(`/officer/tenders/${tenderId}/chat`, payload);
+          return await api.post(`/officer/tenders/${payload.tenderId}/chat`, payload);
         } catch {
           // fallback to general endpoint
         }
@@ -389,21 +406,15 @@ export const tenderService = {
 
   // ═══════════════════════════════════════════════════════════════════════
   //  3.6 — Bidder Per-Tender AI Chatbot (Node AI RAG & Gemini Chatbot)
-  //  POST /api/ai/bidder-tender-chat/ask
+  //  POST /api/ai/bidder-chat/ask
   //  Body: { tenderId: "<dynamic tender id>", query: "..." }
   // ═══════════════════════════════════════════════════════════════════════
-  askBidderTenderAI: async ({ tenderId, query }) => {
-    const cleanTenderId = String(tenderId ?? '').trim();
-    const cleanQuery = String(query ?? '').trim();
-    if (!cleanTenderId) {
-      throw new Error('Tender ID is required to query the AI assistant.');
-    }
-    if (!cleanQuery) {
-      throw new Error('Query cannot be empty.');
-    }
-    return await api.post('/ai/bidder-tender-chat/ask', {
-      tenderId: cleanTenderId,
-      query: cleanQuery,
+  askBidderTenderAI: async ({ tenderId, query, tender, tenderContext }) => {
+    return await aiAskBidderTender({
+      tenderId: normalizeTenderId(tenderId),
+      query: String(query ?? '').trim(),
+      tender,
+      tenderContext,
     });
   },
 

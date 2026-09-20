@@ -24,12 +24,12 @@ const INITIAL_MESSAGES = [
 ];
 
 const SUGGESTIONS = [
-  'Does this bidder meet financial criteria?',
-  'Does this bidder meet the turnover requirement?',
   'What is GFR Rule 144(xi) Land Border requirement?',
   'Explain Make in India Class-I supplier threshold (50%)',
   'When are MSME bidders exempt from EMD & Turnover?',
   'What causes immediate technical bid rejection?',
+  'How is active debarment checked under GFR Rule 151?',
+  'What are standard turnover criteria for high-value tenders?',
 ];
 
 const KNOWLEDGE_BASE = [
@@ -74,8 +74,8 @@ const ChatBox = ({
   isOpen,
   onClose,
   defaultMinimized = false,
-  tenderId: initialTenderId = '1',
-  bidderId: initialBidderId = 'BID-007',
+  tenderId: initialTenderId = null,
+  bidderId: initialBidderId = null,
 }) => {
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
@@ -129,8 +129,8 @@ const ChatBox = ({
     // 1. Primary Live Call: POST /api/officer/tenders/chat
     try {
       const res = await tenderService.officerTenderChat({
-        tenderId: initialTenderId,
-        bidderId: initialBidderId,
+        tenderId: initialTenderId || undefined,
+        bidderId: initialBidderId || undefined,
         query,
       });
 

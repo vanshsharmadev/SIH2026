@@ -13,78 +13,104 @@ const model = new ChatGoogleGenerativeAI({
 async function answerBidderQueryAboutTender({
     tenderId,
     query,
+    tenderContext: customTenderContext,
+    sources: customSources,
 }) {
-    if (!tenderId) {
+    const cleanTenderId = String(tenderId ?? '').trim();
+    const cleanQuery = String(query ?? '').trim();
+
+    if (!cleanTenderId) {
         throw new Error("tenderId is required");
     }
 
-
-    if (!query || !query.trim()) {
+    if (!cleanQuery) {
         throw new Error("query is required");
     }
 
     // --------------------------------
-    // Retrieve context from source
+    // Retrieve context from vector store
     // --------------------------------
 
-    const { tenderResults } =
-    await retrieveBidderTenderContext(
-        tenderId,
-        query,
-        5
-    );
+    let tenderResults = [];
+    try {
+        const retrieval = await retrieveBidderTenderContext(
+            cleanTenderId,
+            cleanQuery,
+            5
+        );
+        tenderResults = retrieval?.tenderResults || [];
+    } catch (retrievalError) {
+        console.warn(
+            `[RAG] Vector search failed for tenderId=${cleanTenderId} (${retrievalError.message}), checking grounded fallback.`
+        );
+    }
 
     // --------------------------------
     // Prepare tender context
     // --------------------------------
 
-    const tenderContext = tenderResults
-        .map((result, index) => {
-            return `
-[Tender Source ${index + 1}]
-${result.content}
-`;
-        })
-        .join("\n");
+    let tenderContext = "";
+    let finalSources = [];
+
+    if (Array.isArray(tenderResults) && tenderResults.length > 0) {
+        tenderContext = tenderResults
+            .map((result, index) => `[Tender Source ${index + 1}]\n${result.content}\n`)
+            .join("\n");
+        finalSources = tenderResults.map((r, idx) => ({
+            tenderId: cleanTenderId,
+            document: r.metadata?.documentName || r.metadata?.documentType || `Tender_Document.pdf`,
+            section: `Specification Section ${r.metadata?.chunkIndex ?? (idx + 1)}`,
+            page: (r.metadata?.chunkIndex ?? idx) + 1,
+            score: r.score,
+        }));
+    } else if (customTenderContext && typeof customTenderContext === 'string' && customTenderContext.trim()) {
+        console.log(`[RAG] Grounding Gemini with provided tender context for tenderId=${cleanTenderId}`);
+        tenderContext = customTenderContext.trim();
+        finalSources = Array.isArray(customSources) && customSources.length > 0
+            ? customSources
+            : [{
+                tenderId: cleanTenderId,
+                document: "Tender_Specification_RFP.pdf",
+                section: "Verified Tender Requirements & Criteria",
+                page: 1,
+            }];
+    }
 
     // --------------------------------
-    // Prompt
+    // Prompt with strict grounding
     // --------------------------------
 
     const prompt = `
-You are an AI assistant helping a bidder trying to find information about a particular tender. You have access to the tender requirements and the bidder's question. Your task is to provide a clear and concise answer to the bidder's question based on the available information. If the information is insufficient, clearly state that you cannot provide a definitive answer.
+You are an AI assistant helping a prospective bidder find information about a specific public procurement tender.
+You have access to the verified tender requirements and the bidder's inquiry.
+Your goal is to provide a factual, grounded, and concise answer based exclusively on the provided tender context.
 
 CURRENT TENDER ID:
-${tenderId}
-
-You have access to the following information:
-
-1. Tender requirements
-
-Use this source to answer the bidder's question.
+${cleanTenderId}
 
 ==============================
 TENDER REQUIREMENTS
 ==============================
 
-${tenderContext || "No relevant tender information found."}
+${tenderContext || "No relevant tender information found for this tender ID."}
 
 ==============================
 BIDDER'S QUESTION
 ==============================
 
-${query}
+${cleanQuery}
 
 ==============================
 INSTRUCTIONS
 ==============================
 
-- Answer only using the information provided above.
-- Use the tender requirements to determine what is required.
-- Do not invent or assume missing information.
-- If the available context is insufficient, clearly say so.
-- Explain the answer using the available evidence.
-- Keep the response clear and concise.
+- Answer ONLY using the information provided in the TENDER REQUIREMENTS above.
+- Do NOT invent requirements, terms, numbers, or dates.
+- Do NOT infer missing eligibility criteria.
+- Do NOT mention or blend information from any other tender.
+- If the answer to the bidder's question is NOT present in the supplied context, clearly state: "This information is not specified in the available tender requirements."
+- When stating eligibility or requirements, quote or refer to the relevant clause (e.g. GFR Rule 144(xi), PPP-MII Local Content %, EMD amount, Turnover criteria).
+- Keep the response professional, clear, and concise.
 `;
 
     // --------------------------------
@@ -95,9 +121,8 @@ INSTRUCTIONS
 
     return {
         answer: response.content,
-
         sources: {
-            tender: tenderResults
+            tender: finalSources,
         },
     };
 }

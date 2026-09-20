@@ -53,4 +53,10 @@ public class NodeRagProxyController {
         TenderChatResponse result = nodeRagServiceClient.askChatbot(req);
         return ResponseEntity.ok(result);
     }
+
+    @PostMapping("/bidder-chat/ask")
+    public ResponseEntity<Map<String, Object>> askBidderChat(@RequestBody Map<String, Object> req) {
+        Map<String, Object> result = nodeRagServiceClient.askBidderChat(req);
+        return ResponseEntity.ok(result);
+    }
 }

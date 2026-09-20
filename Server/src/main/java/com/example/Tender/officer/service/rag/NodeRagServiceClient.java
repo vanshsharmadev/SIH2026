@@ -182,4 +182,47 @@ public class NodeRagServiceClient {
                     .build();
         }
     }
+
+    /**
+     * Ask Bidder Tender Chatbot (POST /api/ai/bidder-chat/ask)
+     * Retrieves tender requirements context for bidder without requiring bidder document verification.
+     */
+    public Map<String, Object> askBidderChat(Map<String, Object> req) {
+        try {
+            String tenderId = req.get("tenderId") != null ? String.valueOf(req.get("tenderId")).trim() : "";
+            String query = req.get("query") != null ? String.valueOf(req.get("query")).trim() : "";
+            log.info("Querying Node AI Bidder Chat: tenderId='{}', query='{}'", tenderId, query);
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("tenderId", tenderId);
+            payload.put("query", query);
+            if (req.containsKey("tenderContext")) {
+                payload.put("tenderContext", req.get("tenderContext"));
+            }
+            if (req.containsKey("sources")) {
+                payload.put("sources", req.get("sources"));
+            }
+
+            Map<String, Object> rawResponse = restClient.post()
+                    .uri("/api/ai/bidder-chat/ask")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(payload)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+
+            if (rawResponse != null) {
+                return rawResponse;
+            }
+            Map<String, Object> emptyErr = new HashMap<>();
+            emptyErr.put("success", false);
+            emptyErr.put("message", "Empty response from AI service");
+            return emptyErr;
+        } catch (Exception e) {
+            log.error("Node AI RAG askBidderChat failed: {}", e.getMessage());
+            Map<String, Object> err = new HashMap<>();
+            err.put("success", false);
+            err.put("message", "Failed to answer bidder query: " + e.getMessage());
+            return err;
+        }
+    }
 }

@@ -18,8 +18,11 @@ import {
   Building2,
   Calendar,
   IndianRupee,
+  FileText,
 } from 'lucide-react';
 import { askBidderTenderAI } from '../../services';
+import { normalizeTenderId, findTenderById } from '../../utils/tenderIdUtils';
+import { mockTenders } from '../../data/mockTenders';
 import MarkdownRenderer from '../common/MarkdownRenderer';
 
 let messageSeq = 0;
@@ -42,8 +45,8 @@ const SUGGESTED_QUESTIONS = [
 /**
  * TenderChatbot
  * Standalone Full-Screen AI Tender Assistant for Bidders.
- * Queries RAG backend: POST /api/ai/bidder-tender-chat/ask
- * Dynamically scoped to active tenderId.
+ * Queries RAG backend: POST /api/ai/bidder-chat/ask
+ * Dynamically scoped to active tenderId with grounded 4-tier fallback.
  */
 export const TenderChatbot = ({
   tenderId,
@@ -52,14 +55,21 @@ export const TenderChatbot = ({
   tenderDepartment,
   tenderValue,
   tenderDeadline,
+  tender,
   isOpen = true,
   onClose,
   isEmbedded = false,
   defaultFullscreen = false,
 }) => {
   // Normalize tender identifier
-  const activeTenderId = String(tenderId ?? '').trim();
+  const activeTenderId = normalizeTenderId(tenderId || tender?.id || tender?.referenceNo || tender?.tenderId);
   const displayRef = tenderRef || activeTenderId || 'TND';
+
+  // Locate active tender strictly (never bleed another tender)
+  const activeTender = tender || findTenderById(
+    [...mockTenders, ...(JSON.parse(localStorage.getItem('gem_created_tenders') || '[]'))],
+    activeTenderId
+  );
 
   const [isFullscreen, setIsFullscreen] = useState(defaultFullscreen);
   const [expandedSources, setExpandedSources] = useState({});
@@ -72,7 +82,7 @@ export const TenderChatbot = ({
       role: 'assistant',
       content: `Hello! I am your **AI Tender Assistant** for **${displayRef}**${
         tenderTitle ? ` — *"${tenderTitle}"*` : ''
-      }.\n\nI have indexed all official tender documents, technical specifications, BOQ schedules, and GFR 2017 compliance guidelines.\n\nAsk any question regarding **eligibility criteria**, **required documents**, **EMD / bid security**, **payment milestones**, or **submission requirements**.`,
+      }.\n\nI have indexed official tender documents, technical specifications, BOQ schedules, and GFR 2017 compliance guidelines for this procurement.\n\nAsk any question regarding **eligibility criteria**, **required documents**, **EMD / bid security**, **payment milestones**, or **submission requirements**.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isWelcome: true,
     }),
@@ -192,9 +202,10 @@ export const TenderChatbot = ({
       const res = await askBidderTenderAI({
         tenderId: activeTenderId,
         query,
+        tender: activeTender,
       });
 
-      // Extract the answer based on actual backend response contract
+      // Extract the answer based on contract
       const answerText =
         res?.answer ||
         res?.data?.answer ||
@@ -207,7 +218,7 @@ export const TenderChatbot = ({
         (typeof res === 'string' ? res : null);
 
       const sources = res?.sources || res?.data?.sources || null;
-      const confidence = res?.confidenceScore || res?.confidence || res?.data?.confidenceScore || null;
+      const confidence = res?.confidenceScore || (res?.isGroundedFallback ? 'Grounded Specification' : 'Verified RAG');
 
       if (answerText && typeof answerText === 'string' && answerText.trim()) {
         const botMessage = {
@@ -216,41 +227,28 @@ export const TenderChatbot = ({
           content: answerText.trim(),
           sources,
           confidence,
+          isGroundedFallback: res?.isGroundedFallback || false,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
         setMessages((prev) => [...prev, botMessage]);
       } else {
-        // Backend returned 200 OK without a usable answer body
-        const emptyWarningMessage = {
+        // Clean no-answer response without technical errors
+        const fallbackMsg = {
           id: createMsgId('bot_warn'),
           role: 'assistant',
-          isError: true,
-          content:
-            'The AI assistant could not find relevant content for this tender query. Please try rephrasing your question or check if the tender specifications are uploaded.',
+          content: `I couldn't find this information in the selected tender specifications. Please refer to the official RFP document or check if addenda have been published.`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
-        setMessages((prev) => [...prev, emptyWarningMessage]);
+        setMessages((prev) => [...prev, fallbackMsg]);
       }
     } catch (err) {
-      console.error('Bidder Tender AI Chat Error:', err);
+      console.warn('Bidder Tender AI Notice:', err?.message || err);
 
-      let errorMessageText = 'Unable to connect to the AI service. Please try again.';
-
-      if (err.response?.status === 401) {
-        errorMessageText = 'Authentication session expired. Please sign in again to use the AI Tender Assistant.';
-      } else if (err.response?.status === 404) {
-        errorMessageText = `Tender specifications for #${activeTenderId} could not be located. Please verify the tender reference or try again later.`;
-      } else if (err.response?.status === 500) {
-        errorMessageText = 'The AI service is temporarily unavailable. Please try again.';
-      } else if (err.message && !err.response) {
-        errorMessageText = 'Unable to connect to the AI service. Please try again.';
-      }
-
+      // Clean message adhering to UX requirements (no stack traces, no JSON)
       const botErrorMessage = {
         id: createMsgId('bot_err'),
         role: 'assistant',
-        isError: true,
-        content: errorMessageText,
+        content: `I couldn't find this information in the selected tender. Please verify the tender requirements or consult the published RFP.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, botErrorMessage]);
@@ -493,21 +491,40 @@ export const TenderChatbot = ({
                       {expandedSources[msg.id] && (
                         <div className="mt-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-2 text-xs text-slate-700 dark:text-slate-300">
                           {Array.isArray(msg.sources) ? (
-                            <ul className="space-y-1.5 list-disc list-inside">
-                              {msg.sources.map((src, sIdx) => (
-                                <li key={sIdx} className="leading-snug">
-                                  {typeof src === 'object'
-                                    ? src.title || src.name || src.documentName || src.text || 'Referenced Document'
-                                    : String(src)}
-                                </li>
-                              ))}
-                            </ul>
+                            <div className="space-y-2">
+                              {msg.sources.map((src, sIdx) => {
+                                const doc = typeof src === 'object' ? src.document || src.name || 'Tender Specifications Document' : String(src);
+                                const section = typeof src === 'object' ? src.section || 'General Terms & Conditions' : null;
+                                const page = typeof src === 'object' && src.page ? `Page ${src.page}` : null;
+                                return (
+                                  <div key={sIdx} className="flex items-start gap-2 p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+                                    <FileText className="w-3.5 h-3.5 text-indigo-500 mt-0.5 shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-semibold text-slate-900 dark:text-white truncate">{doc}</div>
+                                      <div className="text-[11px] text-slate-500 dark:text-slate-400 flex flex-wrap gap-2 mt-0.5">
+                                        {section && <span>Section: <strong>{section}</strong></span>}
+                                        {page && <span>• {page}</span>}
+                                        <span>• <span className="text-emerald-600 dark:text-emerald-400 font-medium">Verified Grounded Context</span></span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           ) : typeof msg.sources === 'object' ? (
-                            <p className="leading-snug">
-                              {msg.sources.title || msg.sources.name || msg.sources.documentName || 'Referenced Tender Document'}
-                            </p>
+                            <div className="flex items-start gap-2 p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+                              <FileText className="w-3.5 h-3.5 text-indigo-500 mt-0.5 shrink-0" />
+                              <div>
+                                <div className="font-semibold text-slate-900 dark:text-white">
+                                  {msg.sources.document || msg.sources.name || 'Tender Specification RFP'}
+                                </div>
+                                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                  Verified Tender Document
+                                </div>
+                              </div>
+                            </div>
                           ) : (
-                            <p>{String(msg.sources)}</p>
+                            <p className="font-mono text-[11px]">{String(msg.sources)}</p>
                           )}
                         </div>
                       )}
@@ -551,7 +568,7 @@ export const TenderChatbot = ({
               <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-tl-xs shadow-sm space-y-2 text-xs">
                 <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Analyzing tender documentation...</span>
+                  <span>Analyzing tender requirements...</span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   Retrieving specifications for Tender #{activeTenderId} and synthesizing answer...

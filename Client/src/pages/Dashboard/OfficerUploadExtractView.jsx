@@ -33,7 +33,7 @@ import {
   FileCheck,
   Zap,
 } from 'lucide-react';
-import { tenderService, mlService, recordAuditLog } from '../../services';
+import { tenderService, mlService, recordAuditLog, processTenderPdf } from '../../services';
 import { useAuth } from '../../context';
 import { isOfficerUser } from '../../utils/roleUtils';
 
@@ -597,6 +597,16 @@ const OfficerUploadExtractView = ({
           window.dispatchEvent(new Event('storage'));
           window.dispatchEvent(new CustomEvent('gem_tenders_updated', { detail: newRegisteredTender }));
         } catch {}
+
+        // Trigger Asynchronous RAG Vector Indexing
+        processTenderPdf({
+          tenderId: resultObj.referenceNo,
+          title: resultObj.title,
+          pdfUrl: resultObj.fileUrl,
+          ocrText: resultObj.rawOcrText,
+        }).catch((err) => {
+          console.warn('[TENDER_INDEX] Background indexing notice:', err?.message || err);
+        });
 
         // Record Audit Log
         recordAuditLog({

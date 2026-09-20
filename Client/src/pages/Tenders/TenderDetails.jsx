@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { tenderService } from '../../services';
 import TenderChatbot from '../../components/tender/TenderChatbot';
+import { normalizeTenderId } from '../../utils/tenderIdUtils';
 
 const TenderDetails = () => {
   const { tenderId } = useParams();
@@ -92,7 +93,7 @@ const TenderDetails = () => {
     );
   }
 
-  const effectiveTenderId = String(tenderId || tender.id || tender.referenceNo);
+  const effectiveTenderId = normalizeTenderId(tenderId || tender.id || tender.referenceNo);
 
   return (
     <div className="w-full space-y-5 py-5 animate-in fade-in duration-200 select-none">
@@ -363,6 +364,10 @@ const TenderDetails = () => {
               tenderId={effectiveTenderId}
               tenderTitle={tender.title}
               tenderRef={tender.referenceNo}
+              tenderDepartment={tender.department || tender.ministry}
+              tenderValue={tender.value}
+              tenderDeadline={tender.closingDate || tender.closes}
+              tender={tender}
               isEmbedded={true}
             />
           </div>
