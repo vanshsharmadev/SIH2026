@@ -146,11 +146,15 @@ const Reports = () => {
 
     window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('focus', handleStorageUpdate);
+    window.addEventListener('gem_officer_submissions_updated', handleStorageUpdate);
+    window.addEventListener('gem_submission_created', handleStorageUpdate);
 
     return () => {
       isMounted = false;
       window.removeEventListener('storage', handleStorageUpdate);
       window.removeEventListener('focus', handleStorageUpdate);
+      window.removeEventListener('gem_officer_submissions_updated', handleStorageUpdate);
+      window.removeEventListener('gem_submission_created', handleStorageUpdate);
     };
   }, []);
 

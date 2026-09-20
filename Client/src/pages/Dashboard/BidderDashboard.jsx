@@ -44,11 +44,18 @@ const BidderDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedBidDetail] = useState(null);
   const [activeTenderModal, setActiveTenderModal] = useState(null);
+  const [modalInitialTab, setModalInitialTab] = useState('overview');
   const [precheckQuery, setPrecheckQuery] = useState('');
   const [precheckResult, setPrecheckResult] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showCompanyDetails, setShowCompanyDetails] = useState(false);
-  const [matchedTenders, setMatchedTenders] = useState([]);
+  const [matchedTenders, setMatchedTenders] = useState(() => {
+    try {
+      const local = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
+      if (Array.isArray(local) && local.length > 0) return local;
+    } catch {}
+    return [];
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -64,43 +71,55 @@ const BidderDashboard = () => {
     };
     fetchTenders();
 
-    const handleStorage = () => {
+    const handleSync = () => {
       tenderService.getTenders().then((data) => {
         if (isMounted && Array.isArray(data)) {
           setMatchedTenders(data);
         }
       });
     };
-    window.addEventListener('storage', handleStorage);
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('gem_tenders_updated', handleSync);
+    window.addEventListener('focus', handleSync);
 
     return () => {
       isMounted = false;
-      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('gem_tenders_updated', handleSync);
+      window.removeEventListener('focus', handleSync);
     };
   }, []);
 
-  const handleOpenTender = (bidOrTender) => {
+  const handleOpenTender = (bidOrTender, tab = 'overview') => {
     if (!bidOrTender) return;
-    const ref = bidOrTender.tenderId || bidOrTender.referenceNo || bidOrTender.id;
+    const ref = String(bidOrTender.tenderId || bidOrTender.referenceNo || bidOrTender.id || '').trim().toLowerCase();
     const found =
-      matchedTenders.find((t) => String(t.id) === String(ref) || t.referenceNo === String(ref)) || {
-        id: String(ref),
+      matchedTenders.find(
+        (t) =>
+          String(t.id).toLowerCase() === ref ||
+          String(t.referenceNo || '').toLowerCase() === ref ||
+          String(t.tenderId || '').toLowerCase() === ref ||
+          (ref.length > 3 && String(t.referenceNo || '').toLowerCase().includes(ref))
+      ) || {
+        id: String(bidOrTender.id || ref),
         referenceNo: bidOrTender.tenderId || bidOrTender.referenceNo || `GEM/2026/B/${ref}`,
+        tenderId: bidOrTender.tenderId || bidOrTender.referenceNo || `GEM/2026/B/${ref}`,
         title: bidOrTender.title || `Tender ${ref}`,
         department: bidOrTender.department || 'Government Ministry',
-        ministry: bidOrTender.department || 'Government of India',
+        ministry: bidOrTender.ministry || bidOrTender.department || 'Government of India',
         value: bidOrTender.bidValue || bidOrTender.value || 'As per RFP',
-        emdAmount: 'As specified in tender terms',
-        minLocalContent: '50% (Class-I)',
+        emdAmount: bidOrTender.emdAmount || 'As specified in tender terms',
+        minLocalContent: bidOrTender.minLocalContent || '50% (Class-I)',
         complianceScore: bidOrTender.complianceScore || 90,
         status: bidOrTender.status || 'Active',
-        daysLeft: bidOrTender.daysLeft || 'Active',
+        daysLeft: bidOrTender.daysLeft || '21 days',
         published: bidOrTender.published || 'Recently Published',
         closes: bidOrTender.closes || 'Refer to Tender Schedule',
         eligibility: 'As per GeM STC & GTC terms',
-        documents: [],
-        description: 'Tender procurement document under General Financial Rules (GFR) 2017.',
+        documents: bidOrTender.documents || [],
+        description: bidOrTender.description || 'Tender procurement document under General Financial Rules (GFR) 2017.',
       };
+    setModalInitialTab(tab);
     setActiveTenderModal(found);
   };
 
@@ -204,8 +223,8 @@ const BidderDashboard = () => {
     }));
   }, [localSubmittedBids]);
 
-  // Default Document Vault baseline (empty; populated from real uploaded documents)
-  const defaultDocumentVault = [];
+  // Default Document Vault baseline (populated with permanent vendor credentials)
+  const defaultDocumentVault = documentService.DEFAULT_VAULT_DOCUMENTS || [];
 
   // Fetch documents from backend API /api/bidder/documents
   useEffect(() => {
@@ -513,9 +532,9 @@ const BidderDashboard = () => {
               <Search aria-hidden="true" />
               <span>Explore tenders</span>
             </Link>
-            <Link to="/verification" className="bd-btn bd-btn--outline-white">
+            <Link to="/tenders" className="bd-btn bd-btn--outline-white">
               <ShieldCheck aria-hidden="true" style={{ color: '#6EE7B7' }} />
-              <span>AI Pre-Checker</span>
+              <span>Browse All Tenders</span>
             </Link>
           </div>
         </div>
@@ -937,13 +956,14 @@ const BidderDashboard = () => {
                                 </span>
                                 <div className="bd-bid-actions">
                                   {bid.status === 'Technically Qualified' && (
-                                    <Link
-                                      to={`/verification?tenderId=${bid.tenderId.replace('GEM/2026/B/', '').replace('GEM/2024/B/', '')}`}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenTender(bid, 'compliance')}
                                       className="bd-btn bd-btn--ghost bd-btn--sm"
                                     >
                                       <ShieldCheck aria-hidden="true" style={{ color: '#2563EB' }} />
                                       Audit Report
-                                    </Link>
+                                    </button>
                                   )}
                                   <button
                                     type="button"
@@ -1224,13 +1244,14 @@ const BidderDashboard = () => {
                                 Respond to Clarification
                               </button>
                             ) : (
-                              <Link
-                                to={`/verification?tenderId=${bid.tenderId.replace('GEM/2026/B/', '').replace('GEM/2024/B/', '')}`}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenTender(bid, 'compliance')}
                                 className="bd-btn bd-btn--ghost bd-btn--sm"
                               >
                                 <ShieldCheck aria-hidden="true" style={{ color: '#2563EB' }} />
                                 AI Audit Report
-                              </Link>
+                              </button>
                             )}
                             <button
                               type="button"
@@ -1280,7 +1301,7 @@ const BidderDashboard = () => {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <h2 style={{ fontSize: '0.9375rem', fontWeight: 700, margin: 0, color: 'var(--bd-text-primary)' }}>
-                        Verified Regulatory Credentials &amp; Vault
+                        Bidder Document Vault: Permanent Reusable Business Credentials
                       </h2>
                       <span
                         style={{
@@ -1297,7 +1318,7 @@ const BidderDashboard = () => {
                       </span>
                     </div>
                     <p style={{ fontSize: '0.75rem', color: 'var(--bd-text-muted)', margin: '4px 0 0' }}>
-                      Centralized repository for statutory certificates uploaded &amp; verified by the GeM Compliance Engine.
+                      Permanent company credentials (GST, PAN, MSME, Past Experience) securely stored and automatically reused across all tender bids without re-uploading.
                     </p>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
@@ -1448,7 +1469,24 @@ const BidderDashboard = () => {
                               <DocIcon style={{ color: hexColor }} aria-hidden="true" />
                             </div>
                             <div className="bd-doc-info">
-                              <h4>{displayName}</h4>
+                              <h4>
+                                {displayName}
+                                <span
+                                  style={{
+                                    marginLeft: '8px',
+                                    fontSize: '0.625rem',
+                                    fontWeight: 700,
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    background: 'rgba(99, 102, 241, 0.08)',
+                                    color: '#4F46E5',
+                                    border: '1px solid rgba(99, 102, 241, 0.18)',
+                                    verticalAlign: 'middle',
+                                  }}
+                                >
+                                  Vault Reusable
+                                </span>
+                              </h4>
                               <p>
                                 <span><code style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: '0.625rem' }}>{identifier}</code></span>
                                 <span style={{ color: 'var(--bd-border)' }}>·</span>
@@ -1595,13 +1633,14 @@ const BidderDashboard = () => {
                     </div>
 
                     <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--bd-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                      <Link
-                        to={`/verification?tenderId=${tender.id}`}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenTender(tender, 'compliance')}
                         className="bd-btn bd-btn--primary bd-btn--sm"
                       >
                         <ShieldCheck aria-hidden="true" style={{ color: '#6EE7B7' }} />
-                        Verify & Pre-Screen
-                      </Link>
+                        Verify &amp; Apply
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleOpenTender(tender)}
@@ -1783,6 +1822,7 @@ const BidderDashboard = () => {
       {/* ═══ TENDER DETAILS & AI CHATBOT MODAL ═══ */}
       <TenderDetailModal
         tender={activeTenderModal}
+        initialTab={modalInitialTab}
         onClose={() => setActiveTenderModal(null)}
       />
     </div>

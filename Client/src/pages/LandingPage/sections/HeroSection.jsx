@@ -219,12 +219,12 @@ const HeroSection = () => {
                 </Link>
 
                 <Link
-                  to="/verification"
+                  to="/tenders"
                   id="hero-ai-precheck-btn"
                   className="inline-flex items-center gap-2 px-5 py-3.5 bg-white/95 hover:bg-white dark:bg-[#181818] dark:hover:bg-[#202020] text-[#073567] dark:text-[#4da3ff] text-sm font-bold rounded-xl border border-slate-300 dark:border-[#343434] shadow-2xs hover:shadow-xs transition-all cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4 text-amber-500" />
-                  <span>Launch AI Pre-Checker</span>
+                  <span>Explore Procurement Portal</span>
                 </Link>
               </div>
 
@@ -316,7 +316,7 @@ const HeroSection = () => {
 
                   {/* Scanner CTA */}
                   <Link
-                    to="/verification"
+                    to="/tenders"
                     className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 text-[#073567] dark:text-[#4da3ff] font-bold text-xs border border-blue-200/80 dark:border-blue-800/60 transition-colors"
                   >
                     <span>Test Your Own GeM Bid Documents</span>

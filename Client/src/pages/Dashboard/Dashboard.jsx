@@ -65,6 +65,7 @@ import { isOfficerUser } from '../../utils/roleUtils';
 import ComplianceCheckView from './ComplianceCheckView';
 import TenderSubmissionsView from './TenderSubmissionsView';
 import TopBiddersView from './TopBiddersView';
+import OfficerUploadExtractView from './OfficerUploadExtractView';
 import Reports from '../Reports';
 import AuditTrail from '../Audit';
 import { recordAuditLog, tenderService, mlService, aiService } from '../../services';
@@ -99,7 +100,7 @@ const Sparkline = ({ data = [], color = '#3b82f6', width = 64, height = 24 }) =>
   );
 };
 
-const Dashboard = () => {
+const Dashboard = ({ defaultTab = null }) => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user, isAuthenticated, logout } = useAuth();
@@ -137,32 +138,35 @@ const Dashboard = () => {
   };
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get('tab');
+  const tabParam = searchParams.get('tab') || defaultTab;
   const [activeMenu, setActiveMenu] = useState(() => {
     if (tabParam === 'compliance') return 'compliance';
     if (tabParam === 'submissions') return 'submissions';
     if (tabParam === 'top-bidders') return 'top-bidders';
+    if (tabParam === 'upload-extract' || tabParam === 'upload') return 'upload-extract';
     if (tabParam === 'reports') return 'reports';
     if (tabParam === 'audit') return 'audit';
     return 'dashboard';
   });
 
   useEffect(() => {
-    const tab = searchParams.get('tab');
+    const tab = searchParams.get('tab') || defaultTab;
     if (tab === 'compliance') {
       setActiveMenu('compliance');
     } else if (tab === 'submissions') {
       setActiveMenu('submissions');
     } else if (tab === 'top-bidders') {
       setActiveMenu('top-bidders');
+    } else if (tab === 'upload-extract' || tab === 'upload') {
+      setActiveMenu('upload-extract');
     } else if (tab === 'reports') {
       setActiveMenu('reports');
     } else if (tab === 'audit') {
       setActiveMenu('audit');
-    } else if (!tab && (activeMenu === 'compliance' || activeMenu === 'submissions' || activeMenu === 'top-bidders' || activeMenu === 'reports' || activeMenu === 'audit')) {
+    } else if (!tab && (activeMenu === 'compliance' || activeMenu === 'submissions' || activeMenu === 'top-bidders' || activeMenu === 'upload-extract' || activeMenu === 'reports' || activeMenu === 'audit')) {
       setActiveMenu('dashboard');
     }
-  }, [searchParams]);
+  }, [searchParams, defaultTab]);
 
   const [activeComplianceSubmission, setActiveComplianceSubmission] = useState(null);
 
@@ -194,6 +198,12 @@ const Dashboard = () => {
   const handleOpenAudit = () => {
     setActiveMenu('audit');
     setSearchParams({ tab: 'audit' });
+    setSidebarOpen(false);
+  };
+
+  const handleOpenUploadExtract = () => {
+    setActiveMenu('upload-extract');
+    setSearchParams({ tab: 'upload-extract' });
     setSidebarOpen(false);
   };
 
@@ -443,29 +453,51 @@ const Dashboard = () => {
       } catch (err) { }
 
       // 4. Register newly uploaded tender in portal registry (available to both Officer & Bidder)
+      const refNo = `GEM/2026/B/${Math.floor(1000000 + Math.random() * 9000000)}`;
       const newUploadedTender = {
-        id: `TDR-${Date.now().toString().slice(-4)}`,
-        referenceNo: `GEM/2026/B/${Math.floor(1000 + Math.random() * 9000)}`,
-        title: tenderUploadTitle || tenderUploadFile.name.replace(/\.[^/.]+$/, ''),
+        id: refNo,
+        referenceNo: refNo,
+        tenderId: refNo,
+        title: tenderUploadTitle || tenderUploadFile.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '),
         department: officerDepartment || 'Central Procurement Division',
+        ministry: 'Government of India',
+        location: 'New Delhi / Pan India',
         deptCode: 'CPD',
-        category: tenderUploadDocType || 'Procurement Tender',
+        category: tenderUploadDocType === 'technical_specs' ? 'Computers & IT Equipment' : (tenderUploadDocType || 'Computers & IT Equipment'),
+        documentType: tenderUploadDocType || 'technical_specs',
+        published: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
         lastDate: new Date(Date.now() + 21 * 86400000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        closes: new Date(Date.now() + 21 * 86400000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
         closingDate: new Date(Date.now() + 21 * 86400000).toISOString().split('T')[0],
-        daysLeft: 21,
+        daysLeft: '21 days',
+        numericValue: 48500000,
+        estimatedValue: 48500000,
         submissions: 0,
         status: 'Open',
         statusType: 'active',
-        value: 'As per RFP',
-        documents: [{ name: tenderUploadFile.name, size: `${(tenderUploadFile.size / (1024 * 1024)).toFixed(1)} MB`, url: fileUrl }],
+        value: '₹ 4,85,00,000 (₹ 4.85 Cr)',
+        emdAmount: '₹ 9,70,00,000 (2% of Est. Value)',
+        sourceType: 'TENDER',
+        minLocalContent: '50% (Class-I)',
+        miiRequirement: 'Class-I (>= 50% Local Content)',
+        eligibilityCriteria: [
+          'GFR 2017 Rule 144(xi) Land Border Compliance Verified',
+          'Make In India (PPP-MII) Class-I Local Content (>= 50%)',
+          'Valid GSTIN & Permanent Account Number (PAN)',
+          'MSME Udyam / DPIIT Startup waiver eligible under GFR 173(i)',
+        ],
+        eligibility: 'GFR 2017 & Make in India Class-I verified',
+        documents: [{ name: tenderUploadFile.name, size: `${(tenderUploadFile.size / (1024 * 1024)).toFixed(1)} MB`, url: fileUrl, sourceType: 'TENDER', tenderId: newRef }],
         description: tenderUploadDescription || `Uploaded tender notice ${tenderUploadFile.name} verified via GeM ML engine.`,
         createdAt: new Date().toISOString(),
       };
       setOfficerTenders((prev) => [newUploadedTender, ...prev]);
       try {
         const storedTenders = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
-        localStorage.setItem('gem_created_tenders', JSON.stringify([newUploadedTender, ...storedTenders]));
+        const updated = [newUploadedTender, ...storedTenders.filter((t) => t.referenceNo !== newUploadedTender.referenceNo)];
+        localStorage.setItem('gem_created_tenders', JSON.stringify(updated));
         window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new CustomEvent('gem_tenders_updated', { detail: newUploadedTender }));
       } catch (err) {}
     } catch (err) {
       console.error('Upload error:', err);
@@ -503,9 +535,15 @@ const Dashboard = () => {
 
     window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('focus', handleStorageUpdate);
+    window.addEventListener('gem_officer_submissions_updated', handleStorageUpdate);
+    window.addEventListener('gem_submission_created', handleStorageUpdate);
+    window.addEventListener('gem_bidder_applications_updated', handleStorageUpdate);
     return () => {
       window.removeEventListener('storage', handleStorageUpdate);
       window.removeEventListener('focus', handleStorageUpdate);
+      window.removeEventListener('gem_officer_submissions_updated', handleStorageUpdate);
+      window.removeEventListener('gem_submission_created', handleStorageUpdate);
+      window.removeEventListener('gem_bidder_applications_updated', handleStorageUpdate);
     };
   }, []);
 
@@ -559,7 +597,7 @@ const Dashboard = () => {
     }));
   }, [allTenders]);
 
-  // Default base submissions (empty; populated from real bids)
+  // Default base submissions (strictly actual submissions only)
   const defaultSubmissions = [];
 
   // Combined Recent Submissions (Redux + localStorage proposals from bidders)
@@ -568,18 +606,48 @@ const Dashboard = () => {
     const seen = new Set();
     const list = [];
     // Prioritize newly uploaded proposals from bidders
-    for (const item of localOfficerSubmissions) {
-      const key = item.id || `${item.tenderId}-${item.bidder}`;
+    for (const raw of localOfficerSubmissions) {
+      const key = raw.id || `${raw.tenderId}-${raw.bidder}`;
       if (!seen.has(key)) {
         seen.add(key);
-        list.push({ ...item, isToday: item.isToday ?? true });
+        const score = raw.score !== undefined ? raw.score : (raw.complianceScore ?? 0);
+        const complianceScore = raw.complianceScore !== undefined ? raw.complianceScore : score;
+        const status = raw.status || raw.complianceStatus || 'Compliant';
+        const complianceStatus = raw.complianceStatus || status;
+        const isToday = raw.isToday !== undefined ? raw.isToday : true;
+        list.push({
+          ...raw,
+          score,
+          complianceScore,
+          status,
+          complianceStatus,
+          isToday,
+          bidder: raw.bidder || raw.bidderName || 'Registered Bidder',
+          relativeTime: raw.relativeTime || (isToday ? 'Just now' : 'Earlier'),
+          submittedOn: raw.submittedOn || (isToday ? 'Today' : 'Earlier'),
+        });
       }
     }
-    for (const item of base) {
-      const key = item.id || `${item.tenderId}-${item.bidder}`;
+    for (const raw of base) {
+      const key = raw.id || `${raw.tenderId}-${raw.bidder}`;
       if (!seen.has(key)) {
         seen.add(key);
-        list.push(item);
+        const score = raw.score !== undefined ? raw.score : (raw.complianceScore ?? 0);
+        const complianceScore = raw.complianceScore !== undefined ? raw.complianceScore : score;
+        const status = raw.status || raw.complianceStatus || 'Compliant';
+        const complianceStatus = raw.complianceStatus || status;
+        const isToday = raw.isToday !== undefined ? raw.isToday : true;
+        list.push({
+          ...raw,
+          score,
+          complianceScore,
+          status,
+          complianceStatus,
+          isToday,
+          bidder: raw.bidder || raw.bidderName || 'Registered Bidder',
+          relativeTime: raw.relativeTime || (isToday ? 'Just now' : 'Earlier'),
+          submittedOn: raw.submittedOn || (isToday ? 'Today' : 'Earlier'),
+        });
       }
     }
     return list;
@@ -1085,27 +1153,32 @@ const Dashboard = () => {
                 <div className="relative group">
                   <button
                     type="button"
-                    onClick={() => {
-                      setUploadModalOpen(true);
-                      setSidebarOpen(false);
-                    }}
+                    onClick={handleOpenUploadExtract}
                     title="Upload & Extract Documents"
+                    aria-current={activeMenu === 'upload-extract' ? 'page' : undefined}
                     className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
-                      } py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#202020] hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer text-left border border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
+                      } py-2 rounded-xl transition-all cursor-pointer text-left ${activeMenu === 'upload-extract'
+                        ? 'bg-blue-50 dark:bg-blue-600/15 text-blue-700 dark:text-white font-bold border border-blue-200 dark:border-blue-500/30'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#202020] hover:text-slate-900 dark:hover:text-white border border-transparent'
+                      } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
                   >
                     <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
-                      <UploadCloud className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white" />
+                      <UploadCloud className={`w-4 h-4 shrink-0 ${activeMenu === 'upload-extract' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white'}`} />
                       {!sidebarCollapsed && <span className="truncate">Upload &amp; Extract</span>}
                     </div>
                     {!sidebarCollapsed && (
-                      <span className="px-1.5 py-0.2 text-[9px] font-bold rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                        Extract
+                      <span className={`px-1.5 py-0.2 text-[9px] font-bold rounded ${
+                        activeMenu === 'upload-extract'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                      }`}>
+                        ML OCR
                       </span>
                     )}
                   </button>
                   {sidebarCollapsed && (
                     <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 dark:bg-[#1e1e1e] border border-slate-700 dark:border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                      Upload &amp; Extract (OCR)
+                      Upload &amp; Extract (ML OCR Studio)
                     </div>
                   )}
                 </div>
@@ -1305,6 +1378,25 @@ const Dashboard = () => {
                     <span className="text-slate-700 dark:text-slate-300 font-semibold">Compliance Reports</span>
                   </div>
                 </div>
+              ) : activeMenu === 'upload-extract' ? (
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                    Upload &amp; Extract Studio
+                  </h2>
+                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                    <button
+                      type="button"
+                      onClick={handleOpenDashboard}
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                    >
+                      Dashboard
+                    </button>
+                    <span>&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Upload &amp; AI Extraction</span>
+                    <span>&gt;</span>
+                    <span className="text-slate-400 font-mono">ML OCR Studio</span>
+                  </div>
+                </div>
               ) : activeMenu === 'compliance' ? (
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
@@ -1373,12 +1465,12 @@ const Dashboard = () => {
             {/* Quick Upload Tender CTA */}
             <button
               type="button"
-              onClick={() => setUploadModalOpen(true)}
+              onClick={handleOpenUploadExtract}
               className="inline-flex items-center gap-1.5 h-9 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition cursor-pointer"
-              title="Upload and verify tender document"
+              title="Upload and extract tender RFP specifications"
             >
               <UploadCloud className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Upload tender</span>
+              <span className="hidden sm:inline">Upload &amp; Extract</span>
             </button>
 
             {/* Notification Bell with Dynamic Dropdown */}
@@ -1450,6 +1542,13 @@ const Dashboard = () => {
               onOpenCompliance={handleOpenCompliance}
               onOpenSubmissions={handleOpenSubmissions}
               tenders={allTenders}
+            />
+          ) : activeMenu === 'upload-extract' ? (
+            <OfficerUploadExtractView
+              onBackToDashboard={handleOpenDashboard}
+              onOpenCompliance={handleOpenCompliance}
+              onOpenSubmissions={handleOpenSubmissions}
+              onOpenTopBidders={handleOpenTopBidders}
             />
           ) : activeMenu === 'reports' ? (
             <Reports />
@@ -1875,10 +1974,11 @@ const Dashboard = () => {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setUploadModalOpen(true)}
-                      className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 transition cursor-pointer"
+                      onClick={handleOpenUploadExtract}
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 transition cursor-pointer flex items-center gap-1.5"
                     >
-                      + New Tender
+                      <UploadCloud className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>Upload &amp; Extract RFP</span>
                     </button>
                     <Link
                       to="/tenders"
@@ -2150,7 +2250,7 @@ const Dashboard = () => {
                               <td className="py-3 px-4 min-w-[240px]">
                                 <button
                                   type="button"
-                                  onClick={handleOpenCompliance}
+                                  onClick={() => handleOpenCompliance(sub)}
                                   className="font-mono text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer text-left block"
                                   title={sub.tenderId}
                                 >
@@ -2182,17 +2282,17 @@ const Dashboard = () => {
                               <td className="py-3 px-4 whitespace-nowrap">
                                 <div className="flex items-center gap-2.5">
                                   <span className="font-bold text-slate-800 dark:text-slate-200 text-xs w-9">
-                                    {sub.score}%
+                                    {(sub.score ?? sub.complianceScore) ?? 0}%
                                   </span>
                                   <div className="w-16 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
                                     <div
-                                      className={`h-full rounded-full transition-all ${sub.score >= 80
+                                      className={`h-full rounded-full transition-all ${(sub.score ?? sub.complianceScore) >= 80
                                           ? 'bg-emerald-500'
-                                          : sub.score >= 60
+                                          : (sub.score ?? sub.complianceScore) >= 60
                                             ? 'bg-amber-500'
                                             : 'bg-rose-500'
                                         }`}
-                                      style={{ width: `${sub.score}%` }}
+                                      style={{ width: `${(sub.score ?? sub.complianceScore) ?? 0}%` }}
                                     />
                                   </div>
                                 </div>
@@ -2234,7 +2334,7 @@ const Dashboard = () => {
                               <td className="py-3 px-4 text-right whitespace-nowrap">
                                 <button
                                   type="button"
-                                  onClick={handleOpenCompliance}
+                                  onClick={() => handleOpenCompliance(sub)}
                                   className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs transition cursor-pointer"
                                 >
                                   Evaluate

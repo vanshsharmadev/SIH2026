@@ -25,12 +25,10 @@ const TenderCard = ({ tender, onViewDetails }) => {
 
   const handleVerify = (e) => {
     e.stopPropagation();
-    if (!isAuthenticated) {
-      navigate('/login', {
-        state: { redirectTo: `/verification?tenderId=${tender.id}` },
-      });
+    if (onViewDetails) {
+      onViewDetails(tender, 'compliance');
     } else {
-      navigate(`/verification?tenderId=${tender.id}`);
+      navigate(`/tenders?tenderId=${tender.id}&tab=compliance`);
     }
   };
 

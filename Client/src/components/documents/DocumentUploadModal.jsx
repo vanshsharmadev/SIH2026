@@ -115,6 +115,10 @@ const DocumentUploadModal = ({ isOpen, onClose, onUploadSuccess, tenderId = null
             const percent = Math.round((progressEvent.loaded * 50) / progressEvent.total);
             setUploadProgress(Math.max(15, percent));
           }
+        },
+        {
+          sourceType: tenderId ? 'TENDER_SUBMISSION' : 'VENDOR_VAULT',
+          tenderId: tenderId || undefined,
         }
       );
 

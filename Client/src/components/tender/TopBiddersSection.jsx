@@ -19,7 +19,6 @@ import {
 import { tenderService, aiService, recordAuditLog } from '../../services';
 import { getRiskTierMeta, formatStatusLabel } from '../../utils/tenderComparisonAdapter';
 import AiEvaluationDrawer from './AiEvaluationDrawer';
-import { INITIAL_SUBMISSIONS } from '../../pages/Dashboard/TenderSubmissionsView';
 
 const TopBiddersSection = ({
   tenders = [],
@@ -95,9 +94,9 @@ const TopBiddersSection = ({
         // ignore parse error
       }
 
-      const allSubmissions = [...localSubmissions, ...INITIAL_SUBMISSIONS];
+      const allSubmissions = localSubmissions;
       const matchedSubs = allSubmissions.filter(
-        (s) => String(s.tenderId) === String(selectedTenderId)
+        (s) => String(s.tenderId) === String(selectedTenderId) || String(s.rawTenderId) === String(selectedTenderId)
       );
 
       if (matchedSubs.length > 0) {

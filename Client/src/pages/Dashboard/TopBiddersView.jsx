@@ -29,7 +29,6 @@ import { tenderService, aiService, recordAuditLog } from '../../services';
 import { getRiskTierMeta, formatStatusLabel } from '../../utils/tenderComparisonAdapter';
 import { formatIndianLakhCrore, formatCurrencyINR } from '../../utils';
 import { AiEvaluationDrawer } from '../../components/tender';
-import { INITIAL_SUBMISSIONS } from './TenderSubmissionsView';
 
 const TopBiddersView = ({
   onBackToDashboard,
@@ -110,9 +109,9 @@ const TopBiddersView = ({
         // ignore
       }
 
-      const allSubmissions = [...localSubmissions, ...INITIAL_SUBMISSIONS];
+      const allSubmissions = localSubmissions;
       const matchedSubs = allSubmissions.filter(
-        (s) => String(s.tenderId) === String(selectedTenderId)
+        (s) => String(s.tenderId) === String(selectedTenderId) || String(s.rawTenderId) === String(selectedTenderId)
       );
 
       if (matchedSubs.length > 0) {
@@ -121,7 +120,7 @@ const TopBiddersView = ({
           .map((sub, idx) => ({
             id: sub.id || sub.bidderId || `BID-${idx + 1}`,
             bidderId: sub.bidderId || sub.id,
-            companyName: sub.bidder || sub.companyName || 'Bidder Organization',
+            companyName: sub.bidder || sub.bidderName || sub.companyName || 'Bidder Organization',
             gstNumber: sub.gstNumber || (sub.documents?.some((d) => d.name?.toLowerCase().includes('gst')) ? '27AAACT2727Q1ZT' : null),
             docCount: sub.docCount || sub.documents?.length || 4,
             complianceScore: sub.complianceScore ?? null,
@@ -204,6 +203,13 @@ const TopBiddersView = ({
 
   useEffect(() => {
     fetchBidders();
+    const handleUpdate = () => fetchBidders();
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('gem_officer_submissions_updated', handleUpdate);
+    return () => {
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('gem_officer_submissions_updated', handleUpdate);
+    };
   }, [selectedTenderId]);
 
   const copyToClipboard = (gst, e) => {

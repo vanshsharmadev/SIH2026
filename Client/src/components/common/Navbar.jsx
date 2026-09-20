@@ -341,7 +341,7 @@ const Navbar = ({ fontScale, setFontScale }) => {
             <Link
               to="/tenders"
               className={`transition-colors py-1 relative ${
-                location.pathname === '/tenders' || location.pathname.startsWith('/verification')
+                location.pathname === '/tenders'
                   ? 'text-[#073567] dark:text-blue-400 font-bold after:content-[""] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2.5px] after:bg-[#073567] dark:after:bg-blue-500 after:rounded-full'
                   : 'text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400'
               }`}
@@ -614,7 +614,7 @@ const Navbar = ({ fontScale, setFontScale }) => {
                 to="/tenders"
                 onClick={() => setMobileMenuOpen(false)}
                 className={`py-1.5 px-3 rounded-lg transition ${
-                  location.pathname === '/tenders' || location.pathname.startsWith('/verification')
+                  location.pathname === '/tenders'
                     ? 'bg-blue-50 dark:bg-blue-950/60 font-bold text-blue-700 dark:text-blue-400'
                     : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}

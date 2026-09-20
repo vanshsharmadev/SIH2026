@@ -25,40 +25,45 @@ import BidderChatBot from '../../components/common/BidderChatBot';
 import MarkdownRenderer from '../../components/common/MarkdownRenderer';
 import { AiEvaluationDrawer, ProcurementClearanceModal, TenderDetailModal } from '../../components/tender';
 import { mlService, tenderService, aiService, recordAuditLog } from '../../services';
-
 export const INITIAL_SUBMISSIONS = [];
 
 const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
-  // Load dynamic submissions from localStorage merged with defaults
+  // Load dynamic submissions from localStorage (strictly actual submissions only)
   const [submissionsList, setSubmissionsList] = useState(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
       if (Array.isArray(stored) && stored.length > 0) {
-        const formatted = stored.map((s) => ({
+        return stored.map((s) => ({
           id: s.id,
-          tenderId: s.tenderId,
+          tenderId: s.tenderId || s.tenderReferenceNo,
           tenderTitle: s.tenderTitle,
-          department: s.department || s.ministry || 'Ministry of Education',
-          bidder: s.bidder,
+          department: s.department || s.ministry || 'Government Ministry',
+          bidder: s.bidder || s.bidderName || 'Registered Bidder',
           submittedOn: s.submittedOn?.split(',')[0] || 'Today',
           submittedTime: s.submittedTime || 'Just now',
-          docCount: s.docCount || s.documents?.length || 4,
-          complianceScore: s.complianceScore || s.score || 95,
+          relativeTime: s.relativeTime || 'Just now',
+          isToday: s.isToday ?? true,
+          docCount: s.docCount || s.documents?.length || 0,
+          complianceScore: s.complianceScore !== undefined ? s.complianceScore : (s.score ?? 0),
+          score: s.score !== undefined ? s.score : (s.complianceScore ?? 0),
           complianceStatus: s.complianceStatus || s.status || 'Compliant',
+          status: s.status || s.complianceStatus || 'Compliant',
           evaluationStatus: s.evaluationStatus || 'Pending',
+          quotedAmount: s.quotedAmount || '₹ 48,50,000',
           documents: s.documents || [],
+          vaultDocuments: s.vaultDocuments || [],
+          submissionDocuments: s.submissionDocuments || [],
+          requirementsBreakdown: s.requirementsBreakdown || [],
           mlDossier: s.mlDossier || null,
           isLiveUploaded: Boolean(s.isLiveUploaded || s.documents?.[0]?.cloudinaryUrl),
           officerVerdict: s.officerVerdict || null,
           officerRemarks: s.officerRemarks || null,
         }));
-        const existingIds = new Set(formatted.map((f) => f.id));
-        return [...formatted, ...INITIAL_SUBMISSIONS.filter((item) => !existingIds.has(item.id))];
       }
     } catch {
-      // Fall back to initial submissions
+      // ignore
     }
-    return INITIAL_SUBMISSIONS;
+    return [];
   });
 
   useEffect(() => {
@@ -68,34 +73,47 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
         if (Array.isArray(stored) && stored.length > 0) {
           const formatted = stored.map((s) => ({
             id: s.id,
-            tenderId: s.tenderId,
+            tenderId: s.tenderId || s.tenderReferenceNo,
             tenderTitle: s.tenderTitle,
-            department: s.department || s.ministry || 'Ministry of Education',
-            bidder: s.bidder,
+            department: s.department || s.ministry || 'Government Ministry',
+            bidder: s.bidder || s.bidderName || 'Registered Bidder',
             submittedOn: s.submittedOn?.split(',')[0] || 'Today',
             submittedTime: s.submittedTime || 'Just now',
-            docCount: s.docCount || s.documents?.length || 4,
-            complianceScore: s.complianceScore || s.score || 95,
+            relativeTime: s.relativeTime || 'Just now',
+            isToday: s.isToday ?? true,
+            docCount: s.docCount || s.documents?.length || 0,
+            complianceScore: s.complianceScore !== undefined ? s.complianceScore : (s.score ?? 0),
+            score: s.score !== undefined ? s.score : (s.complianceScore ?? 0),
             complianceStatus: s.complianceStatus || s.status || 'Compliant',
+            status: s.status || s.complianceStatus || 'Compliant',
             evaluationStatus: s.evaluationStatus || 'Pending',
+            quotedAmount: s.quotedAmount || '₹ 48,50,000',
             documents: s.documents || [],
+            vaultDocuments: s.vaultDocuments || [],
+            submissionDocuments: s.submissionDocuments || [],
+            requirementsBreakdown: s.requirementsBreakdown || [],
             mlDossier: s.mlDossier || null,
             isLiveUploaded: Boolean(s.isLiveUploaded || s.documents?.[0]?.cloudinaryUrl),
             officerVerdict: s.officerVerdict || null,
             officerRemarks: s.officerRemarks || null,
           }));
-          const existingIds = new Set(formatted.map((f) => f.id));
-          setSubmissionsList([...formatted, ...INITIAL_SUBMISSIONS.filter((item) => !existingIds.has(item.id))]);
+          setSubmissionsList(formatted);
+        } else {
+          setSubmissionsList([]);
         }
       } catch {
-        // Ignore storage parse error
+        setSubmissionsList([]);
       }
     };
     window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('focus', handleStorageUpdate);
+    window.addEventListener('gem_officer_submissions_updated', handleStorageUpdate);
+    window.addEventListener('gem_submission_created', handleStorageUpdate);
     return () => {
       window.removeEventListener('storage', handleStorageUpdate);
       window.removeEventListener('focus', handleStorageUpdate);
+      window.removeEventListener('gem_officer_submissions_updated', handleStorageUpdate);
+      window.removeEventListener('gem_submission_created', handleStorageUpdate);
     };
   }, []);
 
@@ -298,16 +316,16 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchTitle = item.tenderTitle.toLowerCase().includes(q);
-        const matchId = item.id.toLowerCase().includes(q);
-        const matchTender = item.tenderId.toLowerCase().includes(q);
-        const matchBidder = item.bidder.toLowerCase().includes(q);
+        const matchTitle = (item.tenderTitle || '').toLowerCase().includes(q);
+        const matchId = (item.id || '').toLowerCase().includes(q);
+        const matchTender = (item.tenderId || '').toLowerCase().includes(q);
+        const matchBidder = (item.bidder || '').toLowerCase().includes(q);
         if (!matchTitle && !matchId && !matchTender && !matchBidder) return false;
       }
 
       // Tender ID specific filter
       if (filterTenderId.trim()) {
-        if (!item.tenderId.toLowerCase().includes(filterTenderId.toLowerCase())) return false;
+        if (!(item.tenderId || '').toLowerCase().includes(filterTenderId.toLowerCase())) return false;
       }
 
       // Compliance status dropdown
@@ -1389,13 +1407,22 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                       >
                         <div className="flex items-center gap-2 min-w-0 truncate">
                           <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                          <span className="truncate text-xs font-medium">{doc.name}</span>
+                          <span className="truncate text-xs font-medium">{doc.name || doc.fileName}</span>
+                          {(doc.sourceType === 'VENDOR_VAULT' || doc.source === 'VENDOR_VAULT') ? (
+                            <span className="text-[9.5px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 shrink-0">
+                              Vault
+                            </span>
+                          ) : (
+                            <span className="text-[9.5px] font-bold px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0">
+                              Tender Upload
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0 ml-1">
                           <span className="text-xs text-slate-400">{doc.size}</span>
-                          {doc.cloudinaryUrl && (
+                          {(doc.cloudinaryUrl || doc.url) && (
                             <a
-                              href={doc.cloudinaryUrl}
+                              href={doc.cloudinaryUrl || doc.url}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-xs font-semibold hover:underline"
