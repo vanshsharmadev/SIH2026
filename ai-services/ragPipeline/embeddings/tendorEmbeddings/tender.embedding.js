@@ -10,20 +10,28 @@ const {
     chunkText,
   } = require("./tender.chunker");
   
-  async function processTender(tenderId, filePath) {
+  async function processTender(tenderId, filePath, directText = null) {
     if (!tenderId) {
       throw new Error("tenderId is required");
     }
   
-    if (!filePath) {
-      throw new Error("Tender PDF file is required");
+    console.log(`[TENDER_INDEX] Starting indexing for tender: ${tenderId}`);
+  
+    // 1. Extract text (from direct OCR/text feed or file)
+    let text = directText;
+    if (!text && filePath) {
+      text = await extractTenderText(filePath);
     }
   
-    // 1. Extract PDF text
-    const text = await extractTenderText(filePath);
+    if (!text || !text.trim()) {
+      throw new Error("No text content could be extracted for tender indexing");
+    }
+  
+    console.log(`[TENDER_INDEX] Extracted text (${text.length} characters)`);
   
     // 2. Split text into chunks
     const chunks = chunkText(text);
+    console.log(`[TENDER_INDEX] Chunks created: ${chunks.length} chunks`);
   
     // 3. Generate embedding for every chunk
     const embeddedChunks = [];
@@ -41,6 +49,8 @@ const {
         documentType: "TENDER",
       });
     }
+  
+    console.log(`[TENDER_INDEX] Embeddings created: ${embeddedChunks.length} vectors`);
   
     return {
       tenderId,

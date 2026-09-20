@@ -6,20 +6,24 @@ async function bidderTenderChatController(req, res) {
         const {
             tenderId,
             query,
+            tenderContext,
+            sources,
         } = req.body;
 
         // -----------------------------
         // Validate request
         // -----------------------------
 
-        if (!tenderId) {
+        const cleanTenderId = String(tenderId ?? '').trim();
+
+        if (!cleanTenderId) {
             return res.status(400).json({
                 success: false,
                 message: "tenderId is required",
             });
         }
 
-        if (!query || !query.trim()) {
+        if (!query || !String(query).trim()) {
             return res.status(400).json({
                 success: false,
                 message: "query is required",
@@ -31,8 +35,10 @@ async function bidderTenderChatController(req, res) {
         // -----------------------------
 
         const result = await answerBidderQueryAboutTender({
-            tenderId,
-            query,
+            tenderId: cleanTenderId,
+            query: String(query).trim(),
+            tenderContext,
+            sources,
         });
 
         // -----------------------------

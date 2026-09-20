@@ -26,6 +26,7 @@ import { isOfficerUser } from '../../utils/roleUtils';
 import { isTenderClosed } from '../../utils';
 import { documentService } from '../../services';
 import TenderChatbot from './TenderChatbot';
+import { normalizeTenderId } from '../../utils/tenderIdUtils';
 import ComplianceBadge from '../compliance/ComplianceBadge';
 
 const COMPLIANCE_DOC_TYPES = [
@@ -1308,12 +1309,13 @@ const TenderDetailModal = ({ tender, onClose, initialTab = 'overview' }) => {
       <TenderChatbot
         isOpen={isAiChatOpen}
         onClose={() => setIsAiChatOpen(false)}
-        tenderId={tender.id || tender.referenceNo}
+        tenderId={normalizeTenderId(tender.id || tender.referenceNo)}
         tenderTitle={tender.title}
         tenderRef={tender.referenceNo}
         tenderDepartment={tender.department || tender.ministry}
         tenderValue={tender.value}
         tenderDeadline={tender.closes || tender.daysLeft}
+        tender={tender}
       />
     )}
   </>,
