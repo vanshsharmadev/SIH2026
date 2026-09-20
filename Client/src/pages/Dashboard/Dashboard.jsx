@@ -1038,7 +1038,7 @@ const Dashboard = ({ defaultTab = null }) => {
                   setChatBoxOpen(true);
                   setSidebarOpen(false);
                 }}
-                title="AI Chatbox (GFR 2017 & GeM Guidelines)"
+                title="GeM Compliflix AI (Platform Copilot)"
                 aria-current={chatBoxOpen ? 'true' : undefined}
                 className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
                   } py-2.5 rounded-xl transition-all cursor-pointer text-left relative ${chatBoxOpen
@@ -2731,10 +2731,13 @@ const Dashboard = ({ defaultTab = null }) => {
         </div>
       )}
 
-      {/* -------------------- AI CHATBOX (INTERACTIVE MODAL / DRAWER) -------------------- */}
+      {/* -------------------- GEM COMPLIFLIX AI (PLATFORM COPILOT) -------------------- */}
       <ChatBox
         isOpen={chatBoxOpen}
         onClose={() => setChatBoxOpen(false)}
+        activeTab={activeMenu}
+        selectedTenderId={null}
+        role="OFFICER"
       />
 
       {/* Floating Circular AI Assistant Launcher Button */}
@@ -2743,8 +2746,8 @@ const Dashboard = ({ defaultTab = null }) => {
           type="button"
           onClick={() => setChatBoxOpen(true)}
           className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-tr from-blue-700 via-indigo-600 to-blue-500 hover:from-blue-800 hover:via-indigo-700 hover:to-blue-600 text-white shadow-2xl shadow-indigo-500/40 hover:shadow-indigo-500/60 hover:scale-110 active:scale-95 transition-all duration-300 ease-out cursor-pointer border-2 border-white/30 dark:border-white/20 group flex items-center justify-center focus:outline-none focus:ring-4 focus:ring-blue-400/40"
-          title="Open GeM AI Compliance Assistant"
-          aria-label="Ask AI Assistant about GeM and GFR compliance"
+          title="Open GeM Compliflix AI Copilot"
+          aria-label="Ask GeM Compliflix AI about platform navigation, workflows, and GFR compliance"
         >
           {/* Active Online Status Indicator */}
           <span className="absolute top-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-white dark:border-slate-900 shadow-xs flex items-center justify-center">

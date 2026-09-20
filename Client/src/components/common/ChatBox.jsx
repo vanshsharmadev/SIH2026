@@ -8,6 +8,7 @@ import {
   Maximize2,
   Trash2,
   ShieldCheck,
+  Compass,
 } from 'lucide-react';
 import { tenderService } from '../../services';
 import MarkdownRenderer from './MarkdownRenderer';
@@ -16,66 +17,389 @@ const INITIAL_MESSAGES = [
   {
     id: 'welcome-1',
     sender: 'bot',
-    text: 'Namaste! I am your GeM AI Compliance Assistant. Ask me anything about tender eligibility, bidder turnover, technical criteria, or GFR 2017 procurement guidelines.',
+    text: `Hi! 👋
+
+I am **GeM Compliflix AI**, your copilot for navigating the GeM Compliance Platform.
+
+You can ask me about:
+• Creating and managing tenders
+• Bidder evaluation
+• Compliance verification
+• AI verification
+• Reports and analytics
+• Platform workflows
+• GeM & procurement rules
+• Troubleshooting
+
+What would you like help with?`,
     timestamp: 'Just now',
-    citation: 'GeM GTC & GFR 2017 Guidelines',
-    confidence: 'Verified Policy',
+    citation: 'GeM Compliance Platform • AI Copilot',
+    confidence: 'Platform Verified',
   },
 ];
 
 const SUGGESTIONS = [
-  'What is GFR Rule 144(xi) Land Border requirement?',
-  'Explain Make in India Class-I supplier threshold (50%)',
-  'When are MSME bidders exempt from EMD & Turnover?',
-  'What causes immediate technical bid rejection?',
-  'How is active debarment checked under GFR Rule 151?',
-  'What are standard turnover criteria for high-value tenders?',
+  'How do I create a new tender?',
+  'What should I do after uploading tender documents?',
+  'How does AI verification work?',
+  'Where can I view bidder submissions?',
+  'How do I evaluate a bidder?',
+  'How do I generate a compliance report?',
+  'What should I do if document extraction fails?',
+  'Where can I find archived tenders?',
+  'Explain the tender evaluation workflow.',
+  'What is GFR Rule 144(xi)?',
+  'What is Make in India Class-I supplier?',
+  'What documents are required for GST compliance?',
+  'What is MSME/Udyam registration?',
 ];
 
-const KNOWLEDGE_BASE = [
-  {
-    keywords: ['144', 'land border', 'border', 'neighbour', 'neighbor'],
-    title: 'GFR 2017 Rule 144(xi) — Land Border Restriction',
-    text: 'Under Department of Expenditure order F.No.6/18/2019-PPD, any bidder from a country sharing a land border with India is eligible only if registered with DPIIT (Competent Authority) and holds valid political/security clearance from MEA and MHA. Bids without this registration must be disqualified at technical evaluation stage.',
-    citation: 'Dept of Expenditure OM F.No.6/18/2019-PPD • CVC Guidelines',
-    confidence: 'Official Policy',
-  },
-  {
-    keywords: ['make in india', 'mii', 'local content', 'class-i', 'class-ii'],
-    title: 'Public Procurement (Preference to Make in India) Order 2017',
-    text: 'Class-I Local Suppliers (≥50% local content) receive statutory purchase preference. Class-II Local Suppliers (20% to 50%) participate without purchase preference. Non-Local (<20%) are excluded in tenders up to ₹200 Crores under Global Tender Enquiry (GTE) restrictions.',
-    citation: 'DPIIT Order P-45021/2/2017-PP (BE-II)',
-    confidence: 'Official Policy',
-  },
-  {
-    keywords: ['emd', 'earnest money', 'bid security', 'msme', 'mse', 'turnover'],
-    title: 'MSME / MSE Concessions & EMD Exemption',
-    text: 'Under the Public Procurement Policy for Micro & Small Enterprises (MSEs) Order 2012 and GFR Rule 170(i), MSEs registered with Udyam Registration are 100% exempt from paying EMD/Bid Security. Concessions in prior turnover and experience are also mandated provided technical capability is demonstrated.',
-    citation: 'Ministry of MSME Order & GFR Rule 170',
-    confidence: 'Official Policy',
-  },
-  {
-    keywords: ['reject', 'disqualification', 'rejection', 'invalid', 'technical bid'],
-    title: 'Mandatory Technical Disqualification Grounds',
-    text: 'Key mandatory disqualification triggers include: 1) Non-submission of EMD / Bid Security Declaration (unless exempt), 2) Active debarment/blacklisting under GFR Rule 151, 3) Failure to submit land border certificate under Rule 144(xi), and 4) Submission of fraudulent PAN/GST credentials.',
-    citation: 'GeM General Terms & Conditions (GTC) Cl. 4.2',
-    confidence: 'Official Policy',
-  },
-  {
-    keywords: ['debarment', 'blacklist', '151', 'banning'],
-    title: 'GFR Rule 151 — Debarment from Bidding',
-    text: 'A bidder can be debarred for up to 2 years for corruption, fraudulent practices, or failure to execute contractual commitments. Debarred entities are universally barred across all Central Government Ministries and GeM SPV.',
-    citation: 'Central Public Procurement Portal (CPPP) Register',
-    confidence: 'Official Policy',
-  },
-];
+/**
+ * Robust client-side fallback knowledge engine for GeM Compliflix AI.
+ * Ensures instant, accurate, verified assistance even when offline or during downstream delays.
+ */
+function resolveLocalCopilotKnowledge(query, { bidderId } = {}) {
+  const q = (query || '').toLowerCase().trim();
+
+  // Guard: Bidder-specific question when no bidder context exists
+  const bidderSpecificKeywords = [
+    'this bidder',
+    'the bidder',
+    'ye bidder',
+    'yeh bidder',
+    'is bidder',
+    'financial criteria',
+    'turnover requirement',
+    'is this bidder eligible',
+    'bidder meet',
+    'bidder pass',
+    'bidder qualified',
+    'bidder eligible',
+  ];
+  const hasBidderKeyword = bidderSpecificKeywords.some((k) => q.includes(k));
+  if (hasBidderKeyword && (!bidderId || bidderId === 'BID-007')) {
+    return {
+      title: 'Select Bidder in Tender Submissions',
+      citation: 'Evaluation Context Required • GFR 2017 Rules',
+      confidence: 'Verified Workflow',
+      text: `To evaluate a specific bidder's financial compliance, please open the relevant **Tender Submissions** and select the bidder first.
+
+I can then help you understand the available compliance evidence and verification results.
+
+### Standard GeM & GFR 2017 Financial Criteria:
+- **Turnover Requirement**: Typically 30% to 50% of the estimated tender value over the last 3 financial years.
+- **Chartered Accountant Certificate**: Must bear an active **Unique Document Identification Number (UDIN)** issued by ICAI.
+- **MSME / Startup Relaxations**: Under GFR Rule 173(i), registered MSEs and DPIIT-recognized startups may receive turnover and prior experience relaxations.`,
+    };
+  }
+
+  // 1. Troubleshooting / Upload failures
+  if (
+    q.includes('upload nahi') ||
+    (q.includes('upload') &&
+      (q.includes('fail') ||
+        q.includes('error') ||
+        q.includes('stuck') ||
+        q.includes('not working') ||
+        q.includes('problem') ||
+        q.includes('kya karu'))) ||
+    q.includes('document upload')
+  ) {
+    return {
+      title: 'Troubleshooting: Document Upload Issues',
+      citation: 'Troubleshooting Guide • GeM Compliflix AI',
+      confidence: 'Platform Guide',
+      text: `### Please check the following steps:
+
+1. **Supported File Format**: Ensure your file is in **PDF**, **DOCX**, **XLSX**, **PNG**, or **JPG** format.
+2. **File Size Limit**: Confirm the file is within the **50MB** size limit.
+3. **Active Processing**: If you uploaded a large multi-page PDF, allow up to 30-45 seconds for OCR parsing. Inspect the **Process Logs** in the **Upload & Extract** tab.
+4. **Network & Session**: Verify that your login session is active and not timed out.
+5. **Alternative**: If a particular scan fails, test with one of the built-in sample RFPs in the **Upload & Extract** tab.`,
+    };
+  }
+
+  // 2. Tender Creation
+  if (
+    (q.includes('tender') &&
+      (q.includes('create') ||
+        q.includes('banaye') ||
+        q.includes('bana') ||
+        q.includes('new tender') ||
+        q.includes('naya tender') ||
+        q.includes('draft'))) ||
+    q.includes('create tender') ||
+    q.includes('kaha se karu')
+  ) {
+    return {
+      title: 'How to Create a New Tender',
+      citation: 'Platform Navigation • Upload & Extract',
+      confidence: 'Platform Guide',
+      text: `### Steps to Create a Tender:
+
+1. **Navigate**: In the left sidebar, click **Upload & Extract** (or go to \`/dashboard?tab=upload-extract\`).
+2. **Auto-Extract via Document**: Drag and drop your tender RFP/NIT PDF into the upload box, or click **Upload Tender Document**.
+3. **Or Fill Manually**: Enter Tender Title, Department, Category, Estimated Value, and EMD amount.
+4. **Run Extraction**: Click **Process & Extract Clauses** to allow the AI to extract statutory requirements.
+5. **Publish Tender**: Review the extracted clauses and click **Publish Tender** to make it active for bidders.`,
+    };
+  }
+
+  // 3. Bidder Submissions location
+  if (
+    (q.includes('bidder') &&
+      (q.includes('submission') || q.includes('submissions') || q.includes('kaha') || q.includes('where'))) ||
+    q.includes('submissions kaha') ||
+    q.includes('bids kaha')
+  ) {
+    return {
+      title: 'Locating Bidder Submissions',
+      citation: 'Platform Navigation • Tender Submissions',
+      confidence: 'Platform Guide',
+      text: `### Where to Find Bidder Submissions:
+
+1. **Open Tender Submissions**: Click on **Tender Submissions** in the left sidebar menu (or open \`/dashboard?tab=submissions\`).
+2. **Filter by Tender**: Use the top dropdown to select the specific tender (e.g. *GEM/2026/B/1001*).
+3. **View Bidders**: All submitted vendor proposals will be listed with submission dates, technical packet status, and financial bids.
+4. **Actions**: Click **Evaluation** on any bidder card to inspect documents or open the comparative evaluation drawer.`,
+    };
+  }
+
+  // 4. Bidder evaluation procedure
+  if (
+    (q.includes('evaluate') && (q.includes('bidder') || q.includes('process'))) ||
+    q.includes('bidder evaluate') ||
+    q.includes('tender evaluation ka process')
+  ) {
+    return {
+      title: 'Bidder Evaluation Procedure',
+      citation: 'Platform Navigation • Tender Submissions & Evaluation',
+      confidence: 'Platform Guide',
+      text: `### How to Evaluate a Bidder:
+
+1. **Open Tender Submissions**: Go to the **Tender Submissions** tab.
+2. **Select Tender**: Choose the relevant tender from the filter dropdown.
+3. **Select Bidder**: Choose the bidder from the submissions list.
+4. **Open Evaluation**: Click the **Evaluation** button or **View Compliance**.
+5. **Review AI Verification**: Check the automated verification for GFR Rule 144(xi), Make in India Class-I, and MSME concessions.
+6. **Inspect Evidence**: Review submitted PAN, GSTIN certificate, and audited financials with UDIN.
+7. **Record Officer Decision**: Enter evaluation marks and approve or reject the submission.
+8. **Generate Report**: Navigate to **Reports** to download the signed Compliance Summary.`,
+    };
+  }
+
+  // 5. Compliance report inquiries
+  if (
+    q.includes('compliance report') ||
+    (q.includes('report') &&
+      (q.includes('generate') || q.includes('download') || q.includes('kaise') || q.includes('export')))
+  ) {
+    return {
+      title: 'Generating & Downloading Compliance Reports',
+      citation: 'Platform Navigation • Reports & Analytics',
+      confidence: 'Platform Guide',
+      text: `### How to Generate a Compliance Report:
+
+1. **Navigate to Reports**: Click **Reports** in the left sidebar (or go to \`/dashboard?tab=reports\`).
+2. **Select Tender**: Choose the desired tender from the selection dropdown.
+3. **Review Summary**: Inspect the executive compliance summary, bidder rankings, and statutory pass/fail breakdown.
+4. **Export Report**: Click **Export PDF** for an official stamped report, or click **Export CSV** for procurement audit records.`,
+    };
+  }
+
+  // 6. AI Verification inquiries
+  if (
+    q.includes('ai verification') ||
+    (q.includes('verification') && (q.includes('work') || q.includes('kaise') || q.includes('how')))
+  ) {
+    return {
+      title: 'How AI Verification Works',
+      citation: 'System Architecture • ML & Compliance Engine',
+      confidence: 'Platform Guide',
+      text: `### AI Verification Architecture:
+
+1. **Multi-Document OCR & Parsing**: High-accuracy OCR extracts text and tables from tender RFPs and vendor submissions (PDF, DOCX, scans).
+2. **Statutory Rules Engine**: Evaluates vendor data against mandatory government rules:
+   - **GFR Rule 144(xi)**: Land border restrictions and DPIIT registration.
+   - **Make in India (MII)**: Verification of Class-I (≥50%) or Class-II (20-50%) local content.
+   - **MSME / Udyam**: Automated waiver of EMD and turnover criteria.
+   - **Taxpayer Status**: Real-time GSTIN validation and active debarment check under GFR Rule 151.
+3. **Quality & Cost Based Selection (QCBS)**: Computes 70:30 weighted scores combining technical quality and financial competitiveness.
+4. **Evidence Grounding**: Every AI recommendation is linked directly to document citations for full officer transparency.`,
+    };
+  }
+
+  // 7. Workflow / Next step inquiries
+  if (
+    q.includes('workflow') ||
+    q.includes('next step') ||
+    q.includes('samajh nahi aa raha') ||
+    q.includes('after upload') ||
+    q.includes('uploading tender') ||
+    q.includes('upload karne ke baad') ||
+    (q.includes('kya') && q.includes('karu'))
+  ) {
+    if (q.includes('after upload') || q.includes('uploading') || q.includes('upload karne ke baad')) {
+      return {
+        title: 'Next Steps: After Uploading Tender Documents',
+        citation: 'GeM Platform Workflow • Step 4 & 5',
+        confidence: 'Platform Guide',
+        text: `### What to do after uploading tender documents:
+
+1. **Document Extraction**: The AI/OCR engine automatically processes the RFP/NIT document and extracts key tender clauses, category, estimated value, and eligibility thresholds.
+2. **Review Extracted Data**: In the **Upload & Extract** tab, verify the extracted metadata and required technical qualifications.
+3. **Publish Tender**: Click **Publish Tender** to make the tender active on the public registry.
+4. **Receive Bids**: Monitor incoming proposals in the **Tender Submissions** tab.
+5. **Document Verification & AI Compliance**: Once bids are submitted, execute automated compliance and QCBS ranking.`,
+      };
+    }
+
+    return {
+      title: 'GeM Compliance Platform — End-to-End Workflow',
+      citation: 'GeM Standard Operating Procedure (SOP)',
+      confidence: 'Platform Guide',
+      text: `### Complete 12-Step Platform Workflow:
+
+1. **Create Tender**: Open the **Upload & Extract** tab.
+2. **Enter Tender Details**: Provide Title, Reference No, Department, and Estimated Value.
+3. **Upload Documents**: Upload NIT/RFP PDF/DOCX (up to 50MB).
+4. **Extract Information**: AI/OCR extracts clauses, turnover, and Make in India thresholds.
+5. **Publish Tender**: Tender is listed on the active portal.
+6. **Receive Submissions**: Bidders submit proposals via the portal.
+7. **Inspect Documents**: Inspect PAN, GSTIN, Udyam, and CA statements in **Tender Submissions**.
+8. **Document Verification**: Verify authenticity against statutory registries.
+9. **Compliance Check**: Automated check for GFR Rule 144(xi), Make in India Class-I, and MSME concessions in **Compliance** tab.
+10. **AI Verification & QCBS**: Quality & Cost Based Selection (70:30) ranks top 10 bidders in **Top Bidders** tab.
+11. **Officer Evaluation & Compliance Report**: Officer approves/rejects and exports official audit report in **Reports** tab.
+12. **Archive Tender**: Completed tenders are preserved with permanent audit trails.`,
+    };
+  }
+
+  // 8. Archived Tenders
+  if (
+    q.includes('archived') ||
+    q.includes('purane tender') ||
+    q.includes('completed tender') ||
+    q.includes('history')
+  ) {
+    return {
+      title: 'Accessing Archived & Historical Tenders',
+      citation: 'Platform Navigation • Dashboard & Audit',
+      confidence: 'Platform Guide',
+      text: `### Where to Find Archived Tenders:
+
+1. **Dashboard Overview**: In the **Dashboard** tab, locate the **Status** filter dropdown and select **Archived** or **Completed**.
+2. **Audit Trail**: Open the **Audit Trail** tab from the left sidebar to view permanent, immutable event logs for every historical tender and officer evaluation.`,
+    };
+  }
+
+  // 9. Dashboard overview / What is this section
+  if (
+    q.includes('ye dashboard') ||
+    q.includes('section kis kaam') ||
+    q.includes('dashboard overview') ||
+    q.includes('kpi')
+  ) {
+    return {
+      title: 'Dashboard Sections & Overview',
+      citation: 'Platform User Guide • Navigation Overview',
+      confidence: 'Platform Guide',
+      text: `### GeM Compliance Platform Sections:
+
+- **Dashboard Overview**: Key performance metrics (Active Tenders, Pending Evaluations, Compliance Rate) and quick actions.
+- **Tender Submissions**: All incoming bids, vendor documents, and comparative evaluation drawers.
+- **Top Bidders (QCBS)**: AI-driven ranking of top 10 bidders under GFR Rule 192 (70:30 technical/financial weightage).
+- **Compliance Verification**: Automated statutory checks for Land Border, Make in India, and MSME concessions.
+- **Upload & Extract**: Create new tenders, upload RFP documents, and run OCR clause extraction.
+- **Reports**: Generate and export official GeM compliance audits (PDF/CSV).
+- **Audit Trail**: Immutable chronological log of all officer actions and verification activities.`,
+    };
+  }
+
+  // 10. GFR Rule 144(xi)
+  if (q.includes('144') || q.includes('land border') || q.includes('border')) {
+    return {
+      title: 'GFR 2017 Rule 144(xi) — Land Border Restrictions',
+      citation: 'Ministry of Finance OM F.No.6/18/2019-PPD',
+      confidence: 'Official Policy',
+      text: `Under GFR 2017 Rule 144(xi) and Dept of Expenditure Order F.No.6/18/2019-PPD, any bidder from a country sharing a land border with India is eligible to bid in public procurement **only if the bidder is registered with the Competent Authority (DPIIT)** and holds valid political/security clearance from the Ministry of External Affairs (MEA) and Ministry of Home Affairs (MHA).
+
+**Mandatory Rule**: Bids submitted without this mandatory DPIIT certificate must be rejected immediately during the technical bid evaluation stage.`,
+    };
+  }
+
+  // 11. Make in India
+  if (q.includes('make in india') || q.includes('mii') || q.includes('local content')) {
+    return {
+      title: 'Public Procurement (Preference to Make in India) Order 2017',
+      citation: 'DPIIT Order P-45021/2/2017-PP (BE-II)',
+      confidence: 'Official Policy',
+      text: `### Make in India Classification:
+
+- **Class-I Local Supplier**: Minimum **50%** local content. Receives statutory purchase preference.
+- **Class-II Local Supplier**: **20% to 50%** local content. Can participate but receives no purchase preference.
+- **Non-Local Supplier**: Less than **20%** local content. Strictly barred from participating in tenders valued up to ₹200 Crores under GFR Rule 161(iv) Global Tender Enquiry (GTE) restrictions.`,
+    };
+  }
+
+  // 12. MSME / EMD
+  if (q.includes('msme') || q.includes('udyam') || q.includes('emd') || q.includes('turnover exemption')) {
+    return {
+      title: 'MSME / MSE Concessions & EMD Exemption',
+      citation: 'Public Procurement Policy for MSEs Order 2012 & GFR Rule 170(i)',
+      confidence: 'Official Policy',
+      text: `Under the Public Procurement Policy for Micro & Small Enterprises (MSEs) Order 2012 and GFR 2017 Rule 170(i):
+
+1. **EMD Exemption**: All MSEs possessing a valid **Udyam Registration Certificate** are **100% exempt** from submitting Earnest Money Deposit (Bid Security).
+2. **Turnover & Experience Relaxation**: Under GFR Rule 173(i), procuring entities may relax prior turnover and experience criteria for MSEs/Startups, provided technical capability and quality standards are demonstrated.
+3. **Purchase Preference**: 25% of total procurement is reserved for MSEs, including sub-targets for SC/ST and women entrepreneurs.`,
+    };
+  }
+
+  // 13. GST & Taxpayer
+  if (q.includes('gst') || q.includes('taxpayer') || q.includes('documents required for gst')) {
+    return {
+      title: 'GST Compliance & Statutory Documentation',
+      citation: 'GeM GTC v4.0 & Statutory Regulations',
+      confidence: 'Official Policy',
+      text: `### Mandatory Documents for GST & Taxpayer Compliance:
+
+1. **GSTIN Registration Certificate**: Form GST REG-06 showing active status and principal place of business.
+2. **GSTR-3B / Return Filing Proof**: Proof of regular tax return filings for the preceding 6 months.
+3. **Permanent Account Number (PAN)**: Linked to company/firm identity.
+4. **Audited Financial Statements**: Last 3 financial years' balance sheet and profit & loss statements audited by a Chartered Accountant with a valid **Unique Document Identification Number (UDIN)**.`,
+    };
+  }
+
+  return {
+    title: 'GeM Compliflix AI Copilot',
+    citation: 'GeM Compliance Platform Knowledge Base',
+    confidence: 'Platform Guide',
+    text: `I am **GeM Compliflix AI**, your copilot for the GeM Compliance Platform.
+
+I can assist you with:
+- **Platform Navigation**: Locating **Upload & Extract**, **Tender Submissions**, **Compliance Verification**, **QCBS Top Bidders**, or **Reports**.
+- **Workflows**: Explaining what to do next after uploading a tender or receiving bids.
+- **GeM & Procurement Rules**: GFR Rule 144(xi) (Land Border), Make in India (Class-I/II), MSME concessions, or GST verification.
+- **Troubleshooting**: Assisting if document upload or OCR extraction encounters an issue.
+
+Please try asking a specific question such as:
+- *"How do I create a new tender?"*
+- *"What should I do after uploading documents?"*
+- *"Where can I view bidder submissions?"*
+- *"Document upload nahi ho raha, kya karu?"*`,
+  };
+}
 
 const ChatBox = ({
   isOpen,
   onClose,
   defaultMinimized = false,
-  tenderId: initialTenderId = null,
-  bidderId: initialBidderId = null,
+  activeTab = 'dashboard',
+  selectedTenderId = null,
+  role = 'OFFICER',
+  tenderId: propTenderId = null,
+  bidderId: propBidderId = null,
 }) => {
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
@@ -126,12 +450,20 @@ const ChatBox = ({
     setInput('');
     setIsTyping(true);
 
-    // 1. Primary Live Call: POST /api/officer/tenders/chat
+    const targetTenderId = selectedTenderId || propTenderId || null;
+    const targetBidderId = propBidderId || null;
+
+    // 1. Primary Live Call to Backend Copilot Service
     try {
-      const res = await tenderService.officerTenderChat({
-        tenderId: initialTenderId || undefined,
-        bidderId: initialBidderId || undefined,
+      const res = await tenderService.officerPlatformCopilotChat({
         query,
+        context: {
+          activeMenu: activeTab || 'dashboard',
+          activeTab: activeTab || 'dashboard',
+          tenderId: targetTenderId,
+          bidderId: targetBidderId,
+          role: role || 'OFFICER',
+        },
       });
 
       const answerText =
@@ -144,14 +476,26 @@ const ChatBox = ({
         res?.data?.message ||
         res?.message;
 
-      if (answerText) {
+      const title = res?.data?.title || res?.title || 'GeM Compliflix AI Guidance';
+      const citation = res?.data?.citation || res?.citation || 'GeM Compliance Platform Knowledge';
+      const isDownstreamErrorOrInsufficient =
+        !answerText ||
+        typeof answerText !== 'string' ||
+        answerText.includes('downstream RAG service error') ||
+        answerText.includes('Unable to generate AI response') ||
+        answerText.includes('tenderId is required') ||
+        answerText.includes('bidderId is required') ||
+        answerText.includes('None of the available sources') ||
+        answerText.includes('insufficient to answer your question');
+
+      if (!isDownstreamErrorOrInsufficient) {
         const botResponse = {
           id: `bot-${Date.now()}`,
           sender: 'bot',
-          title: 'GeM AI Compliance Assessment',
+          title,
           text: answerText,
-          citation: 'Official GeM Policy Context',
-          confidence: 'Verified Policy',
+          citation,
+          confidence,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
         setMessages((prev) => [...prev, botResponse]);
@@ -159,42 +503,28 @@ const ChatBox = ({
         return;
       }
     } catch (err) {
-      console.warn('ChatBox /api/officer/tenders/chat fallback:', err?.message || err);
+      console.warn('GeM Compliflix AI backend call fallback:', err?.message || err);
     }
 
-    // 2. Graceful Fallback to local regulatory knowledge base
+    // 2. Resilient Fallback to Local Knowledge Engine
     setTimeout(() => {
-      const qLower = query.toLowerCase();
-      const match = KNOWLEDGE_BASE.find((k) =>
-        k.keywords.some((kw) => qLower.includes(kw))
-      );
+      const resolved = resolveLocalCopilotKnowledge(query, {
+        bidderId: targetBidderId,
+      });
 
-      let botResponse;
-      if (match) {
-        botResponse = {
-          id: `bot-${Date.now()}`,
-          sender: 'bot',
-          title: match.title,
-          text: match.text,
-          citation: match.citation,
-          confidence: match.confidence,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        };
-      } else {
-        botResponse = {
-          id: `bot-${Date.now()}`,
-          sender: 'bot',
-          title: `GeM Regulatory Search: "${query}"`,
-          text: `Based on current GeM General Terms and Conditions (GTC) and CVC Operating Manual, verified compliance criteria indicates parameters for "${query}" require standard statutory verification against active vendor documents. No adverse blacklisting flags found.`,
-          citation: 'GeM GTC v4.0 Guidelines',
-          confidence: 'Verified Standards',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        };
-      }
+      const botResponse = {
+        id: `bot-${Date.now()}`,
+        sender: 'bot',
+        title: resolved.title,
+        text: resolved.text,
+        citation: resolved.citation,
+        confidence: resolved.confidence,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
 
       setMessages((prev) => [...prev, botResponse]);
       setIsTyping(false);
-    }, 450);
+    }, 350);
   };
 
   if (!isOpen) return null;
@@ -218,7 +548,7 @@ const ChatBox = ({
             <Bot className="w-4 h-4 text-emerald-300" />
             <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
           </div>
-          <span>AI Compliance Assistant</span>
+          <span>GeM Compliflix AI</span>
           <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full font-bold">
             {messages.length}
           </span>
@@ -232,7 +562,7 @@ const ChatBox = ({
               : 'w-[94vw] sm:w-[440px] h-[580px] max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 font-sans'
           }
         >
-          {/* Clean Header */}
+          {/* Header */}
           <div className="px-4 py-3 bg-gradient-to-r from-[#0d1e3d] via-[#073567] to-indigo-900 text-white flex items-center justify-between shadow-md select-none shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-xs text-emerald-300 border border-white/15">
@@ -240,7 +570,7 @@ const ChatBox = ({
               </div>
               <div className="leading-tight">
                 <div className="flex items-center gap-1.5">
-                  <h3 className="text-xs font-bold tracking-tight">GeM AI Compliance Assistant</h3>
+                  <h3 className="text-xs font-bold tracking-tight">GeM Compliflix AI</h3>
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   {isFullscreen && (
                     <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/15 text-emerald-300 font-medium">
@@ -249,7 +579,7 @@ const ChatBox = ({
                   )}
                 </div>
                 <p className="text-[10.5px] text-slate-300 font-medium">
-                  Government of India • Procurement &amp; Policy Intelligence
+                  Your AI copilot for navigating the GeM Compliance Platform
                 </p>
               </div>
             </div>
@@ -295,8 +625,29 @@ const ChatBox = ({
             </div>
           </div>
 
+          {/* Active Context Banner */}
+          <div className="px-4 py-1.5 bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between text-[10.5px] text-slate-500 dark:text-slate-400 shrink-0">
+            <div className="flex items-center gap-1.5 truncate">
+              <Compass className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+              <span className="font-semibold text-slate-700 dark:text-slate-300 capitalize">
+                Tab: {activeTab}
+              </span>
+              {selectedTenderId && (
+                <span className="truncate">
+                  • Tender: <span className="font-mono text-slate-700 dark:text-slate-300">{selectedTenderId}</span>
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200/50 dark:border-indigo-800/40">
+              Copilot Active
+            </span>
+          </div>
+
           {/* Messages Area */}
-          <div data-lenis-prevent="true" className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 bg-slate-50/50 dark:bg-slate-950/40 text-xs sm:text-sm">
+          <div
+            data-lenis-prevent="true"
+            className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 bg-slate-50/50 dark:bg-slate-950/40 text-xs sm:text-sm"
+          >
             <div className={isFullscreen ? 'max-w-4xl mx-auto space-y-4' : 'space-y-3.5'}>
               {messages.map((msg) => (
                 <div
@@ -404,7 +755,7 @@ const ChatBox = ({
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about tender rules, clauses, compliance, eligibility..."
+                placeholder="Ask GeM Compliflix AI about tenders, workflows, compliance, or troubleshooting..."
                 className="flex-1 px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
               />
               <button

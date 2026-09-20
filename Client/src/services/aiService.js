@@ -331,7 +331,7 @@ export const askBidderTenderAI = async ({ tenderId, query, tender: propTender, t
  */
 export const askOfficerBidderDocumentAI = async ({ tenderId, bidderId, query }) => {
   const cleanTenderId = normalizeTenderId(tenderId);
-  const cleanBidderId = String(bidderId ?? '').trim() || 'BID-007';
+  const cleanBidderId = bidderId ? String(bidderId).trim() : null;
   const cleanQuery = String(query ?? '').trim();
 
   if (!cleanTenderId) {
@@ -343,9 +343,11 @@ export const askOfficerBidderDocumentAI = async ({ tenderId, bidderId, query }) 
 
   const payload = {
     tenderId: cleanTenderId,
-    bidderId: cleanBidderId,
     query: cleanQuery,
   };
+  if (cleanBidderId) {
+    payload.bidderId = cleanBidderId;
+  }
 
   try {
     return await api.post('/ai/bidder-tender-chat/ask', payload);
@@ -382,7 +384,7 @@ export const compareBiddersAI = async ({ tenderId, bidderIds = [], query = '' })
       tenderId: payload.tenderId,
       bidderCount: payload.bidderIds.length,
       verdict: 'COMPARISON_COMPLETE',
-      recommendedBidder: payload.bidderIds[0] || 'BID-007',
+      recommendedBidder: payload.bidderIds[0] || null,
       analysis: `Evaluated ${payload.bidderIds.length} candidate bidders against Tender specifications. Verified statutory GST filings, PyHanko DSC signatures, and GFR 144 compliance across the candidate pool.`,
       comparativeMatrix: payload.bidderIds.map((bid, idx) => ({
         bidderId: bid,

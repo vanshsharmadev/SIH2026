@@ -352,7 +352,7 @@ export const tenderService = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════
-  //  3.5a — Officer Specific-Tender AI Chatbot
+  //  3.5a — Officer Specific-Tender AI Chatbot (Contextual)
   //  POST /api/officer/tenders/:tenderId/chat
   //  Headers: Authorization: Bearer <officer_token>
   //  Body: { tenderId, bidderId, query }
@@ -360,9 +360,11 @@ export const tenderService = {
   officerTenderChatById: async (tenderId, { bidderId, query }) => {
     const payload = {
       tenderId: String(tenderId),
-      bidderId: bidderId ? String(bidderId) : 'BID-007',
       query: String(query || '').trim(),
     };
+    if (bidderId) {
+      payload.bidderId = String(bidderId);
+    }
     try {
       return await api.post(`/officer/tenders/${tenderId}/chat`, payload);
     } catch (err) {
@@ -374,34 +376,49 @@ export const tenderService = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════
-  //  3.5b — Officer General AI Chatbot
-  //  POST /api/officer/tenders/chat
+  //  3.5b — GeM Compliflix AI Platform Copilot & General Chatbot
+  //  POST /api/officer/tenders/chat or /api/ai/copilot/ask
   //  Headers: Authorization: Bearer <officer_token>
-  //  Body: { tenderId: "1" | "TND-001", bidderId: "BID-007", query: "..." }
+  //  Body: { query, tenderId?, bidderId?, context? }
   // ═══════════════════════════════════════════════════════════════════════
-  officerTenderChat: async ({ tenderId, bidderId, query }) => {
+  officerPlatformCopilotChat: async ({ query, context = {} }) => {
+    const payload = {
+      query: String(query || '').trim(),
+      context: {
+        activeMenu: context.activeMenu || context.activeTab || 'dashboard',
+        tenderId: context.tenderId || null,
+        bidderId: context.bidderId || null,
+        role: context.role || 'OFFICER',
+      },
+    };
+    if (context.tenderId) payload.tenderId = String(context.tenderId);
+    if (context.bidderId) payload.bidderId = String(context.bidderId);
+
+    // Call official Spring Boot backend endpoint (POST /api/officer/tenders/chat)
+    return await api.post('/officer/tenders/chat', payload);
+  },
+
+  officerTenderChat: async ({ tenderId, bidderId, query, context }) => {
     const payload = {
       query: String(query || '').trim(),
     };
-    if (tenderId && tenderId !== '1') {
+    if (tenderId && tenderId !== '1' && tenderId !== 'all') {
       payload.tenderId = String(tenderId);
     }
     if (bidderId && bidderId !== 'BID-007') {
       payload.bidderId = String(bidderId);
     }
-    try {
-      if (payload.tenderId) {
-        try {
-          return await api.post(`/officer/tenders/${payload.tenderId}/chat`, payload);
-        } catch {
-          // fallback to general endpoint
-        }
-      }
-      return await api.post('/officer/tenders/chat', payload);
-    } catch (err) {
-      // Direct RAG service fallback
-      return await api.post('/ai/bidder-tender-chat/ask', payload);
+    if (context) {
+      payload.context = context;
     }
+    if (payload.tenderId) {
+      try {
+        return await api.post(`/officer/tenders/${payload.tenderId}/chat`, payload);
+      } catch {
+        // Fallback to general endpoint
+      }
+    }
+    return await api.post('/officer/tenders/chat', payload);
   },
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -425,7 +442,10 @@ export const tenderService = {
   //  Auth: Public (permitAll)
   // ═══════════════════════════════════════════════════════════════════════
   getTopBiddersForTender: async (tenderId, limit = 10) => {
-    const cleanTenderId = String(tenderId ?? '').trim() || '1';
+    const cleanTenderId = String(tenderId ?? '').trim();
+    if (!cleanTenderId) {
+      return { tenderId: null, topRecommendedBidder: null, evaluationSummary: null, topBidders: [] };
+    }
     try {
       const res = await api.get(`/officer/tenders/${cleanTenderId}/top-bidders`, {
         params: { limit },
