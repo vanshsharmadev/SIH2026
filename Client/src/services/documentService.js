@@ -688,6 +688,35 @@ export const documentService = {
       submittedAt: new Date().toISOString(),
     };
 
+    // Primary: Post to Backend API
+    let serverSubmission = null;
+    try {
+      const apiPayload = {
+        tenderId: applicationPayload.tenderReferenceNo || applicationPayload.tenderId || 'GeM/2026/B/8912',
+        tenderTitle: applicationPayload.tenderTitle || 'Government Procurement Tender',
+        department: applicationPayload.department || 'Public Works Department',
+        bidderId: applicationPayload.bidderId || undefined,
+        bidderName: applicationPayload.bidderName || applicationPayload.companyName || 'Registered Bidder',
+        companyName: applicationPayload.companyName || applicationPayload.bidderName || 'Registered Bidder Corp',
+        complianceScore: score,
+        complianceStatus: complianceStatus,
+        quotedAmount: applicationPayload.quotedAmount || '₹ 48,50,000',
+        docCount: (applicationPayload.documents || []).length,
+        documents: applicationPayload.documents || [],
+        vaultDocuments: applicationPayload.vaultDocuments || [],
+        requirementsBreakdown: applicationPayload.requirementsBreakdown || [],
+        officerRemarks: null,
+      };
+      serverSubmission = await api.post('/bidder/documents/submit-bid', apiPayload);
+      if (serverSubmission && (serverSubmission.data || serverSubmission.id)) {
+        const data = serverSubmission.data || serverSubmission;
+        officerSubmission.id = data.formattedId || data.id || submissionId;
+        officerSubmission.serverPersisted = true;
+      }
+    } catch (apiErr) {
+      console.warn('Backend server submit-bid failed, saving locally:', apiErr?.message || apiErr);
+    }
+
     try {
       const storedBidderApps = JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
       const updatedBidderApps = [
@@ -727,7 +756,72 @@ export const documentService = {
       console.warn('Storage sync note in submitTenderApplication:', e);
     }
 
-    return { success: true, bidderApp, officerSubmission };
+    return { success: true, bidderApp, officerSubmission, serverSubmission };
+  },
+
+  /**
+   * Fetch real-time submissions for the authenticated bidder from backend
+   */
+  getMyBids: async () => {
+    try {
+      const res = await api.get('/bidder/documents/my-bids');
+      const list = Array.isArray(res?.data?.data) ? res.data.data : (Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : null));
+      if (Array.isArray(list)) {
+        return list;
+      }
+    } catch (err) {
+      console.warn('Backend getMyBids error, falling back to local store:', err?.message || err);
+    }
+    try {
+      return JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Fetch all real-time bid submissions across tenders for Officer Dashboard
+   */
+  getAllSubmissions: async () => {
+    try {
+      const res = await api.get('/officer/tenders/submissions');
+      const list = Array.isArray(res?.data?.data) ? res.data.data : (Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []));
+      if (Array.isArray(list)) {
+        return list;
+      }
+    } catch (err) {
+      console.warn('Backend getAllSubmissions error, falling back to unified local store:', err?.message || err);
+    }
+    return null;
+  },
+
+  /**
+   * Fetch real-time submissions for a specific tender
+   */
+  getSubmissionsByTender: async (tenderId) => {
+    try {
+      const res = await api.get(`/officer/tenders/${encodeURIComponent(tenderId)}/submissions`);
+      const list = Array.isArray(res?.data?.data) ? res.data.data : (Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []));
+      if (Array.isArray(list)) {
+        return list;
+      }
+    } catch (err) {
+      console.warn('Backend getSubmissionsByTender error:', err?.message || err);
+    }
+    return [];
+  },
+
+  /**
+   * Update officer evaluation verdict & remarks
+   */
+  evaluateSubmission: async (subId, verdict, remarks) => {
+    try {
+      const res = await api.put(`/officer/tenders/submissions/${subId}/evaluate`, { verdict, remarks });
+      return res?.data?.data || res?.data || res;
+    } catch (err) {
+      console.warn('Backend evaluateSubmission error:', err?.message || err);
+      return null;
+    }
   },
 };
 

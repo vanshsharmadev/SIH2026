@@ -158,6 +158,14 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/officer/tenders"
+        element={
+          <OfficerRoute>
+            <Dashboard defaultTab="tenders" />
+          </OfficerRoute>
+        }
+      />
+      <Route
         path="/officer/upload-extract"
         element={
           <OfficerRoute>
@@ -186,6 +194,14 @@ const AppRoutes = () => {
         element={
           <OfficerRoute>
             <Dashboard />
+          </OfficerRoute>
+        }
+      />
+      <Route
+        path="/dashboard/tenders"
+        element={
+          <OfficerRoute>
+            <Dashboard defaultTab="tenders" />
           </OfficerRoute>
         }
       />

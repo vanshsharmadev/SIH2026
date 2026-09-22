@@ -37,195 +37,6 @@ import { tenderService, mlService, recordAuditLog, processTenderPdf } from '../.
 import { useAuth } from '../../context';
 import { isOfficerUser } from '../../utils/roleUtils';
 
-// -----------------------------------------------------------------------------
-// SAMPLE PRESET OFFICIAL RFP SPECIFICATIONS (For Instant 1-Click Interactive Demo)
-// -----------------------------------------------------------------------------
-const SAMPLE_RFP_PRESETS = [
-  {
-    id: 'sample-networking',
-    title: 'Procurement of High-Capacity Enterprise Core Switches & 100G Optical Transceivers',
-    referenceNo: 'GEM/2026/B/7168476',
-    department: 'Ministry of Electronics & Information Technology (MeitY)',
-    ministry: 'Government of India',
-    location: 'National Data Centre (NDC), New Delhi & Pune Hub',
-    category: 'Information Technology & Networking Hardware',
-    documentType: 'technical_specs',
-    value: '₹ 4,85,00,000 (₹ 4.85 Cr)',
-    estimatedValue: '48500000',
-    emdAmount: '₹ 9,70,000 (2% of Est. Value)',
-    daysLeft: 21,
-    closingDays: 21,
-    description: 'Turnkey supply, installation, testing and 5-year 24x7 SLA commissioning of High-Density 100G Backbone Layer-3 Core Switches with Redundant Power Supplies, GFR 144(xi) Land Border compliance, and mandatory Make in India Class-I local content.',
-    fileName: 'MeitY_Enterprise_Switch_RFP_2026_v2.pdf',
-    fileSizeMB: '4.8 MB',
-    authenticityScore: 99,
-    rawOcrText: `GOVERNMENT OF INDIA — MINISTRY OF ELECTRONICS & IT (MeitY)
-TENDER NOTICE REF: GEM/2026/B/7168476 | DATE: 20-MAR-2026
-SECTION I — INVITATION FOR BIDS (IFB):
-Procurement of Enterprise Core Backbone Switches with 48x25G SFP28 and 8x100G QSFP28 Uplinks.
-1. ELIGIBILITY CRITERIA:
-   (a) GFR 2017 Rule 144(xi): Bidder from countries sharing a land border with India must be registered with DPIIT Competent Authority.
-   (b) Public Procurement (Preference to Make in India) Order 2017: Minimum 50% Local Content mandatory for Class-I Local Supplier status.
-   (c) Financial Turnover: Average annual audited turnover of bidder during last 3 financial years (2022-23, 2023-24, 2024-25) must be >= ₹ 1.50 Crore.
-   (d) Past Experience: Satisfactorily completed at least 3 similar enterprise networking projects in Central/State PSUs or Defence.
-   (e) MSME / Startup Exemption: Prior turnover & experience criteria relaxed for valid DPIIT-recognized Startups / Udyam MSMEs as per Rule 173(i) GFR 2017.
-2. SUBMISSION DEADLINE: 21 Days from publication date. EMD: ₹ 9,70,000 via e-PBG or MSME Exemption Certificate.`,
-    extractedRules: {
-      gfr144xi: {
-        status: 'Mandatory Land Border Declaration Required',
-        passed: true,
-        clause: 'Rule 144(xi) DPIIT Registration / Annexure-I Declaration mandatory.',
-        risk: 'LOW_RISK',
-      },
-      miiContent: {
-        status: 'Class-I Local Supplier (>= 50% Local Content)',
-        percentage: 50,
-        clause: 'PPP-MII Order 2017 compliant self-certificate with Tier-1 OEM verification required.',
-        risk: 'LOW_RISK',
-      },
-      msmeRelaxation: {
-        status: 'MSME & Startup Prior Experience Waiver Active',
-        clause: 'GFR 2017 Rule 173(i) exemption applicable for valid Udyam & DPIIT startups.',
-        waiverAllowed: true,
-      },
-      financialTurnover: {
-        status: 'Min. Average Turnover: ₹ 1.50 Cr (Last 3 FYs)',
-        clause: 'Audited balance sheet with CA UDIN certification required.',
-      },
-      pastExperience: {
-        status: '3 Similar Completed Deployments in Last 5 Years',
-        clause: 'Client work completion certificates with scope matching RFP.',
-      },
-      warrantySla: {
-        status: '5 Years Comprehensive On-site 24x7 SLA',
-        clause: 'OEM Authorization Form (MAF) with MTBF >= 250,000 hours.',
-      },
-    },
-  },
-  {
-    id: 'sample-medical',
-    title: 'Supply and Multi-Year AMC of ICU High-Frequency Mechanical Ventilators',
-    referenceNo: 'GEM/2026/B/8942103',
-    department: 'Ministry of Health and Family Welfare (MoHFW)',
-    ministry: 'Government of India',
-    location: 'AIIMS New Delhi, Rishikesh, and Bhopal Medical Centres',
-    category: 'Healthcare & Specialized Medical Equipment',
-    documentType: 'boq_schedule',
-    value: '₹ 12,50,00,000 (₹ 12.50 Cr)',
-    estimatedValue: '125000000',
-    emdAmount: '₹ 25,00,000 (2% of Est. Value)',
-    daysLeft: 18,
-    closingDays: 18,
-    description: 'Procurement of 120 units of Advanced ICU Invasive & Non-Invasive Mechanical Ventilators with Integrated High-Flow Oxygen Therapy, CDSCO/US-FDA/CE certification, and 5-year Comprehensive Maintenance Contract (CMC).',
-    fileName: 'MoHFW_ICU_Ventilators_NIT_2026_Final.pdf',
-    fileSizeMB: '6.2 MB',
-    authenticityScore: 98,
-    rawOcrText: `MINISTRY OF HEALTH AND FAMILY WELFARE — AIIMS PROCUREMENT CELL
-GLOBAL TENDER ENQUIRY REF: GEM/2026/B/8942103
-TECHNICAL SPECIFICATION AND MANDATORY STATUTORY SCHEDULE:
-1. STATUTORY STANDARDS:
-   - CDSCO Medical Device License & ISO 13485 Manufacturing Compliance.
-   - GFR 144(xi) Land Border Compliance: Mandatory Annexure-B Declaration.
-   - MII Order: Class-I Local Supplier (>= 50%) or Class-II Local Supplier (>= 20%).
-2. FINANCIAL & PAST WORK QUALIFICATIONS:
-   - Average Annual Turnover >= ₹ 4.00 Crore in medical devices supply during preceding 3 fiscal years.
-   - At least 2 supply orders of minimum 40 ventilators each to AIIMS, PGI, or Central Govt Hospitals.
-3. WARRANTY & CMC:
-   - 3 Years Standard Warranty followed by 5 Years CMC with 98% uptime guarantee.`,
-    extractedRules: {
-      gfr144xi: {
-        status: 'Mandatory Annexure-B Land Border Clearance',
-        passed: true,
-        clause: 'National Security screening for imported medical controller firmware.',
-        risk: 'LOW_RISK',
-      },
-      miiContent: {
-        status: 'Class-I / Class-II Supplier (>= 50% or >= 20%)',
-        percentage: 50,
-        clause: 'Indigenously assembled respiratory flow sensors and display chassis.',
-        risk: 'LOW_RISK',
-      },
-      msmeRelaxation: {
-        status: 'MSME EMD Exemption Only (Quality Standards Non-Relaxable)',
-        clause: 'Medical patient safety standards cannot be compromised under GFR 173(i).',
-        waiverAllowed: false,
-      },
-      financialTurnover: {
-        status: 'Min. Average Turnover: ₹ 4.00 Cr',
-        clause: 'Audited CA statement and positive net worth for all 3 years.',
-      },
-      pastExperience: {
-        status: '2 Contracts of >= 40 Ventilator Units Installed',
-        clause: 'Satisfactory performance report from Hospital Biomedical Superintendent.',
-      },
-      warrantySla: {
-        status: '3 Years Warranty + 5 Years CMC (98% Uptime SLA)',
-        clause: 'Max 4-hour breakdown response time with loaner unit backup.',
-      },
-    },
-  },
-  {
-    id: 'sample-solar',
-    title: 'Engineering, Procurement & Commissioning (EPC) of 50MW Ground-Mounted Solar PV Substation',
-    referenceNo: 'GEM/2026/B/5519804',
-    department: 'Ministry of New and Renewable Energy (MNRE)',
-    ministry: 'Government of India',
-    location: 'Bhadla Solar Park, Jodhpur District, Rajasthan',
-    category: 'Renewable Energy & Power Grid Works',
-    documentType: 'other',
-    value: '₹ 64,80,00,000 (₹ 64.80 Cr)',
-    estimatedValue: '648000000',
-    emdAmount: '₹ 1,29,60,000 (2% of Est. Value)',
-    daysLeft: 30,
-    closingDays: 30,
-    description: 'Turnkey EPC contract for 50MW (AC) Grid-Connected Solar Photovoltaic Power Plant including 132kV Pooling Substation, ALMM Approved Mono-PERC Bifacial Solar PV Modules, SCADA telemetry, and 10-year Operation & Maintenance (O&M).',
-    fileName: 'MNRE_50MW_Solar_EPC_RFP_Specification.pdf',
-    fileSizeMB: '11.4 MB',
-    authenticityScore: 100,
-    rawOcrText: `MINISTRY OF NEW AND RENEWABLE ENERGY (MNRE) — SOLAR EPC CELL
-RFP SPECIFICATION DOCUMENT NO: GEM/2026/B/5519804
-1. MANDATORY GOVT NOTIFICATIONS:
-   - ALMM (Approved List of Models and Manufacturers) Listed Tier-1 PV Modules only.
-   - GFR 2017 Rule 144(xi): Strict Land Border restriction compliance.
-   - PPP-MII Local Content: Minimum 60% Class-I Local Content for Solar Cells & Inverters.
-2. QUALIFYING REQUIREMENTS (QR):
-   - Net worth as of last day of previous financial year must be >= ₹ 20.00 Crore.
-   - Cumulative EPC experience of executing >= 30MW solar power plants in last 7 years.
-   - Valid CEA / Grid Interconnection compliance certificates.`,
-    extractedRules: {
-      gfr144xi: {
-        status: 'Mandatory DPIIT Certificate for Inverter Firmware',
-        passed: true,
-        clause: 'Stringent cyber-security grid isolation verification required.',
-        risk: 'LOW_RISK',
-      },
-      miiContent: {
-        status: 'Class-I Local Supplier (>= 60% Solar ALMM)',
-        percentage: 60,
-        clause: 'Domestic solar cell sourcing declaration as per MNRE ALMM order.',
-        risk: 'LOW_RISK',
-      },
-      msmeRelaxation: {
-        status: 'High-Value Infrastructure (No Turnkey Waiver)',
-        clause: 'Turnkey grid EPC requires mandatory technical qualification proof.',
-        waiverAllowed: false,
-      },
-      financialTurnover: {
-        status: 'Positive Net Worth >= ₹ 20.00 Cr',
-        clause: 'Bank Solvency certificate >= ₹ 15.00 Cr required.',
-      },
-      pastExperience: {
-        status: '>= 30MW Grid-Tied Solar EPC Executed',
-        clause: 'Discom commissioning certificates & COD reports.',
-      },
-      warrantySla: {
-        status: '25-Year PV Output Degradation Guarantee + 10-Year O&M',
-        clause: 'Linear degradation not exceeding 0.55%/year after Year-1.',
-      },
-    },
-  },
-];
-
 const OfficerUploadExtractView = ({
   onBackToDashboard,
   onOpenCompliance,
@@ -305,28 +116,6 @@ const OfficerUploadExtractView = ({
     setReferenceNo(`GEM/2026/B/${Math.floor(1000000 + Math.random() * 9000000)}`);
   };
 
-  // Load a Sample Preset RFP
-  const handleApplyPreset = (preset) => {
-    setSelectedFile({
-      name: preset.fileName,
-      size: parseFloat(preset.fileSizeMB) * 1024 * 1024,
-      isPreset: true,
-      presetData: preset,
-    });
-    setTenderTitle(preset.title);
-    setReferenceNo(preset.referenceNo);
-    setDepartment(preset.department);
-    setLocation(preset.location);
-    setCategory(preset.category || 'Computers & IT Equipment');
-    setDocumentType(preset.documentType || 'technical_specs');
-    setEstimatedValue(preset.estimatedValue);
-    setEmdAmount(preset.emdAmount);
-    setClosingDays(preset.closingDays);
-    setDescription(preset.description);
-    setExtractionResult(null);
-    setProcessLogs([]);
-  };
-
   // Handle Real File Selection
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -344,7 +133,7 @@ const OfficerUploadExtractView = ({
   const handleRunExtraction = async (e) => {
     e?.preventDefault();
     if (!selectedFile && !tenderTitle) {
-      alert('Please upload a tender PDF/DOCX or select a sample preset RFP.');
+      alert('Please upload a tender PDF/DOCX specification document.');
       return;
     }
 
@@ -359,9 +148,6 @@ const OfficerUploadExtractView = ({
       ]);
     };
 
-    const isPreset = selectedFile?.isPreset;
-    const presetData = selectedFile?.presetData;
-
     const computedEstValueFormatted = estimatedValue
       ? `₹ ${Number(estimatedValue).toLocaleString('en-IN')}`
       : '₹ 4,85,00,000';
@@ -369,9 +155,7 @@ const OfficerUploadExtractView = ({
       ? (String(emdAmount).includes('₹') ? emdAmount : `₹ ${Number(emdAmount).toLocaleString('en-IN')}`)
       : '₹ 9,70,00,000';
 
-    const fileUrl = isPreset
-      ? `https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/tenders/${encodeURIComponent(selectedFile.name)}`
-      : `https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/tenders/${encodeURIComponent(selectedFile?.name || 'tender_notice.pdf')}`;
+    const fileUrl = `https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/tenders/${encodeURIComponent(selectedFile?.name || 'tender_notice.pdf')}`;
 
     // 1. Instantly register in portal database so bidders can discover and apply immediately
     const immediateTender = {
@@ -430,33 +214,45 @@ const OfficerUploadExtractView = ({
     } catch {}
 
     try {
-      // Stage 1: Cloudinary Storage & 256-bit Encryption
+      // Stage 1: Cloudinary Storage & Spring Boot Upload
       setProcessStage(1);
-      logStep(`[Storage] Initializing secure 256-bit SHA-256 encrypted storage on GeM Cloudinary Vault...`);
-      await new Promise((r) => setTimeout(r, 600));
-      logStep(`[Storage] Document payload "${selectedFile?.name || 'Tender_RFP.pdf'}" stored at secure CDN link.`);
+      logStep(`[Storage] Transmitting document to Spring Boot & Cloudinary Vault...`);
+      let backendUpload = null;
+      if (selectedFile) {
+        try {
+          const upRes = await tenderService.uploadTenderDocument(selectedFile, {
+            title: tenderTitle || selectedFile.name.replace(/\.[^/.]+$/, ''),
+            description: description || `Official tender notice for ${tenderTitle}`,
+            documentType: documentType || 'other',
+          });
+          backendUpload = upRes?.data?.data || upRes?.data || upRes;
+          logStep(`[Storage] Persisted in database with Tender ID: ${backendUpload?.id || 'Registered'}`);
+        } catch (upErr) {
+          logStep(`[Storage Notice] Upload API: ${upErr?.message || 'Offline mode'}`);
+        }
+      } else {
+        await new Promise((r) => setTimeout(r, 300));
+        logStep(`[Storage] Document payload "${selectedFile?.name || 'Tender_RFP.pdf'}" processed.`);
+      }
 
       // Stage 2: Deep OCR Text Digitization
       setProcessStage(2);
       logStep(`[OCR Engine] Scanning document pages via EasyOCR / Tesseract high-resolution engine...`);
-      await new Promise((r) => setTimeout(r, 700));
+      await new Promise((r) => setTimeout(r, 400));
       logStep(`[OCR Engine] Multi-page text streams & tabular BOQ rows digitized (100% fidelity).`);
 
       // Stage 3: pyHanko Digital Signature & Anti-Tampering Check
       setProcessStage(3);
       logStep(`[Forensics] Executing pyHanko cryptographic hash & Class-3 DSC verification...`);
-      await new Promise((r) => setTimeout(r, 600));
+      await new Promise((r) => setTimeout(r, 300));
       logStep(`[Forensics] Digital signature valid. Anti-tampering check: 0 anomalies detected.`);
 
       // Stage 4: 6-Pillar GFR 2017 & Make In India Rule Extraction
       setProcessStage(4);
       logStep(`[AI Parser] Extracting GFR 2017 Rule 144(xi), PPP-MII Local Content %, and MSME relaxation...`);
-      await new Promise((r) => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, 400));
 
       // Build Result Object
-      const isPreset = selectedFile?.isPreset;
-      const presetData = selectedFile?.presetData;
-
       const computedEstValueFormatted = estimatedValue
         ? `₹ ${Number(estimatedValue).toLocaleString('en-IN')}`
         : '₹ 4,85,00,000';
@@ -464,51 +260,47 @@ const OfficerUploadExtractView = ({
         ? (String(emdAmount).includes('₹') ? emdAmount : `₹ ${Number(emdAmount).toLocaleString('en-IN')}`)
         : '₹ 9,70,000';
 
-      const fileUrl = isPreset
-        ? `https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/tenders/${encodeURIComponent(selectedFile.name)}`
-        : `https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/tenders/${encodeURIComponent(selectedFile?.name || 'tender_notice.pdf')}`;
+      const fileUrl = backendUpload?.fileUrl || `https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/tenders/${encodeURIComponent(selectedFile?.name || 'tender_notice.pdf')}`;
 
-      const rawOcr = isPreset
-        ? presetData.rawOcrText
-        : `GOVERNMENT OF INDIA — PROCUREMENT NOTICE\nREF: ${referenceNo} | DEPARTMENT: ${department}\n\n1. SCOPE OF WORK:\n${description || tenderTitle}\n\n2. ELIGIBILITY & GFR 2017 COMPLIANCE:\n- GFR 2017 Rule 144(xi): Mandatory DPIIT Land Border declaration required.\n- Public Procurement (Preference to Make in India) Order 2017: Class-I Local Supplier (>= 50% Local Content).\n- MSME / Startup Exemption: Prior turnover & experience criteria relaxed for valid Udyam & DPIIT startups under GFR 173(i).\n\n3. CONTRACT VALUE & EMD:\n- Estimated Value: ${computedEstValueFormatted}\n- EMD Security: ${computedEmdFormatted}\n- Submission Window: ${closingDays} Days from publication.`;
+      const rawOcr = backendUpload?.rawOcrText || `GOVERNMENT OF INDIA — PROCUREMENT NOTICE\nREF: ${referenceNo} | DEPARTMENT: ${department}\n\n1. SCOPE OF WORK:\n${description || tenderTitle}\n\n2. ELIGIBILITY & GFR 2017 COMPLIANCE:\n- GFR 2017 Rule 144(xi): Mandatory DPIIT Land Border declaration required.\n- Public Procurement (Preference to Make in India) Order 2017: Class-I Local Supplier (>= 50% Local Content).\n- MSME / Startup Exemption: Prior turnover & experience criteria relaxed for valid Udyam & DPIIT startups under GFR 173(i).\n\n3. CONTRACT VALUE & EMD:\n- Estimated Value: ${computedEstValueFormatted}\n- EMD Security: ${computedEmdFormatted}\n- Submission Window: ${closingDays} Days from publication.`;
 
-      const extractedRules = isPreset
-        ? presetData.extractedRules
-        : {
-            gfr144xi: {
-              status: 'Mandatory DPIIT Land Border Declaration',
-              passed: true,
-              clause: 'Rule 144(xi) Annexure-I/II declaration mandatory for all bidders.',
-              risk: 'LOW_RISK',
-            },
-            miiContent: {
-              status: 'Class-I Local Supplier (>= 50% Local Content)',
-              percentage: 50,
-              clause: 'Self-certification with local value addition breakdown required.',
-              risk: 'LOW_RISK',
-            },
-            msmeRelaxation: {
-              status: 'MSME & Startup Prior Experience Waiver Active',
-              clause: 'Rule 173(i) GFR 2017 exemption active for verified MSME / Startups.',
-              waiverAllowed: true,
-            },
-            financialTurnover: {
-              status: `Annual Turnover >= 30% of Tender Value (${computedEstValueFormatted})`,
-              clause: 'Audited balance sheet and CA UDIN certificate mandatory.',
-            },
-            pastExperience: {
-              status: '3 Similar Works in Past 5 Years',
-              clause: 'Satisfactory completion certificates from procuring entities.',
-            },
-            warrantySla: {
-              status: '3 to 5 Years Comprehensive On-site SLA',
-              clause: 'OEM warranty authorization form and local support presence.',
-            },
-          };
+      const extractedRules = {
+        gfr144xi: {
+          status: 'Mandatory DPIIT Land Border Declaration',
+          passed: true,
+          clause: 'Rule 144(xi) Annexure-I/II declaration mandatory for all bidders.',
+          risk: 'LOW_RISK',
+        },
+        miiContent: {
+          status: 'Class-I Local Supplier (>= 50% Local Content)',
+          percentage: 50,
+          clause: 'Self-certification with local value addition breakdown required.',
+          risk: 'LOW_RISK',
+        },
+        msmeRelaxation: {
+          status: 'MSME & Startup Prior Experience Waiver Active',
+          clause: 'Rule 173(i) GFR 2017 exemption active for verified MSME / Startups.',
+          waiverAllowed: true,
+        },
+        financialTurnover: {
+          status: `Annual Turnover >= 30% of Tender Value (${computedEstValueFormatted})`,
+          clause: 'Audited balance sheet and CA UDIN certificate mandatory.',
+        },
+        pastExperience: {
+          status: '3 Similar Works in Past 5 Years',
+          clause: 'Satisfactory completion certificates from procuring entities.',
+        },
+        warrantySla: {
+          status: '3 to 5 Years Comprehensive On-site SLA',
+          clause: 'OEM warranty authorization form and local support presence.',
+        },
+      };
 
       const resultObj = {
         title: tenderTitle || (selectedFile ? selectedFile.name.replace(/\.[^/.]+$/, '') : 'Tender Specification'),
-        referenceNo,
+        id: backendUpload?.id ? String(backendUpload.id) : referenceNo,
+        referenceNo: backendUpload?.id ? (String(backendUpload.id).startsWith('GEM/') ? String(backendUpload.id) : `GEM/2026/B/${backendUpload.id}`) : referenceNo,
+        tenderId: backendUpload?.id ? (String(backendUpload.id).startsWith('GEM/') ? String(backendUpload.id) : `GEM/2026/B/${backendUpload.id}`) : referenceNo,
         department,
         ministry: 'Government of India',
         location,
@@ -524,7 +316,7 @@ const OfficerUploadExtractView = ({
         fileName: selectedFile?.name || 'Tender_Document.pdf',
         fileSize: selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : '4.50 MB',
         fileUrl,
-        authenticityScore: isPreset ? presetData.authenticityScore : 99,
+        authenticityScore: backendUpload?.authenticityScore ? Math.round(backendUpload.authenticityScore) : 99,
         sourceType: 'TENDER',
         miiRequirement: 'Class-I (>= 50% Local Content)',
         eligibilityCriteria: [
@@ -544,12 +336,12 @@ const OfficerUploadExtractView = ({
       // Stage 5: National Procurement Portal Auto-Registration
       setProcessStage(5);
       if (enableAutoRegister) {
-        logStep(`[Registry] Registering tender ${referenceNo} in GeM National Procurement Registry...`);
+        logStep(`[Registry] Registering tender ${resultObj.referenceNo} in GeM National Procurement Registry...`);
         
         const newRegisteredTender = {
-          id: resultObj.referenceNo,
+          id: resultObj.id,
           referenceNo: resultObj.referenceNo,
-          tenderId: resultObj.referenceNo,
+          tenderId: resultObj.tenderId,
           title: resultObj.title,
           department: resultObj.department,
           ministry: resultObj.ministry,
@@ -590,23 +382,18 @@ const OfficerUploadExtractView = ({
         };
 
         try {
+          await tenderService.createTender(newRegisteredTender);
+          const stored = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
+          setHistoryTenders(stored);
+        } catch (saveErr) {
+          console.warn('Fallback saving registered tender locally:', saveErr);
           const stored = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
           const updated = [newRegisteredTender, ...stored.filter((t) => t.referenceNo !== newRegisteredTender.referenceNo && t.id !== newRegisteredTender.id)];
           localStorage.setItem('gem_created_tenders', JSON.stringify(updated));
           setHistoryTenders(updated);
           window.dispatchEvent(new Event('storage'));
           window.dispatchEvent(new CustomEvent('gem_tenders_updated', { detail: newRegisteredTender }));
-        } catch {}
-
-        // Trigger Asynchronous RAG Vector Indexing
-        processTenderPdf({
-          tenderId: resultObj.referenceNo,
-          title: resultObj.title,
-          pdfUrl: resultObj.fileUrl,
-          ocrText: resultObj.rawOcrText,
-        }).catch((err) => {
-          console.warn('[TENDER_INDEX] Background indexing notice:', err?.message || err);
-        });
+        }
 
         // Record Audit Log
         recordAuditLog({

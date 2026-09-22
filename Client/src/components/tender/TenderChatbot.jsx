@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { askBidderTenderAI } from '../../services';
 import { normalizeTenderId, findTenderById } from '../../utils/tenderIdUtils';
-import { mockTenders } from '../../data/mockTenders';
 import MarkdownRenderer from '../common/MarkdownRenderer';
 
 let messageSeq = 0;
@@ -67,7 +66,7 @@ export const TenderChatbot = ({
 
   // Locate active tender strictly (never bleed another tender)
   const activeTender = tender || findTenderById(
-    [...mockTenders, ...(JSON.parse(localStorage.getItem('gem_created_tenders') || '[]'))],
+    JSON.parse(localStorage.getItem('gem_created_tenders') || '[]'),
     activeTenderId
   );
 

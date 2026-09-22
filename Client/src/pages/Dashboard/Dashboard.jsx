@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useNavigate, Navigate, useSearchParams } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -66,6 +66,7 @@ import ComplianceCheckView from './ComplianceCheckView';
 import TenderSubmissionsView from './TenderSubmissionsView';
 import TopBiddersView from './TopBiddersView';
 import OfficerUploadExtractView from './OfficerUploadExtractView';
+import OfficerTendersView from './OfficerTendersView';
 import Reports from '../Reports';
 import AuditTrail from '../Audit';
 import { recordAuditLog, tenderService, mlService, aiService } from '../../services';
@@ -142,6 +143,7 @@ const Dashboard = ({ defaultTab = null }) => {
   const [activeMenu, setActiveMenu] = useState(() => {
     if (tabParam === 'compliance') return 'compliance';
     if (tabParam === 'submissions') return 'submissions';
+    if (tabParam === 'tenders') return 'tenders';
     if (tabParam === 'top-bidders') return 'top-bidders';
     if (tabParam === 'upload-extract' || tabParam === 'upload') return 'upload-extract';
     if (tabParam === 'reports') return 'reports';
@@ -155,6 +157,8 @@ const Dashboard = ({ defaultTab = null }) => {
       setActiveMenu('compliance');
     } else if (tab === 'submissions') {
       setActiveMenu('submissions');
+    } else if (tab === 'tenders') {
+      setActiveMenu('tenders');
     } else if (tab === 'top-bidders') {
       setActiveMenu('top-bidders');
     } else if (tab === 'upload-extract' || tab === 'upload') {
@@ -163,7 +167,7 @@ const Dashboard = ({ defaultTab = null }) => {
       setActiveMenu('reports');
     } else if (tab === 'audit') {
       setActiveMenu('audit');
-    } else if (!tab && (activeMenu === 'compliance' || activeMenu === 'submissions' || activeMenu === 'top-bidders' || activeMenu === 'upload-extract' || activeMenu === 'reports' || activeMenu === 'audit')) {
+    } else if (!tab && (activeMenu === 'compliance' || activeMenu === 'submissions' || activeMenu === 'tenders' || activeMenu === 'top-bidders' || activeMenu === 'upload-extract' || activeMenu === 'reports' || activeMenu === 'audit')) {
       setActiveMenu('dashboard');
     }
   }, [searchParams, defaultTab]);
@@ -180,6 +184,12 @@ const Dashboard = ({ defaultTab = null }) => {
   const handleOpenSubmissions = () => {
     setActiveMenu('submissions');
     setSearchParams({ tab: 'submissions' });
+    setSidebarOpen(false);
+  };
+
+  const handleOpenTenders = () => {
+    setActiveMenu('tenders');
+    setSearchParams({ tab: 'tenders' });
     setSidebarOpen(false);
   };
 
@@ -263,40 +273,60 @@ const Dashboard = ({ defaultTab = null }) => {
   const [mlServiceHealth, setMlServiceHealth] = useState({ online: null, loading: true });
   const [ragServiceHealth, setRagServiceHealth] = useState({ online: null, loading: true });
 
+  const fetchOfficerDashboardData = useCallback(async () => {
+    try {
+      const [tendersRes, mlRes, ragRes] = await Promise.allSettled([
+        tenderService.getOfficerTenders(),
+        mlService.checkMLHealth(),
+        aiService.checkRagHealth(),
+      ]);
+      if (tendersRes.status === 'fulfilled' && Array.isArray(tendersRes.value)) {
+        setOfficerTenders(tendersRes.value);
+        // Cache clean API data in localStorage (replace, don't merge with old junk)
+        if (tendersRes.value.length > 0) {
+          try {
+            localStorage.setItem('gem_officer_tenders', JSON.stringify(tendersRes.value));
+            localStorage.setItem('gem_created_tenders', JSON.stringify(tendersRes.value));
+          } catch {}
+        }
+      }
+      if (mlRes.status === 'fulfilled') {
+        setMlServiceHealth({
+          online: mlRes.value?.online !== false && mlRes.value?.status !== 'DOWN',
+          ...(mlRes.value || {}),
+          loading: false,
+        });
+      }
+      if (ragRes.status === 'fulfilled') {
+        setRagServiceHealth({
+          online: ragRes.value?.online !== false && ragRes.value?.status !== 'DOWN',
+          ...(ragRes.value || {}),
+          loading: false,
+        });
+      }
+    } catch (err) {
+      console.warn('Dashboard live services sync notice:', err.message);
+    }
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
-    const fetchOfficerDashboardData = async () => {
-      try {
-        const [tendersRes, mlRes, ragRes] = await Promise.allSettled([
-          tenderService.getOfficerTenders(),
-          mlService.checkMLHealth(),
-          aiService.checkRagHealth(),
-        ]);
-        if (!isMounted) return;
-        if (tendersRes.status === 'fulfilled' && Array.isArray(tendersRes.value)) {
-          setOfficerTenders(tendersRes.value);
-        }
-        if (mlRes.status === 'fulfilled') {
-          setMlServiceHealth({
-            online: mlRes.value?.online !== false && mlRes.value?.status !== 'DOWN',
-            ...(mlRes.value || {}),
-            loading: false,
-          });
-        }
-        if (ragRes.status === 'fulfilled') {
-          setRagServiceHealth({
-            online: ragRes.value?.online !== false && ragRes.value?.status !== 'DOWN',
-            ...(ragRes.value || {}),
-            loading: false,
-          });
-        }
-      } catch (err) {
-        console.warn('Dashboard live services sync notice:', err.message);
-      }
-    };
     fetchOfficerDashboardData();
 
-    const handleStorageChange = () => {
+    const handleStorageChange = (e) => {
+      if (e?.detail?.deletedId || e?.detail?.deletedRef || e?.detail?.deletedTenderId) {
+        const delId = String(e.detail.deletedId || '').trim().toLowerCase();
+        const delRef = String(e.detail.deletedRef || '').trim().toLowerCase();
+        const delTId = String(e.detail.deletedTenderId || '').trim().toLowerCase();
+        setOfficerTenders((prev) =>
+          prev.filter((t) => {
+            const tId = String(t.id || '').trim().toLowerCase();
+            const tRef = String(t.referenceNo || '').trim().toLowerCase();
+            const tTdr = String(t.tenderId || '').trim().toLowerCase();
+            return (!delId || tId !== delId) && (!delRef || tRef !== delRef) && (!delTId || tTdr !== delTId);
+          })
+        );
+      }
       tenderService.getOfficerTenders().then((data) => {
         if (isMounted && Array.isArray(data)) {
           setOfficerTenders(data);
@@ -304,12 +334,14 @@ const Dashboard = ({ defaultTab = null }) => {
       });
     };
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('gem_tenders_updated', handleStorageChange);
 
     return () => {
       isMounted = false;
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('gem_tenders_updated', handleStorageChange);
     };
-  }, []);
+  }, [fetchOfficerDashboardData]);
 
   // Close account menu on click outside
   useEffect(() => {
@@ -577,9 +609,23 @@ const Dashboard = ({ defaultTab = null }) => {
 
   // Tenders Data (from live API / officer uploads / store)
   const allTenders = useMemo(() => {
-    if (officerTenders && officerTenders.length > 0) return officerTenders;
-    if (reduxTenders && reduxTenders.length > 0) return reduxTenders;
-    return [];
+    let list = [];
+    if (officerTenders && officerTenders.length > 0) list = officerTenders;
+    else if (reduxTenders && reduxTenders.length > 0) list = reduxTenders;
+
+    try {
+      const deleted = JSON.parse(localStorage.getItem('gem_deleted_tenders') || '[]');
+      if (Array.isArray(deleted) && deleted.length > 0) {
+        const deletedSet = new Set(deleted.map((d) => String(d).trim().toLowerCase()));
+        return list.filter((t) => {
+          const id = String(t.id || '').trim().toLowerCase();
+          const ref = String(t.referenceNo || '').trim().toLowerCase();
+          const tId = String(t.tenderId || '').trim().toLowerCase();
+          return !deletedSet.has(id) && !deletedSet.has(ref) && !deletedSet.has(tId);
+        });
+      }
+    } catch {}
+    return list;
   }, [officerTenders, reduxTenders]);
 
   const recentTenders = useMemo(() => {
@@ -907,15 +953,22 @@ const Dashboard = ({ defaultTab = null }) => {
 
             {/* Tenders Directory */}
             <div className="relative group">
-              <Link
-                to="/tenders"
-                onClick={() => setSidebarOpen(false)}
-                title="Tenders Directory"
-                className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
-                  } py-2.5 rounded-xl transition-all cursor-pointer text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#202020] hover:text-slate-900 dark:hover:text-white border border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
+              <button
+                type="button"
+                onClick={handleOpenTenders}
+                title="Tenders Management"
+                aria-current={activeMenu === 'tenders' ? 'page' : undefined}
+                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
+                  } py-2.5 rounded-xl transition-all cursor-pointer text-left relative group ${activeMenu === 'tenders'
+                    ? 'bg-blue-50 dark:bg-blue-600/15 text-blue-700 dark:text-white font-bold border border-blue-200 dark:border-blue-500/30'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#202020] hover:text-slate-900 dark:hover:text-white border border-transparent'
+                  } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
               >
+                {activeMenu === 'tenders' && (
+                  <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-md bg-blue-500" />
+                )}
                 <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
-                  <FileSpreadsheet className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white" />
+                  <FileSpreadsheet className={`w-4 h-4 shrink-0 ${activeMenu === 'tenders' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white'}`} />
                   {!sidebarCollapsed && <span className="truncate font-medium">Tenders</span>}
                 </div>
                 {!sidebarCollapsed && (
@@ -923,7 +976,7 @@ const Dashboard = ({ defaultTab = null }) => {
                     {metrics.totalTenders}
                   </span>
                 )}
-              </Link>
+              </button>
               {sidebarCollapsed && (
                 <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 dark:bg-[#1e1e1e] border border-slate-700 dark:border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
                   Tenders ({metrics.totalTenders})
@@ -988,34 +1041,6 @@ const Dashboard = ({ defaultTab = null }) => {
               {sidebarCollapsed && (
                 <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 dark:bg-[#1e1e1e] border border-slate-700 dark:border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
                   Top 10 Bidders (QCBS)
-                </div>
-              )}
-            </div>
-
-            {/* Compliance Check */}
-            <div className="relative group">
-              <button
-                type="button"
-                onClick={handleOpenCompliance}
-                title="Compliance Check"
-                aria-current={activeMenu === 'compliance' ? 'page' : undefined}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
-                  } py-2.5 rounded-xl transition-all cursor-pointer text-left relative group ${activeMenu === 'compliance'
-                    ? 'bg-blue-50 dark:bg-blue-600/15 text-blue-700 dark:text-white font-bold border border-blue-200 dark:border-blue-500/30'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#202020] hover:text-slate-900 dark:hover:text-white border border-transparent'
-                  } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
-              >
-                {activeMenu === 'compliance' && (
-                  <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-md bg-blue-500" />
-                )}
-                <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
-                  <ShieldCheck className={`w-4 h-4 shrink-0 ${activeMenu === 'compliance' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white'}`} />
-                  {!sidebarCollapsed && <span className="truncate">Compliance Check</span>}
-                </div>
-              </button>
-              {sidebarCollapsed && (
-                <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 dark:bg-[#1e1e1e] border border-slate-700 dark:border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                  Compliance Check
                 </div>
               )}
             </div>
@@ -1306,7 +1331,26 @@ const Dashboard = ({ defaultTab = null }) => {
             </button>
 
             <div>
-              {activeMenu === 'submissions' ? (
+              {activeMenu === 'tenders' ? (
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                    Tenders Management
+                  </h2>
+                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                    <button
+                      type="button"
+                      onClick={handleOpenDashboard}
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                    >
+                      Dashboard
+                    </button>
+                    <span>&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Tenders</span>
+                    <span>&gt;</span>
+                    <span className="text-slate-400">List &amp; Upload</span>
+                  </div>
+                </div>
+              ) : activeMenu === 'submissions' ? (
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
                     Tender Submissions
@@ -1432,46 +1476,18 @@ const Dashboard = ({ defaultTab = null }) => {
           {/* Right Top Header Controls: Action Toolbar */}
           <div className="flex items-center gap-2 sm:gap-2.5">
 
-            {/* Time Filter Select */}
-            <div className="relative hidden md:block">
-              <select
-                value={timeFilter}
-                onChange={(e) => {
-                  setTimeFilter(e.target.value);
-                  dispatch(setReduxTimeFilter(e.target.value));
-                }}
-                className="h-9 text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-slate-200/90 dark:border-[#303030] bg-white dark:bg-[#202020] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#282828] focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer transition shadow-2xs"
-                title="Filter metrics by date period"
-                aria-label="Filter metrics by date range"
-              >
-                <option value="Last 30 days">Last 30 days</option>
-                <option value="This Month">This Month</option>
-                <option value="Last Month">Last Month</option>
-                <option value="This Quarter">This Quarter</option>
-              </select>
-            </div>
-
-            {/* Export Report CTA */}
-            <button
-              type="button"
-              onClick={handleExportReport}
-              className="inline-flex items-center gap-1.5 h-9 px-3 py-1.5 rounded-lg border border-slate-200/90 dark:border-[#303030] bg-white dark:bg-[#202020] hover:bg-slate-50 dark:hover:bg-[#282828] text-slate-700 dark:text-slate-200 font-semibold text-xs shadow-2xs transition cursor-pointer"
-              title="Export Assessment Report"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-              <span className="hidden sm:inline">Export Audit Report</span>
-            </button>
-
             {/* Quick Upload Tender CTA */}
-            <button
-              type="button"
-              onClick={handleOpenUploadExtract}
-              className="inline-flex items-center gap-1.5 h-9 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition cursor-pointer"
-              title="Upload and extract tender RFP specifications"
-            >
-              <UploadCloud className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Upload &amp; Extract</span>
-            </button>
+            {activeMenu !== 'upload-extract' && (
+              <button
+                type="button"
+                onClick={handleOpenUploadExtract}
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                title="Upload and extract tender RFP specifications"
+              >
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Upload &amp; Extract</span>
+              </button>
+            )}
 
             {/* Notification Bell with Dynamic Dropdown */}
             <div className="relative">
@@ -1528,8 +1544,18 @@ const Dashboard = ({ defaultTab = null }) => {
         <main className="pt-[76px] sm:pt-[82px] pb-24 p-4 sm:p-6 space-y-6 flex-1">
           {activeMenu === 'compliance' ? (
             <ComplianceCheckView
-              onBackToDashboard={handleOpenDashboard}
+              onBackToDashboard={handleOpenSubmissions}
               submissionData={activeComplianceSubmission}
+            />
+          ) : activeMenu === 'tenders' ? (
+            <OfficerTendersView
+              onBackToDashboard={handleOpenDashboard}
+              onOpenSubmissions={handleOpenSubmissions}
+              onOpenTopBidders={handleOpenTopBidders}
+              onOpenUploadExtract={handleOpenUploadExtract}
+              onOpenCompliance={handleOpenCompliance}
+              tenders={allTenders}
+              onTendersUpdated={fetchOfficerDashboardData}
             />
           ) : activeMenu === 'submissions' ? (
             <TenderSubmissionsView
@@ -1561,7 +1587,10 @@ const Dashboard = ({ defaultTab = null }) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
 
                 {/* Card 1: Total Tenders */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-[#303030] shadow-2xs hover:border-slate-300 dark:hover:border-slate-700 transition">
+                <div
+                  onClick={handleOpenTenders}
+                  className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-[#303030] shadow-2xs hover:border-blue-400 dark:hover:border-blue-500/60 transition cursor-pointer group"
+                >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
@@ -1980,13 +2009,14 @@ const Dashboard = ({ defaultTab = null }) => {
                       <UploadCloud className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                       <span>Upload &amp; Extract RFP</span>
                     </button>
-                    <Link
-                      to="/tenders"
-                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                    <button
+                      type="button"
+                      onClick={handleOpenTenders}
+                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
                     >
                       <span>View All ({metrics.totalTenders})</span>
                       <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
+                    </button>
                   </div>
                 </div>
 
@@ -2019,13 +2049,14 @@ const Dashboard = ({ defaultTab = null }) => {
                             {/* Tender ID + Copy CTA */}
                             <td className="py-3 px-4 whitespace-nowrap">
                               <div className="flex items-center gap-1.5">
-                                <Link
-                                  to="/tenders"
-                                  className="font-mono text-xs font-semibold tracking-tight text-blue-600 dark:text-blue-400 hover:underline"
+                                <button
+                                  type="button"
+                                  onClick={handleOpenTenders}
+                                  className="font-mono text-xs font-semibold tracking-tight text-blue-600 dark:text-blue-400 hover:underline cursor-pointer text-left"
                                   aria-label={`Tender reference ${item.id}`}
                                 >
                                   {item.id}
-                                </Link>
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => handleCopyTenderId(item.id)}
