@@ -1,44 +1,64 @@
 import api from './api';
-import { mockTenders } from '../data/mockTenders';
 import { normalizeTenderId } from '../utils/tenderIdUtils';
 import { processTenderPdf, askBidderTenderAI as aiAskBidderTender } from './aiService';
 
 /**
+ * Safely extract a primitive value from a field that might be an object
+ * (e.g. {value: "21 days", start, end, validated}) instead of a string.
+ */
+const safeVal = (v, fallback = '') => {
+  if (v === null || v === undefined) return fallback;
+  if (typeof v === 'string' || typeof v === 'number') return v;
+  if (typeof v === 'object' && 'value' in v) return safeVal(v.value, fallback);
+  if (typeof v === 'object') { try { return JSON.stringify(v); } catch { return fallback; } }
+  return String(v);
+};
+
+/**
  * Normalizes a tender object so all views (Tenders, BidderDashboard, Verification, Modals)
- * receive fully consistent properties.
+ * receive fully consistent properties with all fields as renderable primitives.
  */
 const normalizeTender = (t) => {
   if (!t || typeof t !== 'object') return null;
-  const ref = t.referenceNo || t.tenderId || t.id || `GEM/2026/B/${Math.floor(1000 + Math.random() * 9000)}`;
+  const s = t.structuredData || {};
+  const ref =
+    t.referenceNo ||
+    t.tenderId ||
+    s.referenceNo ||
+    s.tenderId ||
+    (t.id ? (String(t.id).startsWith('GEM/') ? String(t.id) : `GEM/2026/B/${t.id}`) : `GEM/2026/B/${Math.floor(1000 + Math.random() * 9000)}`);
   const id = String(t.id || ref);
+
+  const rawVal = safeVal(t.value || s.value || t.estimatedValue || s.estimatedValue, '');
+  const numVal = Number(safeVal(t.numericValue || t.estimatedValue || s.estimatedValue || s.numericValue, 0)) || 48500000;
 
   return {
     id,
     referenceNo: ref,
-    tenderId: t.tenderId || ref,
-    title: t.title || 'Government Procurement Opportunity',
-    ministry: t.ministry || 'Government of India',
-    department: t.department || t.ministry || 'Central Procurement Division',
-    location: t.location || 'New Delhi / Pan India',
-    category: t.category || 'Computers & IT Equipment',
-    documentType: t.documentType || 'technical_specs',
-    value: t.value || '₹ 4,85,00,000 (₹ 4.85 Cr)',
-    numericValue: Number(t.numericValue || t.estimatedValue) || 48500000,
-    estimatedValue: Number(t.estimatedValue || t.numericValue) || 48500000,
-    emdAmount: t.emdAmount || '₹ 9,70,000 (2% of Est. Value)',
-    daysLeft: t.daysLeft || '21 days',
-    closingDays: parseInt(t.daysLeft) || 21,
-    published: t.published || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-    closes: t.closes || t.lastDate || new Date(Date.now() + 21 * 86400000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-    closingDate: t.closingDate || new Date(Date.now() + 21 * 86400000).toISOString().split('T')[0],
-    lastDate: t.lastDate || t.closes,
-    submissions: t.submissions !== undefined ? t.submissions : 0,
-    status: t.status || 'Open',
-    statusType: t.statusType || 'active',
-    complianceScore: t.complianceScore !== undefined ? t.complianceScore : null,
+    tenderId: t.tenderId || s.tenderId || ref,
+    title: safeVal(t.title || s.title, 'Government Procurement Opportunity'),
+    ministry: safeVal(t.ministry || s.ministry || t.departmentName, 'Government of India'),
+    department: safeVal(t.department || t.departmentName || s.department, 'Central Procurement Division'),
+    location: safeVal(t.location || s.location, 'New Delhi / Pan India'),
+    category: safeVal(t.category || s.category, 'Computers & IT Equipment'),
+    documentType: safeVal(t.documentType, 'technical_specs'),
+    value: typeof rawVal === 'string' && rawVal.includes('₹') ? rawVal : `₹ ${Number(numVal).toLocaleString('en-IN')}`,
+    numericValue: numVal,
+    estimatedValue: numVal,
+    emdAmount: safeVal(t.emdAmount || s.emdAmount, `₹ ${Math.round(numVal * 0.02).toLocaleString('en-IN')} (2% of Est. Value)`),
+    daysLeft: safeVal(t.daysLeft || s.daysLeft, '21 days'),
+    closingDays: parseInt(safeVal(t.daysLeft || s.daysLeft, '21')) || 21,
+    published: t.published || (t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })),
+    closes: safeVal(t.closes || t.lastDate || s.closes, new Date(Date.now() + 21 * 86400000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })),
+    closingDate: safeVal(t.closingDate || s.closingDate, new Date(Date.now() + 21 * 86400000).toISOString().split('T')[0]),
+    lastDate: safeVal(t.lastDate || t.closes || s.lastDate, ''),
+    submissions: t.submissions !== undefined ? t.submissions : (t.bidCount !== undefined ? t.bidCount : 0),
+    status: safeVal(t.status, 'Open'),
+    statusType: safeVal(t.statusType, 'active'),
+    complianceScore: t.complianceScore !== undefined ? t.complianceScore : (t.authenticityScore ? Math.round(t.authenticityScore) : 95),
     sourceType: 'TENDER',
-    minLocalContent: t.minLocalContent || t.miiRequirement || '50% (Class-I)',
-    miiRequirement: t.miiRequirement || t.minLocalContent || 'Class-I (>= 50% Local Content)',
+    minLocalContent: safeVal(t.minLocalContent || t.miiRequirement || s.minLocalContent, '50% (Class-I)'),
+    miiRequirement: safeVal(t.miiRequirement || t.minLocalContent || s.miiRequirement, 'Class-I (>= 50% Local Content)'),
     eligibilityCriteria: Array.isArray(t.eligibilityCriteria) && t.eligibilityCriteria.length > 0
       ? t.eligibilityCriteria
       : [
@@ -47,7 +67,7 @@ const normalizeTender = (t) => {
           'Valid GSTIN & Permanent Account Number (PAN)',
           'MSME Udyam / DPIIT Startup waiver eligible under GFR 173(i)',
         ],
-    eligibility: t.eligibility || 'GFR 2017 & Make in India Class-I verified',
+    eligibility: safeVal(t.eligibility, 'GFR 2017 & Make in India Class-I verified'),
     documents: Array.isArray(t.documents) && t.documents.length > 0
       ? t.documents.map((d) => ({
           ...d,
@@ -55,11 +75,71 @@ const normalizeTender = (t) => {
           tenderId: id,
         }))
       : [{ name: t.fileName || 'Tender_Notice.pdf', size: t.fileSize || '4.5 MB', url: t.fileUrl || '#', sourceType: 'TENDER', tenderId: id }],
-    description: t.description || 'Government public procurement tender under GFR 2017.',
-    extractedRules: t.extractedRules || null,
+    description: safeVal(t.description, 'Government public procurement tender under GFR 2017.'),
+    extractedRules: t.extractedRules || s.extractedRules || null,
     rawOcrText: t.rawOcrText || null,
     createdAt: t.createdAt || new Date().toISOString(),
   };
+};
+
+/**
+ * Helper to retrieve IDs and reference numbers of deleted/archived tenders
+ */
+export const getDeletedTenderIds = () => {
+  try {
+    const deleted = JSON.parse(localStorage.getItem('gem_deleted_tenders') || '[]');
+    if (Array.isArray(deleted)) {
+      return new Set(deleted.map((id) => String(id).trim().toLowerCase()));
+    }
+  } catch {
+    // ignore
+  }
+  return new Set();
+};
+
+/**
+ * Check if a tender record matches any deleted ID or reference number
+ */
+export const isTenderDeleted = (tender, deletedSet) => {
+  if (!tender || !deletedSet || deletedSet.size === 0) return false;
+  const id = String(tender.id || '').trim().toLowerCase();
+  const ref = String(tender.referenceNo || '').trim().toLowerCase();
+  const tId = String(tender.tenderId || '').trim().toLowerCase();
+  return (
+    (Boolean(id) && deletedSet.has(id)) ||
+    (Boolean(ref) && deletedSet.has(ref)) ||
+    (Boolean(tId) && deletedSet.has(tId))
+  );
+};
+
+/**
+ * Helper to retrieve initial active tenders without deleted items,
+ * preventing any flash of deleted tenders during initial page mount.
+ */
+export const getActiveInitialTenders = () => {
+  try {
+    const deletedIds = getDeletedTenderIds();
+    const local = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
+    const officer = JSON.parse(localStorage.getItem('gem_officer_tenders') || '[]');
+    const combined = [...(Array.isArray(local) ? local : []), ...(Array.isArray(officer) ? officer : [])];
+    const list = [];
+    const seen = new Set();
+    if (combined.length > 0) {
+      for (const item of combined) {
+        if (!isTenderDeleted(item, deletedIds)) {
+          const norm = normalizeTender(item);
+          if (norm && !isTenderDeleted(norm, deletedIds) && !seen.has(norm.referenceNo)) {
+            list.push(norm);
+            seen.add(norm.referenceNo);
+            if (norm.id) seen.add(norm.id);
+          }
+        }
+      }
+    }
+    return list;
+  } catch {
+    return [];
+  }
 };
 
 export const tenderService = {
@@ -68,61 +148,54 @@ export const tenderService = {
   // ═══════════════════════════════════════════════════════════════════════
 
   /**
-   * Fetch active and archived tenders with search, filter, and pagination support.
-   * Merges locally officer-created tenders, backend records, and baseline mock tenders.
+   * Fetch active tenders from backend API (single source of truth).
+   * localStorage is used only as a cache for offline/cross-tab sync.
    */
   getTenders: async (params = {}) => {
     let list = [];
     const seenRefs = new Set();
+    const deletedIds = getDeletedTenderIds();
 
-    // 1. Highest priority: real tenders created / uploaded in the portal session
+    // Fetch from backend API (primary source of truth)
+    let remote = [];
     try {
-      const local = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
-      if (Array.isArray(local) && local.length > 0) {
-        for (const item of local) {
-          const norm = normalizeTender(item);
-          if (norm && !seenRefs.has(norm.referenceNo)) {
-            list.push(norm);
-            seenRefs.add(norm.referenceNo);
-            if (norm.id) seenRefs.add(norm.id);
-          }
-        }
-      }
+      const genRes = await api.get('/tenders', { params: { limit: 100, ...params } });
+      const genData = genRes?.data?.data || genRes?.data || genRes;
+      if (Array.isArray(genData)) remote = genData;
+      else if (genData && Array.isArray(genData.content)) remote = genData.content;
     } catch {
-      // ignore
-    }
-
-    // 2. Fetch remote records from backend API /tenders or /officer/tenders
-    try {
-      const res = await api.get('/tenders', { params });
-      let remote = [];
-      if (Array.isArray(res)) remote = res;
-      else if (res && Array.isArray(res.content)) remote = res.content;
-      else if (res && Array.isArray(res.data)) remote = res.data;
-      else if (res && Array.isArray(res.tenders)) remote = res.tenders;
-
-      for (const item of remote) {
-        const norm = normalizeTender(item);
-        if (norm && !seenRefs.has(norm.referenceNo)) {
-          list.push(norm);
-          seenRefs.add(norm.referenceNo);
-          if (norm.id) seenRefs.add(norm.id);
+      try {
+        const topRes = await api.get('/officer/tenders/top-10', { params: { limit: 100, ...params } });
+        const topData = topRes?.data?.data || topRes?.data || topRes;
+        if (Array.isArray(topData)) remote = topData;
+        else if (topData && Array.isArray(topData.content)) remote = topData.content;
+      } catch {
+        try {
+          const offRes = await api.get('/officer/tenders', { params });
+          const offData = offRes?.data?.data || offRes?.data || offRes;
+          if (Array.isArray(offData)) remote = offData;
+        } catch {
+          // All endpoints unavailable
         }
       }
-    } catch (err) {
-      console.warn('Backend /tenders endpoint notice:', err.message);
     }
 
-    // 3. Fallback: Merge verified baseline official GeM tenders
-    if (Array.isArray(mockTenders)) {
-      for (const item of mockTenders) {
-        const norm = normalizeTender(item);
-        if (norm && !seenRefs.has(norm.referenceNo)) {
-          list.push(norm);
-          seenRefs.add(norm.referenceNo);
-          if (norm.id) seenRefs.add(norm.id);
-        }
+    // Normalize and deduplicate API results
+    for (const item of remote) {
+      if (isTenderDeleted(item, deletedIds)) continue;
+      const norm = normalizeTender(item);
+      if (norm && !isTenderDeleted(norm, deletedIds) && !seenRefs.has(norm.referenceNo)) {
+        list.push(norm);
+        seenRefs.add(norm.referenceNo);
+        if (norm.id) seenRefs.add(norm.id);
       }
+    }
+
+    // Replace localStorage cache with clean API data (no accumulation of junk)
+    if (list.length > 0) {
+      try {
+        localStorage.setItem('gem_created_tenders', JSON.stringify(list));
+      } catch {}
     }
 
     return list;
@@ -134,9 +207,9 @@ export const tenderService = {
   getTenderById: async (id) => {
     try {
       const res = await api.get(`/tenders/${id}`);
-      const data = res?.data || res;
+      const data = res?.data?.data || res?.data || res;
       if (data && typeof data === 'object' && (data.id || data.referenceNo || data.title)) {
-        return data;
+        return normalizeTender(data);
       }
     } catch (err) {
       console.warn(`Backend /tenders/${id} unavailable:`, err.message);
@@ -187,6 +260,20 @@ export const tenderService = {
         const local = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
         const updated = [saved, ...local.filter((item) => item.id !== saved.id && item.referenceNo !== saved.referenceNo)];
         localStorage.setItem('gem_created_tenders', JSON.stringify(updated));
+
+        // Ensure newly created tender is removed from gem_deleted_tenders if re-created
+        try {
+          const deleted = JSON.parse(localStorage.getItem('gem_deleted_tenders') || '[]');
+          const keysToRemove = new Set([
+            String(saved.id || '').trim().toLowerCase(),
+            String(saved.referenceNo || '').trim().toLowerCase(),
+          ]);
+          const filteredDeleted = deleted.filter((d) => !keysToRemove.has(String(d).trim().toLowerCase()));
+          localStorage.setItem('gem_deleted_tenders', JSON.stringify(filteredDeleted));
+        } catch {
+          // ignore
+        }
+
         window.dispatchEvent(new Event('storage'));
         window.dispatchEvent(new CustomEvent('gem_tenders_updated', { detail: saved }));
 
@@ -216,10 +303,70 @@ export const tenderService = {
   },
 
   /**
-   * Cancel or archive a tender
+   * Cancel or archive / permanently delete a tender from DB + Cloudinary + localStorage
    */
-  deleteTender: async (id) => {
-    return await api.delete(`/tenders/${id}`);
+  deleteTender: async (id, refNo = null, tenderId = null) => {
+    let backendResult = null;
+    const cleanId = String(id || '').trim();
+    if (cleanId) {
+      // Try officer endpoint first (DELETE /api/officer/tenders/{id})
+      try {
+        backendResult = await api.delete(`/officer/tenders/${encodeURIComponent(cleanId)}`);
+        console.log(`Tender ${cleanId} deleted from database successfully`);
+      } catch (err) {
+        console.warn(`Officer delete endpoint failed for ${cleanId}, trying /tenders:`, err.message);
+        // Fallback to general /tenders endpoint
+        try {
+          backendResult = await api.delete(`/tenders/${encodeURIComponent(cleanId)}`);
+        } catch (err2) {
+          console.warn(`Backend /tenders/${cleanId} delete notice (local-only):`, err2.message);
+        }
+      }
+    }
+
+    const targets = new Set();
+    if (id) targets.add(String(id).trim().toLowerCase());
+    if (refNo) targets.add(String(refNo).trim().toLowerCase());
+    if (tenderId) targets.add(String(tenderId).trim().toLowerCase());
+
+    try {
+      // 1. Remove from gem_created_tenders
+      const local = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
+      const updatedLocal = local.filter((item) => {
+        const itemId = String(item.id || '').trim().toLowerCase();
+        const itemRef = String(item.referenceNo || item.tenderId || '').trim().toLowerCase();
+        return !targets.has(itemId) && !targets.has(itemRef);
+      });
+      localStorage.setItem('gem_created_tenders', JSON.stringify(updatedLocal));
+
+      // 2. Remove from gem_officer_tenders if stored
+      const offTenders = JSON.parse(localStorage.getItem('gem_officer_tenders') || '[]');
+      if (Array.isArray(offTenders) && offTenders.length > 0) {
+        const updatedOff = offTenders.filter((item) => {
+          const itemId = String(item.id || '').trim().toLowerCase();
+          const itemRef = String(item.referenceNo || item.tenderId || '').trim().toLowerCase();
+          return !targets.has(itemId) && !targets.has(itemRef);
+        });
+        localStorage.setItem('gem_officer_tenders', JSON.stringify(updatedOff));
+      }
+
+      // 3. Add all identifiers to gem_deleted_tenders blacklist registry
+      const deleted = JSON.parse(localStorage.getItem('gem_deleted_tenders') || '[]');
+      const updatedDeleted = Array.from(new Set([...deleted.map((d) => String(d).trim().toLowerCase()), ...targets]));
+      localStorage.setItem('gem_deleted_tenders', JSON.stringify(updatedDeleted));
+
+      // 4. Dispatch storage and custom events for immediate sync across components
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(
+        new CustomEvent('gem_tenders_updated', {
+          detail: { deletedId: id, deletedRef: refNo, deletedTenderId: tenderId },
+        })
+      );
+    } catch (e) {
+      console.warn('LocalStorage tender deletion notice:', e);
+    }
+
+    return backendResult || { success: true, id, referenceNo: refNo };
   },
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -271,12 +418,35 @@ export const tenderService = {
   // ═══════════════════════════════════════════════════════════════════════
   getOfficerTenders: async (params = {}) => {
     let list = [];
+    const seenRefs = new Set();
+    const deletedIds = getDeletedTenderIds();
+
     try {
       const res = await api.get('/officer/tenders', { params });
-      if (Array.isArray(res)) list = res;
-      else if (res && Array.isArray(res.data)) list = res.data;
-      else if (res && Array.isArray(res.content)) list = res.content;
-      else if (res && Array.isArray(res.tenders)) list = res.tenders;
+      let raw = [];
+      if (Array.isArray(res)) raw = res;
+      else if (res && Array.isArray(res.data?.data)) raw = res.data.data;
+      else if (res && Array.isArray(res.data)) raw = res.data;
+      else if (res && Array.isArray(res.content)) raw = res.content;
+      else if (res && Array.isArray(res.tenders)) raw = res.tenders;
+
+      // Normalize, deduplicate and filter deleted — consistent with getTenders()
+      for (const item of raw) {
+        if (isTenderDeleted(item, deletedIds)) continue;
+        const norm = normalizeTender(item);
+        if (norm && !isTenderDeleted(norm, deletedIds) && !seenRefs.has(norm.referenceNo)) {
+          list.push(norm);
+          seenRefs.add(norm.referenceNo);
+          if (norm.id) seenRefs.add(norm.id);
+        }
+      }
+
+      // Cache clean API data in localStorage
+      if (list.length > 0) {
+        try {
+          localStorage.setItem('gem_officer_tenders', JSON.stringify(list));
+        } catch {}
+      }
     } catch (err) {
       console.warn('Officer tenders endpoint notice:', err.message);
     }
@@ -284,23 +454,6 @@ export const tenderService = {
     // Fall back to general /tenders endpoint if officer endpoint is empty or unavailable
     if (list.length === 0) {
       list = await tenderService.getTenders(params);
-    } else {
-      // Merge any locally created tenders as well
-      try {
-        const local = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
-        if (Array.isArray(local) && local.length > 0) {
-          const seenIds = new Set(list.map((t) => String(t.id || t.tenderId || t.referenceNo)));
-          for (const item of local) {
-            const key = String(item.id || item.tenderId || item.referenceNo);
-            if (!seenIds.has(key)) {
-              list.unshift(item);
-              seenIds.add(key);
-            }
-          }
-        }
-      } catch {
-        // ignore
-      }
     }
 
     return list;

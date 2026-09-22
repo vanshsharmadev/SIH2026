@@ -1,3 +1,7 @@
+if (!global.DOMMatrix) {
+  global.DOMMatrix = class DOMMatrix {};
+}
+
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();

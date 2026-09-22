@@ -25,9 +25,9 @@ import {
   ArrowRight,
   Clock,
   UploadCloud,
+  ShieldAlert,
 } from 'lucide-react';
 import { useAuth } from '../../context';
-import { mockTenders } from '../../data/mockTenders';
 import { isTenderClosed } from '../../utils';
 import { addSubmission, addActivity } from '../../store/slices/dashboardSlice';
 import { getUserDisplayName, isOfficerUser } from '../../utils/roleUtils';
@@ -63,7 +63,7 @@ const Verification = () => {
       const local = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
       if (Array.isArray(local) && local.length > 0) return local;
     } catch {}
-    return Array.isArray(mockTenders) && mockTenders.length > 0 ? mockTenders : [];
+    return [];
   });
   const [selectedTenderId, setSelectedTenderId] = useState(targetParam || null);
 
@@ -73,7 +73,7 @@ const Verification = () => {
     let isMounted = true;
     const load = async () => {
       try {
-        const data = await tenderService.getTenders();
+        const data = await tenderService.getOfficerTenders();
         if (isMounted && Array.isArray(data)) {
           setTendersList(data);
           if (data.length > 0 && !selectedTenderId) {
@@ -168,27 +168,15 @@ const Verification = () => {
   const selectedTender =
     tendersList.find((t) => String(t.id) === String(selectedTenderId) || t.referenceNo === selectedTenderId) ||
     tendersList[0] ||
-    (Array.isArray(mockTenders) && mockTenders.length > 0 ? mockTenders[0] : null);
+    null;
 
-  const safeTender = selectedTender || {
-    id: 'GEM/2026/B/890123',
-    referenceNo: 'GEM/2026/B/890123',
-    title: 'GeM Procurement Opportunity',
-    ministry: 'Ministry of Commerce and Industry',
-    department: 'GeM Procurement Cell',
-    value: '₹ 1.20 Cr',
-    minLocalContent: '50% (Class-I)',
-    complianceScore: 96,
-    emdAmount: '₹ 2,40,000',
-    closes: 'Open',
-    documents: [],
-    eligibility: 'Standard GFR 2017 & Make In India Criteria',
-  };
+  const safeTender = selectedTender;
 
   const isDirectTarget = Boolean(targetParam);
-  const isClosed = isTenderClosed(safeTender);
+  const isClosed = safeTender ? isTenderClosed(safeTender) : false;
 
   const alreadySubmitted = useMemo(() => {
+    if (!safeTender) return false;
     try {
       const storedBidderApps = JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
       return storedBidderApps.some(
@@ -197,16 +185,18 @@ const Verification = () => {
     } catch {
       return false;
     }
-  }, [safeTender.referenceNo, safeTender.id]);
+  }, [safeTender?.referenceNo, safeTender?.id]);
 
-  const scanSteps = [
-    `Parsing ${safeTender.referenceNo} eligibility criteria & BOQ schedule...`,
-    uploadedFiles.length > 0
-      ? `Scanning ${uploadedFiles.length} attached bidder proposal documents...`
-      : 'Evaluating General Financial Rules (GFR 2017) Rule 144(xi)...',
-    `Auditing Make In India (MII) threshold (${safeTender.minLocalContent})...`,
-    'Cross-verifying MSME Udyam and Debarred Vendor Database...',
-  ];
+  const scanSteps = safeTender
+    ? [
+        `Parsing ${safeTender.referenceNo} eligibility criteria & BOQ schedule...`,
+        uploadedFiles.length > 0
+          ? `Scanning ${uploadedFiles.length} attached bidder proposal documents...`
+          : 'Evaluating General Financial Rules (GFR 2017) Rule 144(xi)...',
+        `Auditing Make In India (MII) threshold (${safeTender.minLocalContent})...`,
+        'Cross-verifying MSME Udyam and Debarred Vendor Database...',
+      ]
+    : [];
 
   const [isUploadingDocs, setIsUploadingDocs] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -600,10 +590,33 @@ const Verification = () => {
     setShowTenderSelector(false);
     setResult(null);
     setValidationError('');
-    setUploadError(null);
-    setSubmittedJustNow(false);
     setSearchParams({ tenderId: newId });
   };
+
+  if (!safeTender) {
+    return (
+      <div className="w-full max-w-2xl mx-auto py-16 px-4 text-center space-y-4 animate-in fade-in duration-200">
+        <div className="w-16 h-16 mx-auto rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+          No Active Tenders Available for Verification
+        </h2>
+        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+          There are currently no public procurement tenders published on the portal. Once an authorized procurement officer publishes a tender notice, bidders can upload and pre-screen their compliance dossiers here.
+        </p>
+        <div className="pt-2">
+          <Link
+            to="/tenders"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm"
+          >
+            <span>Browse Tender Directory</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-5 select-none animate-in fade-in duration-200">

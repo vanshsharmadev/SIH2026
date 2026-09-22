@@ -6,6 +6,19 @@ import { AppRoutes } from './routes';
 import { useLenis } from './hooks';
 import { isOfficerUser } from './utils/roleUtils';
 
+// One-time cleanup: remove accumulated junk tender data from localStorage
+// This runs once per browser and clears stale mock/test data
+(() => {
+  const CLEANUP_KEY = 'gem_ls_cleanup_v2';
+  if (!localStorage.getItem(CLEANUP_KEY)) {
+    localStorage.removeItem('gem_created_tenders');
+    localStorage.removeItem('gem_officer_tenders');
+    localStorage.removeItem('gem_deleted_tenders');
+    localStorage.setItem(CLEANUP_KEY, Date.now().toString());
+    console.log('[GeM] One-time localStorage cleanup complete — only real DB tenders will be shown');
+  }
+})();
+
 function AppContent({ fontScale, setFontScale }) {
   const location = useLocation();
   const { user, isAuthenticated } = useAuth();

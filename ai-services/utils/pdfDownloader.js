@@ -19,10 +19,12 @@ async function downloadPdf(pdfUrl, tenderId) {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
 
-  const filePath = path.join(
-    uploadDir,
-    `${tenderId}.pdf`
-  );
+  const safeFileName = `${String(tenderId).replace(/[\/\\]/g, "_")}.pdf`;
+  const filePath = path.join(uploadDir, safeFileName);
+  const fileDir = path.dirname(filePath);
+  if (!fs.existsSync(fileDir)) {
+    fs.mkdirSync(fileDir, { recursive: true });
+  }
 
   return new Promise((resolve, reject) => {
     const protocol = pdfUrl.startsWith("https://")

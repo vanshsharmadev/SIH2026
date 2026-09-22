@@ -1,5 +1,7 @@
 package com.example.Tender.officer.controller;
 
+import com.example.Tender.bidder.dto.BidSubmissionDTO;
+import com.example.Tender.bidder.service.BidderDocumentService;
 import com.example.Tender.officer.dto.OfficerApiResponse;
 import com.example.Tender.officer.dto.ml.DocumentProcessResponse;
 import com.example.Tender.officer.dto.ml.TenderComparisonRequest;
@@ -37,6 +39,7 @@ import java.util.Map;
 public class OfficerTenderController {
 
     private final TenderDocumentService tenderDocumentService;
+    private final BidderDocumentService bidderDocumentService;
 
     // ==========================================
     // 1. Primary Tender Document Operations
@@ -108,6 +111,29 @@ public class OfficerTenderController {
     }
 
     /**
+     * Delete a tender document from database and Cloudinary.
+     * Only the officer who uploaded the tender can delete it.
+     * DELETE /api/officer/tenders/{id}
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<OfficerApiResponse<Map<String, Object>>> deleteTender(
+            @PathVariable("id") Long id,
+            @AuthenticationPrincipal OfficerPrincipal principal) {
+
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(OfficerApiResponse.error("Authentication required to delete tender"));
+        }
+
+        log.info("Delete tender request: id={}, officer={}", id, principal.getEmail());
+        tenderDocumentService.deleteTender(id, principal);
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("Tender deleted successfully",
+                        Map.of("id", id, "deleted", true))
+        );
+    }
+
+    /**
      * Compare multiple bidder proposals against the requirements of an uploaded tender using ML analysis.
      */
     @PostMapping("/{id}/compare-bidders")
@@ -162,6 +188,48 @@ public class OfficerTenderController {
         List<TenderUploadResponse> tenders = tenderDocumentService.getTopTenders(limit);
         return ResponseEntity.ok(
                 OfficerApiResponse.success("Top " + tenders.size() + " tenders retrieved successfully", tenders)
+        );
+    }
+
+    // ==========================================
+    // Real-Time Tender Bid Submissions Endpoints
+    // ==========================================
+
+    /**
+     * Retrieve all real-time bid submissions across all tenders (GET /api/officer/tenders/submissions).
+     */
+    @GetMapping("/submissions")
+    public ResponseEntity<OfficerApiResponse<List<BidSubmissionDTO>>> getAllSubmissions() {
+        List<BidSubmissionDTO> submissions = bidderDocumentService.getAllSubmissions();
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("Retrieved " + submissions.size() + " submissions", submissions)
+        );
+    }
+
+    /**
+     * Retrieve all real-time bid submissions for a specific tender (GET /api/officer/tenders/{id}/submissions).
+     */
+    @GetMapping("/{id}/submissions")
+    public ResponseEntity<OfficerApiResponse<List<BidSubmissionDTO>>> getSubmissionsForTender(
+            @PathVariable("id") String id) {
+        List<BidSubmissionDTO> submissions = bidderDocumentService.getSubmissionsByTender(id);
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("Retrieved " + submissions.size() + " submissions for tender " + id, submissions)
+        );
+    }
+
+    /**
+     * Update officer evaluation verdict & remarks for a bid submission (PUT /api/officer/tenders/submissions/{subId}/evaluate).
+     */
+    @PutMapping("/submissions/{subId}/evaluate")
+    public ResponseEntity<OfficerApiResponse<BidSubmissionDTO>> evaluateSubmission(
+            @PathVariable("subId") Long subId,
+            @RequestBody Map<String, String> payload) {
+        String verdict = payload != null ? (payload.get("verdict") != null ? payload.get("verdict") : (payload.get("overallStatus") != null ? payload.get("overallStatus") : payload.get("evaluationStatus"))) : null;
+        String remarks = payload != null ? (payload.get("remarks") != null ? payload.get("remarks") : payload.get("officerRemarks")) : null;
+        BidSubmissionDTO updated = bidderDocumentService.updateEvaluation(subId, verdict, remarks);
+        return ResponseEntity.ok(
+                OfficerApiResponse.success("Submission evaluation updated successfully", updated)
         );
     }
 

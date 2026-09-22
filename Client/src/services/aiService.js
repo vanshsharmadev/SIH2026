@@ -1,5 +1,4 @@
 import api from './api';
-import { mockTenders } from '../data/mockTenders';
 import {
   normalizeTenderId,
   findTenderById,
@@ -205,11 +204,10 @@ export const askBidderTenderAI = async ({ tenderId, query, tender: propTender, t
   // Strictly locate the active tender object for grounded fallback (never bleed another tender)
   let activeTender = propTender || null;
   if (!activeTender || normalizeTenderId(activeTender.id || activeTender.referenceNo) !== cleanTenderId) {
-    // Look up in mockTenders and local storage
-    const allLocalTenders = [
-      ...mockTenders,
-      ...(JSON.parse(localStorage.getItem('gem_created_tenders') || '[]')),
-    ];
+    let allLocalTenders = [];
+    try {
+      allLocalTenders = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
+    } catch {}
     activeTender = findTenderById(allLocalTenders, cleanTenderId);
   }
 

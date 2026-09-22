@@ -75,11 +75,29 @@ const buildComplianceList = (tenders = [], submissions = []) => {
 
 const getMergedLocalTenders = () => {
   try {
+    const deleted = JSON.parse(localStorage.getItem('gem_deleted_tenders') || '[]');
+    const deletedSet = Array.isArray(deleted)
+      ? new Set(deleted.map((d) => String(d).trim().toLowerCase()))
+      : new Set();
+
+    const isDeleted = (t) => {
+      if (!t) return true;
+      const id = String(t.id || '').trim().toLowerCase();
+      const ref = String(t.referenceNo || '').trim().toLowerCase();
+      const tId = String(t.tenderId || '').trim().toLowerCase();
+      return (
+        (Boolean(id) && deletedSet.has(id)) ||
+        (Boolean(ref) && deletedSet.has(ref)) ||
+        (Boolean(tId) && deletedSet.has(tId))
+      );
+    };
+
     const savedCreated = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
     const savedOfficer = JSON.parse(localStorage.getItem('gem_officer_tenders') || '[]');
-    const merged = [...savedCreated];
-    const seen = new Set(merged.map((t) => String(t.id || t.tenderId || t.referenceNo)));
-    for (const t of savedOfficer) {
+    const merged = [];
+    const seen = new Set();
+    for (const t of [...savedCreated, ...savedOfficer]) {
+      if (isDeleted(t)) continue;
       const k = String(t.id || t.tenderId || t.referenceNo);
       if (!seen.has(k)) {
         merged.push(t);
@@ -114,7 +132,7 @@ const Reports = () => {
 
     const loadLiveTenders = async () => {
       try {
-        const liveTenders = await tenderService.getTenders();
+        const liveTenders = await tenderService.getOfficerTenders();
         if (isMounted && Array.isArray(liveTenders) && liveTenders.length > 0) {
           const savedSubmissions = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
           const merged = getMergedLocalTenders();
@@ -146,6 +164,7 @@ const Reports = () => {
 
     window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('focus', handleStorageUpdate);
+    window.addEventListener('gem_tenders_updated', handleStorageUpdate);
     window.addEventListener('gem_officer_submissions_updated', handleStorageUpdate);
     window.addEventListener('gem_submission_created', handleStorageUpdate);
 
@@ -153,6 +172,7 @@ const Reports = () => {
       isMounted = false;
       window.removeEventListener('storage', handleStorageUpdate);
       window.removeEventListener('focus', handleStorageUpdate);
+      window.removeEventListener('gem_tenders_updated', handleStorageUpdate);
       window.removeEventListener('gem_officer_submissions_updated', handleStorageUpdate);
       window.removeEventListener('gem_submission_created', handleStorageUpdate);
     };

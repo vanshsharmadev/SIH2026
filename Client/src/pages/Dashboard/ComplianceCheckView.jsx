@@ -303,6 +303,48 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
   return (
     <div className="w-full space-y-4 animate-in fade-in duration-200 text-slate-900 dark:text-slate-100">
       {/* ========================================================================= */}
+      {/* 0. NAVIGATION & BREADCRUMB BAR                                            */}
+      {/* ========================================================================= */}
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={onBackToDashboard}
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-800 shadow-2xs transition cursor-pointer"
+        >
+          <ChevronLeft className="w-4 h-4 text-blue-600" />
+          <span>← Back to Tender Submissions</span>
+        </button>
+        <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800 hidden sm:inline-flex items-center gap-1.5">
+          <ShieldCheck className="w-3.5 h-3.5" />
+          Detailed Statutory Compliance Audit
+        </span>
+      </div>
+
+      {!submissionData && (
+        <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                No Bidder Selected for Detailed Audit
+              </h4>
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                Detailed compliance audits are conducted per bidder submission. Go to Tender Submissions and click &quot;Detailed Audit&quot; on any applicant to evaluate their criteria and documents.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onBackToDashboard}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0 transition cursor-pointer"
+          >
+            <span>Open Tender Submissions</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* 1. TENDER CONTEXT BAR                                                     */}
       {/* ========================================================================= */}
       <div className="w-full p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">

@@ -33,10 +33,55 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context';
 import { isOfficerUser } from '../../utils/roleUtils';
-import { documentService, authService, tenderService } from '../../services';
+import { documentService, authService, tenderService, getActiveInitialTenders } from '../../services';
 import { DocumentDetailsModal, DocumentUploadModal } from '../../components/documents';
 import { TenderDetailModal } from '../../components/tender';
 import './BidderDashboard.css';
+
+/**
+ * Safely converts any value to a renderable string.
+ * Prevents React "Objects are not valid as a React child" errors
+ * when localStorage data contains nested objects (e.g. {value, start, end, validated}).
+ */
+const safeString = (val, fallback = '') => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string' || typeof val === 'number') return val;
+  if (typeof val === 'object') {
+    // Common pattern: {value: "...", start, end, validated}
+    if ('value' in val) return safeString(val.value, fallback);
+    try { return JSON.stringify(val); } catch { return fallback; }
+  }
+  return String(val);
+};
+
+/**
+ * Ensure every field that gets rendered in JSX is a primitive (string/number),
+ * never an object. This guards against backend / localStorage schema mismatches.
+ */
+const sanitizeTenderForRender = (t) => {
+  if (!t || typeof t !== 'object') return t;
+  return {
+    ...t,
+    daysLeft: safeString(t.daysLeft, '21 days'),
+    value: safeString(t.value, 'As per RFP'),
+    minLocalContent: safeString(t.minLocalContent, '50% (Class-I)'),
+    miiRequirement: safeString(t.miiRequirement, ''),
+    title: safeString(t.title, 'Government Procurement Opportunity'),
+    ministry: safeString(t.ministry, 'Government of India'),
+    department: safeString(t.department, 'Government Department'),
+    location: safeString(t.location, ''),
+    category: safeString(t.category, ''),
+    emdAmount: safeString(t.emdAmount, ''),
+    published: safeString(t.published, ''),
+    closes: safeString(t.closes, ''),
+    closingDate: safeString(t.closingDate, ''),
+    lastDate: safeString(t.lastDate, ''),
+    referenceNo: safeString(t.referenceNo, ''),
+    status: safeString(t.status, 'Open'),
+    eligibility: safeString(t.eligibility, ''),
+    description: safeString(t.description, ''),
+  };
+};
 
 const BidderDashboard = () => {
   const { user, isAuthenticated } = useAuth();
@@ -49,21 +94,17 @@ const BidderDashboard = () => {
   const [precheckResult, setPrecheckResult] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showCompanyDetails, setShowCompanyDetails] = useState(false);
-  const [matchedTenders, setMatchedTenders] = useState(() => {
-    try {
-      const local = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
-      if (Array.isArray(local) && local.length > 0) return local;
-    } catch {}
-    return [];
-  });
+  // Start empty — only show real tenders fetched from backend API
+  const [matchedTenders, setMatchedTenders] = useState([]);
 
   useEffect(() => {
     let isMounted = true;
     const fetchTenders = async () => {
       try {
+        // Use getTenders() to query public / bidder endpoint
         const data = await tenderService.getTenders();
         if (isMounted && Array.isArray(data)) {
-          setMatchedTenders(data);
+          setMatchedTenders(data.map(sanitizeTenderForRender));
         }
       } catch (err) {
         console.warn('Could not fetch tenders for bidder dashboard:', err);
@@ -74,7 +115,7 @@ const BidderDashboard = () => {
     const handleSync = () => {
       tenderService.getTenders().then((data) => {
         if (isMounted && Array.isArray(data)) {
-          setMatchedTenders(data);
+          setMatchedTenders(data.map(sanitizeTenderForRender));
         }
       });
     };

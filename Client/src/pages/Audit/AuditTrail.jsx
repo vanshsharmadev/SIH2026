@@ -123,9 +123,9 @@ const AuditTrail = () => {
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [selectedIpFilter, setSelectedIpFilter] = useState('');
 
-  // Selected Log for Inspector Panel (Default to first log)
-  const [selectedLog, setSelectedLog] = useState(() => logs[0] || null);
-  const [inspectorOpen, setInspectorOpen] = useState(true);
+  // Selected Log for Inspector Panel (Default to closed until user clicks a log)
+  const [selectedLog, setSelectedLog] = useState(null);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
 
   // Sorting
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc' | 'desc'
@@ -150,7 +150,7 @@ const AuditTrail = () => {
       const updated = getAuditLogs();
       setLogs(updated);
       setSelectedLog((prev) => {
-        if (!prev) return updated[0] || null;
+        if (!prev) return null;
         const found = updated.find((l) => l.id === prev.id);
         return found || updated[0] || null;
       });
@@ -666,7 +666,12 @@ const AuditTrail = () => {
               {!inspectorOpen && (
                 <button
                   type="button"
-                  onClick={() => setInspectorOpen(true)}
+                  onClick={() => {
+                    if (!selectedLog && logs.length > 0) {
+                      setSelectedLog(paginatedLogs[0] || logs[0]);
+                    }
+                    setInspectorOpen(true);
+                  }}
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
                 >
                   <Eye className="w-3.5 h-3.5 text-slate-500" />

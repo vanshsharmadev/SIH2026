@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context';
 import { getUserDisplayName, isOfficerUser } from '../../utils/roleUtils';
+import { documentService } from '../../services';
 
 // Dynamic applications dataset (empty baseline; loaded from real user bids)
 const APPLICATIONS_DATA = [];
@@ -89,7 +90,46 @@ const MyApplications = () => {
   const [chatMessage, setChatMessage] = useState('');
   const [chatLog, setChatLog] = useState([]);
 
-  // Load dynamically submitted bidder applications from localStorage
+  const mapServerBidToApp = (b) => {
+    const score = b.complianceScore ?? b.score ?? 90;
+    const evalStatus = b.evaluationStatus || 'Pending';
+    let statusCategory = 'under_eval';
+    let statusText = 'Under Technical Review';
+    let badgeColor = 'blue';
+
+    if (evalStatus === 'Cleared' || evalStatus === 'Approved') {
+      statusCategory = 'qualified';
+      statusText = 'Technically Qualified';
+      badgeColor = 'emerald';
+    } else if (evalStatus === 'Rejected' || evalStatus === 'Disqualified') {
+      statusCategory = 'under_eval';
+      statusText = 'Disqualified';
+      badgeColor = 'rose';
+    }
+
+    return {
+      id: b.formattedId || (typeof b.id === 'number' ? `APP-2026-${b.id}` : b.id),
+      tenderId: b.tenderId,
+      title: b.tenderTitle || 'Procurement Tender',
+      company: b.department || 'Government Ministry',
+      appliedDate: b.submittedOn ? `${b.submittedOn}, ${b.submittedTime || ''}` : 'Today',
+      matchScore: score,
+      complianceScore: score,
+      status: b.officerVerdict || statusText,
+      statusCategory: statusCategory,
+      statusBadgeColor: badgeColor,
+      statusSubtext: b.officerRemarks || 'ML & DSC Authenticity verification completed',
+      documentsSubmitted: b.docCount || b.documents?.length || 4,
+      documents: b.documents || [],
+      vaultDocuments: b.vaultDocuments || [],
+      submissionDocuments: b.submissionDocuments || [],
+      requirementsBreakdown: b.requirementsBreakdown || [],
+      quotedAmount: b.quotedAmount || '₹ 48,50,000',
+      serverPersisted: true,
+    };
+  };
+
+  // Load dynamically submitted bidder applications from localStorage & server
   const [localApplications, setLocalApplications] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
@@ -99,17 +139,45 @@ const MyApplications = () => {
   });
 
   useEffect(() => {
+    let isMounted = true;
+    const fetchBids = async () => {
+      try {
+        const serverBids = await documentService.getMyBids();
+        if (isMounted && Array.isArray(serverBids) && serverBids.length > 0) {
+          const mapped = serverBids.map(mapServerBidToApp);
+          setLocalApplications((prev) => {
+            const seen = new Set(mapped.map((m) => m.tenderId));
+            const localOnly = (prev || []).filter((l) => !seen.has(l.tenderId));
+            return [...mapped, ...localOnly];
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to load server bids in MyApplications:', err);
+      }
+    };
+
+    fetchBids();
+    const interval = setInterval(fetchBids, 5000); // Real-time poll every 5s
+
     const handleStorageUpdate = () => {
       try {
         const apps = JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
         setLocalApplications(apps);
       } catch (err) {}
+      fetchBids();
     };
+
     window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('focus', handleStorageUpdate);
+    window.addEventListener('gem_bidder_applications_updated', handleStorageUpdate);
+    window.addEventListener('gem_submission_created', handleStorageUpdate);
     return () => {
+      isMounted = false;
+      clearInterval(interval);
       window.removeEventListener('storage', handleStorageUpdate);
       window.removeEventListener('focus', handleStorageUpdate);
+      window.removeEventListener('gem_bidder_applications_updated', handleStorageUpdate);
+      window.removeEventListener('gem_submission_created', handleStorageUpdate);
     };
   }, []);
 
@@ -124,7 +192,7 @@ const MyApplications = () => {
   const metrics = useMemo(() => {
     const total = allApplications.length;
     const underEval = allApplications.filter((a) => a.statusCategory === 'under_eval').length;
-    const qualified = allApplications.filter((a) => a.statusCategory === 'qualified').length;
+    const qualified = allApplications.filter((a) => a.statusCategory === 'qualified' || a.statusCategory === 'approved').length;
     const clarification = allApplications.filter((a) => a.statusCategory === 'clarification' || a.hasClarification).length;
     const awarded = allApplications.filter((a) => a.statusCategory === 'awarded').length;
     return { total, underEval, qualified, clarification, awarded };
@@ -166,7 +234,7 @@ const MyApplications = () => {
         const matchesStatus =
           statusFilter === 'all' ||
           (statusFilter === 'under_eval' && app.statusCategory === 'under_eval') ||
-          (statusFilter === 'qualified' && app.statusCategory === 'qualified') ||
+          (statusFilter === 'qualified' && (app.statusCategory === 'qualified' || app.statusCategory === 'approved')) ||
           (statusFilter === 'clarification' && (app.statusCategory === 'clarification' || app.hasClarification)) ||
           (statusFilter === 'awarded' && app.statusCategory === 'awarded');
 
@@ -947,10 +1015,16 @@ const MyApplications = () => {
                               <span>Clarification Requested</span>
                             </span>
                           )}
-                          {app.statusCategory === 'qualified' && (
+                          {(app.statusCategory === 'qualified' || app.statusCategory === 'approved') && (
                             <span className="status badge inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-[#242424] dark:text-[#38d39f] dark:border-emerald-800/60">
                               <CheckCircle2 className="w-3 h-3" />
                               <span>Technically Qualified</span>
+                            </span>
+                          )}
+                          {(app.statusCategory === 'disqualified' || app.statusCategory === 'rejected') && (
+                            <span className="status badge inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border border-rose-300 bg-rose-50 text-rose-800 dark:bg-[#242424] dark:text-[#ff4d4f] dark:border-rose-800/60">
+                              <AlertCircle className="w-3 h-3" />
+                              <span>Disqualified</span>
                             </span>
                           )}
                           {app.statusCategory === 'awarded' && (
@@ -1148,10 +1222,16 @@ const MyApplications = () => {
                             <span>Clarification Requested</span>
                           </span>
                         )}
-                        {app.statusCategory === 'qualified' && (
+                        {(app.statusCategory === 'qualified' || app.statusCategory === 'approved') && (
                           <span className="status badge inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-300 dark:bg-[#242424] dark:text-[#38d39f] dark:border-emerald-800/60">
                             <CheckCircle2 className="w-3 h-3" />
                             <span>Qualified</span>
+                          </span>
+                        )}
+                        {(app.statusCategory === 'disqualified' || app.statusCategory === 'rejected') && (
+                          <span className="status badge inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-300 dark:bg-[#242424] dark:text-[#ff4d4f] dark:border-rose-800/60">
+                            <AlertCircle className="w-3 h-3" />
+                            <span>Disqualified</span>
                           </span>
                         )}
                         {app.statusCategory === 'awarded' && (

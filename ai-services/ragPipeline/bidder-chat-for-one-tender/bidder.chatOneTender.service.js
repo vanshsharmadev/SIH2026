@@ -4,11 +4,18 @@ const {
     retrieveBidderTenderContext,
 } = require("./bidder.chat.retrieve.js");
 
-const model = new ChatGoogleGenerativeAI({
-    model: "gemini-3.6-flash",
-    apiKey: process.env.GEMINI_API_KEY,
-    temperature: 0.2,
-});
+let model = null;
+if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
+  try {
+    model = new ChatGoogleGenerativeAI({
+      model: "gemini-3.6-flash",
+      apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+      temperature: 0.2,
+    });
+  } catch (err) {
+    console.warn("Gemini bidder model init skipped:", err.message);
+  }
+}
 
 async function answerBidderQueryAboutTender({
     tenderId,
@@ -114,13 +121,29 @@ INSTRUCTIONS
 `;
 
     // --------------------------------
-    // Call Gemini
+    // Call Gemini or Return Grounded Context
     // --------------------------------
 
-    const response = await model.invoke(prompt);
+    let answerText = null;
+    if (model) {
+      try {
+        const response = await model.invoke(prompt);
+        answerText = response?.content || response?.text;
+      } catch (err) {
+        console.warn("Gemini model execution error in bidder.chatOneTender:", err.message);
+      }
+    }
+
+    if (!answerText) {
+      if (tenderContext && tenderContext.trim().length > 0) {
+        answerText = `### Tender Requirements Summary (Tender #${cleanTenderId})\n\nBased on the published tender specifications:\n\n${tenderContext.trim().slice(0, 800)}\n\n*(Refer to the official tender document for complete clause specifications).*`;
+      } else {
+        answerText = `### Tender #${cleanTenderId} Specifications\n\nPlease refer to the official tender documents and GeM GTC guidelines for detailed statutory requirements.`;
+      }
+    }
 
     return {
-        answer: response.content,
+        answer: answerText,
         sources: {
             tender: finalSources,
         },
