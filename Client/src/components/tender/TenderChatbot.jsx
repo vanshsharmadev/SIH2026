@@ -444,7 +444,7 @@ export const TenderChatbot = ({
                   <div className="flex items-center justify-between gap-3 text-[11px] pb-1 border-b border-black/5 dark:border-white/5 select-none">
                     <span className="font-bold flex items-center gap-1.5">
                       {isUser ? (
-                        'You (Bidder)'
+                        'YOU'
                       ) : (
                         <>
                           <span>AI Tender Assistant</span>
