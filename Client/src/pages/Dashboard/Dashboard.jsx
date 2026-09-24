@@ -181,9 +181,15 @@ const Dashboard = ({ defaultTab = null }) => {
     setSidebarOpen(false);
   };
 
-  const handleOpenSubmissions = () => {
+  const handleOpenSubmissions = (target = null) => {
+    const tenderId =
+      target && typeof target === 'string' && target !== '[object Object]'
+        ? target.trim()
+        : typeof target === 'number'
+        ? String(target)
+        : null;
     setActiveMenu('submissions');
-    setSearchParams({ tab: 'submissions' });
+    setSearchParams(tenderId ? { tab: 'submissions', tenderId } : { tab: 'submissions' });
     setSidebarOpen(false);
   };
 
@@ -193,7 +199,13 @@ const Dashboard = ({ defaultTab = null }) => {
     setSidebarOpen(false);
   };
 
-  const handleOpenTopBidders = (tenderId = null) => {
+  const handleOpenTopBidders = (target = null) => {
+    const tenderId =
+      target && typeof target === 'string' && target !== '[object Object]'
+        ? target.trim()
+        : typeof target === 'number'
+        ? String(target)
+        : null;
     setActiveMenu('top-bidders');
     setSearchParams(tenderId ? { tab: 'top-bidders', tenderId } : { tab: 'top-bidders' });
     setSidebarOpen(false);
@@ -566,13 +578,11 @@ const Dashboard = ({ defaultTab = null }) => {
     };
 
     window.addEventListener('storage', handleStorageUpdate);
-    window.addEventListener('focus', handleStorageUpdate);
     window.addEventListener('gem_officer_submissions_updated', handleStorageUpdate);
     window.addEventListener('gem_submission_created', handleStorageUpdate);
     window.addEventListener('gem_bidder_applications_updated', handleStorageUpdate);
     return () => {
       window.removeEventListener('storage', handleStorageUpdate);
-      window.removeEventListener('focus', handleStorageUpdate);
       window.removeEventListener('gem_officer_submissions_updated', handleStorageUpdate);
       window.removeEventListener('gem_submission_created', handleStorageUpdate);
       window.removeEventListener('gem_bidder_applications_updated', handleStorageUpdate);
@@ -1561,6 +1571,13 @@ const Dashboard = ({ defaultTab = null }) => {
             <TenderSubmissionsView
               onBackToDashboard={handleOpenDashboard}
               onOpenCompliance={handleOpenCompliance}
+              initialTenderId={
+                searchParams.get('tenderId') &&
+                searchParams.get('tenderId') !== '[object Object]' &&
+                !searchParams.get('tenderId').includes('object')
+                  ? searchParams.get('tenderId')
+                  : ''
+              }
             />
           ) : activeMenu === 'top-bidders' ? (
             <TopBiddersView

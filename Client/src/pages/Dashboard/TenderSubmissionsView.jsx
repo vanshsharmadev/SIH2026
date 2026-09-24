@@ -163,7 +163,14 @@ export const getUnifiedSubmissions = () => {
 const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance, initialTenderId = '' }) => {
   // Load dynamic submissions from unified store (syncing officer submissions & bidder applications)
   const [submissionsList, setSubmissionsList] = useState(getUnifiedSubmissions);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      const cached = getUnifiedSubmissions();
+      return !Array.isArray(cached) || cached.length === 0;
+    } catch {
+      return false;
+    }
+  });
   const [isLiveSyncing, setIsLiveSyncing] = useState(false);
 
   // Fetch real-time submissions from backend API
@@ -199,11 +206,9 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance, initialTen
 
     const handleStorageUpdate = () => {
       setSubmissionsList(getUnifiedSubmissions());
-      fetchBackendSubmissions();
     };
 
     window.addEventListener('storage', handleStorageUpdate);
-    window.addEventListener('focus', handleStorageUpdate);
     window.addEventListener('gem_officer_submissions_updated', handleStorageUpdate);
     window.addEventListener('gem_submission_created', handleStorageUpdate);
     window.addEventListener('gem_bidder_applications_updated', handleStorageUpdate);
@@ -211,24 +216,28 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance, initialTen
     return () => {
       clearInterval(pollInterval);
       window.removeEventListener('storage', handleStorageUpdate);
-      window.removeEventListener('focus', handleStorageUpdate);
       window.removeEventListener('gem_officer_submissions_updated', handleStorageUpdate);
       window.removeEventListener('gem_submission_created', handleStorageUpdate);
       window.removeEventListener('gem_bidder_applications_updated', handleStorageUpdate);
     };
   }, []);
 
-  // Filters & State (Closed by default per user request)
+  const sanitizeTenderId = (id) => {
+    if (!id || typeof id !== 'string') return '';
+    const trimmed = id.trim();
+    if (trimmed === '[object Object]' || trimmed.includes('[object') || trimmed.includes('object Object')) return '';
+    return trimmed;
+  };
+
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTab, setSelectedTab] = useState('all'); // all | pending | review | compliant | non_compliant
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterTenderId, setFilterTenderId] = useState(initialTenderId || '');
+  const [filterTenderId, setFilterTenderId] = useState(() => sanitizeTenderId(initialTenderId));
   const [filterDept, setFilterDept] = useState('');
 
   useEffect(() => {
-    if (initialTenderId) {
-      setFilterTenderId(initialTenderId);
-    }
+    const sanitized = sanitizeTenderId(initialTenderId);
+    setFilterTenderId(sanitized);
   }, [initialTenderId]);
   const [filterOrg, setFilterOrg] = useState('');
   const [filterCompliance, setFilterCompliance] = useState('');
@@ -411,6 +420,23 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance, initialTen
     setSelectedTab('all');
   };
 
+  // Tender lookup map to resolve titles / GeM IDs from created tenders
+  const tenderLookupMap = useMemo(() => {
+    const map = new Map();
+    try {
+      const stored = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
+      if (Array.isArray(stored)) {
+        for (const t of stored) {
+          const ref = String(t.referenceNo || t.id || '').toLowerCase().trim();
+          const title = String(t.title || '').toLowerCase().trim();
+          const titleGeM = (title.match(/(gem\/\d{4}\/[a-z]\/\w+)/i) || [])[1] || '';
+          if (ref) map.set(ref, { title, titleGeM });
+        }
+      }
+    } catch {}
+    return map;
+  }, []);
+
   // Filtered submissions list
   const filteredSubmissions = useMemo(() => {
     return submissionsList.filter((item) => {
@@ -432,7 +458,31 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance, initialTen
 
       // Tender ID specific filter
       if (filterTenderId.trim()) {
-        if (!(item.tenderId || '').toLowerCase().includes(filterTenderId.toLowerCase())) return false;
+        const ft = filterTenderId.toLowerCase().trim();
+        const tid = (item.tenderId || '').toLowerCase().trim();
+        const tTitle = (item.tenderTitle || '').toLowerCase().trim();
+        const tRef = (item.tenderReferenceNo || '').toLowerCase().trim();
+        const rawTid = (item.rawTenderId || '').toLowerCase().trim();
+
+        const titleMatch = tTitle.match(/(gem\/\d{4}\/[a-z]\/\w+)/i);
+        const titleGeM = titleMatch ? titleMatch[1] : '';
+
+        const known = tenderLookupMap.get(ft);
+        const matchKnown = known && (
+          (known.title && tTitle && (tTitle.includes(known.title) || known.title.includes(tTitle))) ||
+          (known.titleGeM && (tid.includes(known.titleGeM) || known.titleGeM.includes(tid)))
+        );
+
+        const match =
+          matchKnown ||
+          tid.includes(ft) ||
+          ft.includes(tid) ||
+          tTitle.includes(ft) ||
+          tRef.includes(ft) ||
+          rawTid.includes(ft) ||
+          (titleGeM && (titleGeM.includes(ft) || ft.includes(titleGeM))) ||
+          (ft.startsWith('gem/2026/b/') && tid.includes(ft.replace('gem/2026/b/', '')));
+        if (!match) return false;
       }
 
       // Compliance status dropdown
@@ -754,10 +804,28 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance, initialTen
         showFilters ? 'p-4 space-y-3.5' : 'py-2.5 px-4'
       }`}>
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5 text-blue-600" />
-            <span>Search & Filter Criteria</span>
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-blue-600" />
+              <span>Search & Filter Criteria</span>
+            </span>
+            {filterTenderId && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
+                <span>Tender: {filterTenderId}</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFilterTenderId('');
+                  }}
+                  className="hover:text-rose-600 transition cursor-pointer p-0.5"
+                  title="Clear tender filter"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </span>
+            )}
+          </div>
           <button
             type="button"
             onClick={() => setShowFilters(!showFilters)}

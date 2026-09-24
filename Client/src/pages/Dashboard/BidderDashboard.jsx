@@ -121,13 +121,11 @@ const BidderDashboard = () => {
     };
     window.addEventListener('storage', handleSync);
     window.addEventListener('gem_tenders_updated', handleSync);
-    window.addEventListener('focus', handleSync);
 
     return () => {
       isMounted = false;
       window.removeEventListener('storage', handleSync);
       window.removeEventListener('gem_tenders_updated', handleSync);
-      window.removeEventListener('focus', handleSync);
     };
   }, []);
 
@@ -235,12 +233,10 @@ const BidderDashboard = () => {
       }
     };
     window.addEventListener('storage', handleSync);
-    window.addEventListener('focus', handleSync);
     window.addEventListener('gem_submission_created', handleSync);
     window.addEventListener('gem_bidder_applications_updated', handleSync);
     return () => {
       window.removeEventListener('storage', handleSync);
-      window.removeEventListener('focus', handleSync);
       window.removeEventListener('gem_submission_created', handleSync);
       window.removeEventListener('gem_bidder_applications_updated', handleSync);
     };
