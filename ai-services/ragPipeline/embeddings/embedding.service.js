@@ -3,10 +3,10 @@ const { GoogleGenerativeAIEmbeddings } = require("@langchain/google-genai");
 
 let embeddings = null;
 function getEmbeddingsInstance() {
-  if (!embeddings && (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)) {
+  if (!embeddings && (process.env.GEMINI_API_KEY)) {
     embeddings = new GoogleGenerativeAIEmbeddings({
       model: "gemini-embedding-2",
-      apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+      apiKey: process.env.GEMINI_API_KEY,
     });
   }
   return embeddings;

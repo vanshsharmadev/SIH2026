@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   FileSpreadsheet,
   Search,
@@ -33,11 +33,12 @@ import {
   MapPin,
   CheckSquare,
 } from 'lucide-react';
-import { tenderService, recordAuditLog, processTenderPdf } from '../../services';
+import { tenderService, recordAuditLog, processTenderPdf, documentService } from '../../services';
 import { formatCurrencyINR, formatIndianLakhCrore, isTenderClosed, formatDate } from '../../utils';
 import { useAuth } from '../../context';
 import { isOfficerUser, getUserDisplayName } from '../../utils/roleUtils';
 import { TenderDetailModal } from '../../components/tender';
+import { getUnifiedSubmissions, mapServerSubmissionToView } from './TenderSubmissionsView';
 
 
 
@@ -78,6 +79,13 @@ const OfficerTendersView = ({
   const officerName = getUserDisplayName(user);
   const officerRole = user?.role || 'Procurement Officer';
 
+  const getTenderSubmissionTargetId = (t) => {
+    if (!t) return '';
+    const titleMatch = String(t.title || '').match(/(GeM\/\d{4}\/[A-Za-z]\/\w+)/i);
+    if (titleMatch) return titleMatch[1];
+    return t.referenceNo || t.tenderId || t.id || '';
+  };
+
   // ---------------------------------------------------------------------------
   // 1. DATA STATE & SYNC
   // ---------------------------------------------------------------------------
@@ -103,8 +111,37 @@ const OfficerTendersView = ({
   const [copiedId, setCopiedId] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
 
+  // Dynamic submissions from unified store (syncing officer submissions & bidder applications)
+  const [unifiedSubmissions, setUnifiedSubmissions] = useState(() => {
+    try {
+      return getUnifiedSubmissions();
+    } catch {
+      return [];
+    }
+  });
+
+  // Fetch real-time submissions from backend API & localStorage
+  const refreshSubmissions = useCallback(async () => {
+    try {
+      const localSubs = getUnifiedSubmissions();
+      const serverSubs = await documentService.getAllSubmissions().catch(() => null);
+      if (Array.isArray(serverSubs) && serverSubs.length > 0) {
+        const mapped = serverSubs.map(mapServerSubmissionToView).filter(Boolean);
+        const serverKeys = new Set(mapped.map((m) => String(m.id || `${m.tenderId}-${m.bidder}`)));
+        const localOnly = (localSubs || []).filter(
+          (p) => !serverKeys.has(String(p.id || `${p.tenderId}-${p.bidder}`))
+        );
+        setUnifiedSubmissions([...mapped, ...localOnly]);
+      } else {
+        setUnifiedSubmissions(localSubs);
+      }
+    } catch {
+      setUnifiedSubmissions(getUnifiedSubmissions());
+    }
+  }, []);
+
   // Sync with localStorage & custom events
-  const refreshTenders = () => {
+  const refreshTenders = useCallback(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
       if (Array.isArray(stored)) {
@@ -118,15 +155,80 @@ const OfficerTendersView = ({
     if (onTendersUpdated) {
       onTendersUpdated();
     }
-  };
+  }, [onTendersUpdated]);
 
   useEffect(() => {
-    window.addEventListener('storage', refreshTenders);
-    window.addEventListener('gem_tenders_updated', refreshTenders);
-    return () => {
-      window.removeEventListener('storage', refreshTenders);
-      window.removeEventListener('gem_tenders_updated', refreshTenders);
+    refreshSubmissions();
+    const handleSync = () => {
+      refreshTenders();
+      refreshSubmissions();
     };
+
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('gem_tenders_updated', handleSync);
+    window.addEventListener('gem_officer_submissions_updated', handleSync);
+    window.addEventListener('gem_submission_created', handleSync);
+    window.addEventListener('gem_bidder_applications_updated', handleSync);
+
+    const interval = setInterval(refreshSubmissions, 20000);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('gem_tenders_updated', handleSync);
+      window.removeEventListener('gem_officer_submissions_updated', handleSync);
+      window.removeEventListener('gem_submission_created', handleSync);
+      window.removeEventListener('gem_bidder_applications_updated', handleSync);
+    };
+  }, [refreshTenders, refreshSubmissions]);
+
+  // Strict matcher to calculate how many submissions belong to a tender
+  const countSubmissionsForTender = useCallback((tender, submissions) => {
+    if (!tender) return 0;
+    const explicit = parseInt(tender.submissions, 10) || parseInt(tender.bidCount, 10) || 0;
+    if (!Array.isArray(submissions) || submissions.length === 0) return explicit;
+
+    const clean = (val) => String(val || '').trim().toLowerCase();
+    const stripGeM = (val) => clean(val).replace(/^gem\/2026\/b\//, '').replace(/^gem\//, '');
+
+    const tId = clean(tender.id);
+    const tRef = clean(tender.referenceNo);
+    const tTdr = clean(tender.tenderId);
+    const tTitle = clean(tender.title);
+
+    const tIds = new Set([tId, tRef, tTdr, stripGeM(tId), stripGeM(tRef), stripGeM(tTdr)].filter(Boolean));
+
+    let liveCount = 0;
+    for (const s of submissions) {
+      if (!s) continue;
+      const sTid = clean(s.tenderId);
+      const sRef = clean(s.tenderReferenceNo);
+      const sRawTid = clean(s.rawTenderId);
+      const sTitle = clean(s.tenderTitle || s.title);
+
+      const sIds = [sTid, sRef, sRawTid, stripGeM(sTid), stripGeM(sRef), stripGeM(sRawTid)].filter(Boolean);
+
+      let isMatch = false;
+
+      // 1. Direct ID / Reference match
+      for (const sid of sIds) {
+        if (tIds.has(sid)) {
+          isMatch = true;
+          break;
+        }
+      }
+
+      // 2. Exact Title match
+      if (!isMatch && tTitle && sTitle && tTitle === sTitle) {
+        isMatch = true;
+      }
+
+      if (isMatch) {
+        liveCount += 1;
+      }
+    }
+
+    return Math.max(liveCount, explicit);
   }, []);
 
   // Merged Tenders List (Prioritizing local session uploads, then propTenders, excluding deleted)
@@ -155,7 +257,7 @@ const OfficerTendersView = ({
           ...t,
           id: t.id || t.referenceNo || `TDR-${list.length + 1}`,
           referenceNo: t.referenceNo || t.id,
-          submissions: t.submissions || t.bidCount || 0,
+          submissions: countSubmissionsForTender(t, unifiedSubmissions),
           status: t.status || 'Active',
         });
         seen.add(key);
@@ -171,7 +273,7 @@ const OfficerTendersView = ({
           ...t,
           id: t.id || t.referenceNo || `TDR-${list.length + 1}`,
           referenceNo: t.referenceNo || t.id,
-          submissions: t.submissions || t.bidCount || 0,
+          submissions: countSubmissionsForTender(t, unifiedSubmissions),
           status: t.status || 'Active',
         });
         seen.add(key);
@@ -179,7 +281,7 @@ const OfficerTendersView = ({
     }
 
     return list;
-  }, [localCreatedTenders, propTenders, deletedTenderIds]);
+  }, [localCreatedTenders, propTenders, deletedTenderIds, unifiedSubmissions, countSubmissionsForTender]);
 
   // ---------------------------------------------------------------------------
   // 2. SEARCH, FILTER & SORT STATE
@@ -333,9 +435,18 @@ const OfficerTendersView = ({
   // ---------------------------------------------------------------------------
   const metrics = useMemo(() => {
     const total = allTenders.length;
-    const active = allTenders.filter(
-      (t) => (t.status || '').toLowerCase() === 'active' || (t.status || '').toLowerCase() === 'live' || !t.status
-    ).length;
+    const active = allTenders.filter((t) => {
+      if (isTenderClosed(t)) return false;
+      const s = (t.status || '').toLowerCase().trim();
+      return (
+        s === 'active' ||
+        s === 'live' ||
+        s === 'processed' ||
+        s === 'open' ||
+        s === 'published' ||
+        !s
+      );
+    }).length;
     const underReview = allTenders.filter(
       (t) =>
         (t.status || '').toLowerCase().includes('review') ||
@@ -350,7 +461,8 @@ const OfficerTendersView = ({
       totalValue += val;
     });
 
-    const totalBids = allTenders.reduce((sum, t) => sum + (parseInt(t.submissions, 10) || 0), 0);
+    // Total vendor submissions received across the portal (matches Submissions tab)
+    const totalBids = unifiedSubmissions.length;
 
     return {
       total,
@@ -360,7 +472,7 @@ const OfficerTendersView = ({
       totalValue: formatIndianLakhCrore(totalValue),
       totalBids,
     };
-  }, [allTenders]);
+  }, [allTenders, unifiedSubmissions]);
 
   // ---------------------------------------------------------------------------
   // 10. FILTERED & SORTED TENDERS LIST
@@ -383,8 +495,12 @@ const OfficerTendersView = ({
 
         // Status Filter
         if (statusFilter !== 'ALL') {
-          const s = (t.status || '').toLowerCase();
-          if (statusFilter === 'ACTIVE' && !(s === 'active' || s === 'live' || !s)) return false;
+          const s = (t.status || '').toLowerCase().trim();
+          if (
+            statusFilter === 'ACTIVE' &&
+            !(s === 'active' || s === 'live' || s === 'processed' || s === 'open' || s === 'published' || !s)
+          )
+            return false;
           if (statusFilter === 'EVALUATION' && !(s.includes('review') || s.includes('evaluation'))) return false;
           if (statusFilter === 'DRAFT' && !s.includes('draft')) return false;
           if (statusFilter === 'CLOSED' && !isTenderClosed(t)) return false;
@@ -1174,7 +1290,7 @@ const OfficerTendersView = ({
 
                     <button
                       type="button"
-                      onClick={() => onOpenSubmissions && onOpenSubmissions(item.id)}
+                      onClick={() => onOpenSubmissions && onOpenSubmissions(getTenderSubmissionTargetId(item))}
                       className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
                     >
                       <Trophy className="w-3 h-3 text-amber-500" />
@@ -1194,18 +1310,6 @@ const OfficerTendersView = ({
                       <Eye className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                       <span>Details</span>
                     </button>
-
-                    {onOpenTopBidders && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenTopBidders(item.id)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 border border-amber-200 dark:border-amber-800/50 transition cursor-pointer flex items-center gap-1"
-                        title="Evaluate Top 10 Bidders with QCBS"
-                      >
-                        <Trophy className="w-3 h-3" />
-                        <span>Evaluate</span>
-                      </button>
-                    )}
                   </div>
 
                   <button
@@ -1323,7 +1427,7 @@ const OfficerTendersView = ({
                       <td className="py-3 px-4 whitespace-nowrap text-center">
                         <button
                           type="button"
-                          onClick={() => onOpenSubmissions && onOpenSubmissions(item.id)}
+                          onClick={() => onOpenSubmissions && onOpenSubmissions(getTenderSubmissionTargetId(item))}
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold hover:bg-blue-100 cursor-pointer"
                         >
                           <span>{item.submissions || 0}</span>
@@ -1356,16 +1460,6 @@ const OfficerTendersView = ({
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          {onOpenTopBidders && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenTopBidders(item.id)}
-                              className="p-1.5 text-amber-600 hover:text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/30 transition cursor-pointer"
-                              title="Evaluate Bidders"
-                            >
-                              <Trophy className="w-4 h-4" />
-                            </button>
-                          )}
                           <button
                             type="button"
                             onClick={() => setTenderToDelete(item)}
@@ -1435,6 +1529,7 @@ const OfficerTendersView = ({
         <TenderDetailModal
           tender={activeDetailTender}
           onClose={() => setActiveDetailTender(null)}
+          onOpenSubmissions={onOpenSubmissions}
           initialTab="overview"
         />
       )}

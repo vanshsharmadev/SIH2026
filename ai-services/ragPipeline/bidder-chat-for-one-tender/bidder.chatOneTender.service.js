@@ -5,11 +5,11 @@ const {
 } = require("./bidder.chat.retrieve.js");
 
 let model = null;
-if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
+if (process.env.GEMINI_API_KEY) {
   try {
     model = new ChatGoogleGenerativeAI({
       model: "gemini-3.6-flash",
-      apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+      apiKey: process.env.GEMINI_API_KEY,
       temperature: 0.2,
     });
   } catch (err) {

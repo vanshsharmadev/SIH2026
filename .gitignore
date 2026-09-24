@@ -37,3 +37,7 @@ Client/src/__mocks__/
 Client/src/setupTests.cjs
 Client/src/setupTestsAfterEnv.cjs
 coverage/
+
+# Documentation & API specs with sensitive URLs
+api_documentation.json
+Server/api_documentation.json
