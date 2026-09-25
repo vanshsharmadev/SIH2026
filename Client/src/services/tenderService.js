@@ -1,6 +1,7 @@
 import api from './api';
 import { normalizeTenderId } from '../utils/tenderIdUtils';
 import { processTenderPdf, askBidderTenderAI as aiAskBidderTender } from './aiService';
+import { isOfficerUser } from '../utils/roleUtils';
 
 /**
  * Safely extract a primitive value from a field that might be an object
@@ -164,18 +165,21 @@ export const tenderService = {
       if (Array.isArray(genData)) remote = genData;
       else if (genData && Array.isArray(genData.content)) remote = genData.content;
     } catch {
+      // If public endpoint is unavailable, only try officer endpoint if current user is actually an authenticated officer
+      const token = localStorage.getItem('token');
+      let isOfficer = false;
       try {
-        const topRes = await api.get('/officer/tenders/top-10', { params: { limit: 100, ...params } });
-        const topData = topRes?.data?.data || topRes?.data || topRes;
-        if (Array.isArray(topData)) remote = topData;
-        else if (topData && Array.isArray(topData.content)) remote = topData.content;
-      } catch {
+        const u = JSON.parse(localStorage.getItem('user') || '{}');
+        isOfficer = isOfficerUser(u);
+      } catch {}
+
+      if (token && isOfficer) {
         try {
           const offRes = await api.get('/officer/tenders', { params });
           const offData = offRes?.data?.data || offRes?.data || offRes;
           if (Array.isArray(offData)) remote = offData;
         } catch {
-          // All endpoints unavailable
+          // Officer endpoint also unavailable
         }
       }
     }
@@ -191,11 +195,16 @@ export const tenderService = {
       }
     }
 
-    // Replace localStorage cache with clean API data (no accumulation of junk)
+    // Replace localStorage cache with clean API data, or fall back to cached initial tenders
     if (list.length > 0) {
       try {
         localStorage.setItem('gem_created_tenders', JSON.stringify(list));
       } catch {}
+    } else {
+      const cached = getActiveInitialTenders();
+      if (cached.length > 0) {
+        list = cached;
+      }
     }
 
     return list;
@@ -421,34 +430,47 @@ export const tenderService = {
     const seenRefs = new Set();
     const deletedIds = getDeletedTenderIds();
 
+    const token = localStorage.getItem('token');
+    let isOfficer = false;
     try {
-      const res = await api.get('/officer/tenders', { params });
-      let raw = [];
-      if (Array.isArray(res)) raw = res;
-      else if (res && Array.isArray(res.data?.data)) raw = res.data.data;
-      else if (res && Array.isArray(res.data)) raw = res.data;
-      else if (res && Array.isArray(res.content)) raw = res.content;
-      else if (res && Array.isArray(res.tenders)) raw = res.tenders;
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const u = JSON.parse(userStr);
+        isOfficer = isOfficerUser(u);
+      }
+    } catch {}
 
-      // Normalize, deduplicate and filter deleted — consistent with getTenders()
-      for (const item of raw) {
-        if (isTenderDeleted(item, deletedIds)) continue;
-        const norm = normalizeTender(item);
-        if (norm && !isTenderDeleted(norm, deletedIds) && !seenRefs.has(norm.referenceNo)) {
-          list.push(norm);
-          seenRefs.add(norm.referenceNo);
-          if (norm.id) seenRefs.add(norm.id);
+    // Only query officer-scoped endpoint if token exists and user is recognized as an officer
+    if (token && isOfficer) {
+      try {
+        const res = await api.get('/officer/tenders', { params });
+        let raw = [];
+        if (Array.isArray(res)) raw = res;
+        else if (res && Array.isArray(res.data?.data)) raw = res.data.data;
+        else if (res && Array.isArray(res.data)) raw = res.data;
+        else if (res && Array.isArray(res.content)) raw = res.content;
+        else if (res && Array.isArray(res.tenders)) raw = res.tenders;
+
+        // Normalize, deduplicate and filter deleted — consistent with getTenders()
+        for (const item of raw) {
+          if (isTenderDeleted(item, deletedIds)) continue;
+          const norm = normalizeTender(item);
+          if (norm && !isTenderDeleted(norm, deletedIds) && !seenRefs.has(norm.referenceNo)) {
+            list.push(norm);
+            seenRefs.add(norm.referenceNo);
+            if (norm.id) seenRefs.add(norm.id);
+          }
         }
-      }
 
-      // Cache clean API data in localStorage
-      if (list.length > 0) {
-        try {
-          localStorage.setItem('gem_officer_tenders', JSON.stringify(list));
-        } catch {}
+        // Cache clean API data in localStorage
+        if (list.length > 0) {
+          try {
+            localStorage.setItem('gem_officer_tenders', JSON.stringify(list));
+          } catch {}
+        }
+      } catch (err) {
+        // Silently skip if forbidden or offline, fallback will handle it
       }
-    } catch (err) {
-      console.warn('Officer tenders endpoint notice:', err.message);
     }
 
     // Fall back to general /tenders endpoint if officer endpoint is empty or unavailable

@@ -1,4 +1,5 @@
 import api from './api';
+import { fileToDataUrl } from './documentViewerService';
 
 /**
  * Service for Bidder Compliance Documents & AI Verification Engine
@@ -173,6 +174,16 @@ export const documentService = {
       options?.sourceType ||
       (options?.tenderId ? 'TENDER_SUBMISSION' : 'VENDOR_VAULT');
 
+    // Convert originalFile to dataUrl if available to preserve exact uploaded file
+    let dataUrl = '';
+    if (originalFile instanceof Blob) {
+      try {
+        dataUrl = await fileToDataUrl(originalFile);
+      } catch (err) {
+        console.warn('Could not generate dataUrl for uploaded file:', err);
+      }
+    }
+
     try {
       const res = await api.post('/bidder/documents/upload', payload, {
         onUploadProgress,
@@ -184,6 +195,7 @@ export const documentService = {
           ...data,
           sourceType: data.sourceType || effectiveSourceType,
           tenderId: data.tenderId || options?.tenderId || null,
+          dataUrl: dataUrl || data.dataUrl || null,
         };
         saveLocalDocument(enhancedData);
         return enhancedData;
@@ -202,10 +214,7 @@ export const documentService = {
 
       const fileName = originalFile?.name || 'compliance_document.pdf';
       const fileSize = originalFile?.size || 1024 * 1024;
-      const fileUrl =
-        originalFile instanceof Blob
-          ? URL.createObjectURL(originalFile)
-          : 'https://placehold.co/800x600?text=Compliance+Document';
+      const fileUrl = dataUrl || (originalFile instanceof Blob ? URL.createObjectURL(originalFile) : 'https://placehold.co/800x600?text=Compliance+Document');
 
       const simulatedDocId = Date.now();
 
@@ -219,6 +228,7 @@ export const documentService = {
         name: fileName,
         documentType: effectiveDocType || 'generic',
         fileUrl,
+        dataUrl: dataUrl || null,
         cloudinaryPublicId: `bidders/local/${simulatedDocId}`,
         fileSize,
         size: `${(fileSize / (1024 * 1024)).toFixed(2)} MB`,
@@ -465,7 +475,7 @@ export const documentService = {
         id: 'req_gst',
         key: 'gst',
         label: 'GST Registration Certificate (REG-06)',
-        category: 'Statutory Identity',
+        category: 'Mandatory Documents',
         mandatory: true,
         matchTypes: ['gst', 'gst_certificate', 'taxpayer'],
         keywords: ['gst', 'reg-06', 'gstin'],
@@ -475,7 +485,7 @@ export const documentService = {
         id: 'req_pan',
         key: 'pan',
         label: 'Permanent Account Number (PAN) Card',
-        category: 'Statutory Identity',
+        category: 'Mandatory Documents',
         mandatory: true,
         matchTypes: ['pan', 'pan_card'],
         keywords: ['pan', 'income tax'],
@@ -485,7 +495,7 @@ export const documentService = {
         id: 'req_msme',
         key: 'msme',
         label: 'Udyam Registration Certificate (MSME)',
-        category: 'Enterprise Classification',
+        category: 'Eligibility Criteria',
         mandatory: false,
         matchTypes: ['msme', 'udyam_msme', 'udyam'],
         keywords: ['udyam', 'msme', 'startup'],
@@ -495,7 +505,7 @@ export const documentService = {
         id: 'req_experience',
         key: 'experience',
         label: 'Past Experience & Work Completion Certificates',
-        category: 'Technical Capability',
+        category: 'Technical Requirements',
         mandatory: true,
         matchTypes: ['experience', 'past_performance', 'experience_certificate'],
         keywords: ['experience', 'completion', 'track record', 'past performance'],
@@ -505,7 +515,7 @@ export const documentService = {
         id: 'req_mii',
         key: 'mii_declaration',
         label: 'Make in India (PPP-MII) Local Content Declaration',
-        category: 'Procurement Policy',
+        category: 'Tender Conditions & GFR',
         mandatory: true,
         matchTypes: ['mii_declaration', 'make_in_india', 'mii'],
         keywords: ['make in india', 'ppp-mii', 'local content', 'class-i', 'mii'],
@@ -515,7 +525,7 @@ export const documentService = {
         id: 'req_gfr_144',
         key: 'gfr_144',
         label: 'GFR Rule 144(xi) Land Border Compliance Declaration',
-        category: 'National Security',
+        category: 'Tender Conditions & GFR',
         mandatory: true,
         matchTypes: ['gfr_144', 'land_border'],
         keywords: ['144(xi)', 'land border', 'gfr 144', 'border sharing'],
@@ -525,7 +535,7 @@ export const documentService = {
         id: 'req_technical',
         key: 'technical',
         label: 'Technical Proposal & BOQ Compliance Schedule',
-        category: 'Bid Schedule',
+        category: 'Financial Requirements',
         mandatory: true,
         matchTypes: ['technical', 'technical_proposal', 'boq'],
         keywords: ['technical', 'specification', 'boq', 'schedule'],
@@ -748,6 +758,45 @@ export const documentService = {
       };
       localStorage.setItem('gem_officer_activities', JSON.stringify([newActivity, ...storedActivities]));
 
+      // 4. Officer & Bidder Notifications Center Sync
+      const officerNotif = {
+        id: `notif-sub-${submissionId || Date.now()}`,
+        title: `New Proposal Submitted: ${officerSubmission.tenderId}`,
+        description: `${officerSubmission.bidder} submitted bid proposal (${officerSubmission.docCount} docs, ${officerSubmission.complianceScore}% AI score).`,
+        time: 'Just now',
+        unread: true,
+        category: 'submission',
+        icon: 'CheckSquare',
+        badge: 'New Submission',
+        badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+        target: 'submissions',
+        tenderId: officerSubmission.tenderId,
+      };
+      try {
+        const storedNotifs = JSON.parse(localStorage.getItem('gem_officer_notifications') || '[]');
+        const updatedNotifs = [officerNotif, ...storedNotifs.filter((n) => n.id !== officerNotif.id)].slice(0, 50);
+        localStorage.setItem('gem_officer_notifications', JSON.stringify(updatedNotifs));
+      } catch {}
+
+      try {
+        const storedBidderNotifs = JSON.parse(localStorage.getItem('gem_bidder_notifications') || '[]');
+        const bidderNotif = {
+          id: `notif-bidder-${submissionId || Date.now()}`,
+          title: `Bid Submitted Successfully`,
+          description: `Your bid for ${bidderApp.tenderId} was submitted with ${bidderApp.matchScore}% verified compliance score.`,
+          time: 'Just now',
+          unread: true,
+          category: 'submission',
+          icon: 'CheckSquare',
+          badge: 'Submitted',
+          badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+          target: 'bids',
+          tenderId: bidderApp.tenderId,
+        };
+        localStorage.setItem('gem_bidder_notifications', JSON.stringify([bidderNotif, ...storedBidderNotifs].slice(0, 50)));
+      } catch {}
+
+      window.dispatchEvent(new CustomEvent('gem_notification_created', { detail: officerNotif }));
       window.dispatchEvent(new CustomEvent('gem_bidder_applications_updated', { detail: bidderApp }));
       window.dispatchEvent(new CustomEvent('gem_officer_submissions_updated', { detail: officerSubmission }));
       window.dispatchEvent(new CustomEvent('gem_submission_created', { detail: officerSubmission }));

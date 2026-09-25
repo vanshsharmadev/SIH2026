@@ -60,16 +60,16 @@ import {
 } from '../../store/slices/dashboardSlice';
 import { selectAllTenders } from '../../store/slices/tenderSlice';
 import { useAuth, useTheme } from '../../context';
-import { ChatBox, NotificationDropdown } from '../../components/common';
+import { ChatBox, NotificationDropdown, DocumentPreviewModal } from '../../components/common';
 import { isOfficerUser } from '../../utils/roleUtils';
 import ComplianceCheckView from './ComplianceCheckView';
-import TenderSubmissionsView, { getUnifiedSubmissions, mapServerSubmissionToView } from './TenderSubmissionsView';
+import TenderSubmissionsView, { getUnifiedSubmissions, mapServerSubmissionToView, parseComplianceScore } from './TenderSubmissionsView';
 import TopBiddersView from './TopBiddersView';
 import OfficerUploadExtractView from './OfficerUploadExtractView';
 import OfficerTendersView, { countSubmissionsForTender } from './OfficerTendersView';
 import Reports from '../Reports';
 import AuditTrail from '../Audit';
-import { recordAuditLog, tenderService, mlService, aiService, documentService } from '../../services';
+import { recordAuditLog, tenderService, mlService, aiService, documentService, downloadDocument } from '../../services';
 import BidderDashboard from './BidderDashboard';
 import logoGemVariant from '../../assets/logo_gem_variant.png';
 
@@ -92,6 +92,106 @@ export const isTechnicallyQualifiedSubmission = (s) => {
   if (['qualified', 'approved'].includes(statusCategory)) return true;
 
   return false;
+};
+
+/**
+ * Robust initial notifications loader and seeder for Officer Notification Center
+ */
+export const getInitialOfficerNotifications = () => {
+  try {
+    const raw = localStorage.getItem('gem_officer_notifications');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('Error reading gem_officer_notifications:', err);
+  }
+
+  const initial = [];
+  try {
+    const subs = getUnifiedSubmissions();
+    if (Array.isArray(subs) && subs.length > 0) {
+      subs.slice(0, 3).forEach((sub, i) => {
+        initial.push({
+          id: `notif-sub-${sub.id || i}`,
+          title: `New Bid Submission: ${sub.tenderId || 'GeM/2026/B/8912'}`,
+          description: `${sub.bidder || sub.bidderName || 'Commercial Bidder'} submitted proposal (${sub.docCount || 4} documents, ${sub.complianceScore || 90}% AI score).`,
+          time: sub.submittedTime || (i === 0 ? 'Just now' : i === 1 ? '18m ago' : '1h ago'),
+          unread: i < 2,
+          category: 'submission',
+          icon: 'CheckSquare',
+          badge: 'New Submission',
+          badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+          target: 'submissions',
+          tenderId: sub.tenderId,
+        });
+      });
+    }
+  } catch {}
+
+  if (initial.length === 0) {
+    initial.push({
+      id: 'notif-seed-sub-1',
+      title: 'New Bid Submission: GeM/2026/B/8912',
+      description: 'Larsen & Toubro Heavy Civil Infrastructure submitted bid proposal (96% AI compliance score).',
+      time: '12m ago',
+      unread: true,
+      category: 'submission',
+      icon: 'CheckSquare',
+      badge: 'New Submission',
+      badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+      target: 'submissions',
+      tenderId: 'GeM/2026/B/8912',
+    });
+    initial.push({
+      id: 'notif-seed-sub-2',
+      title: 'New Bid Submission: GeM/2026/B/9401',
+      description: 'Tata Projects Ltd submitted EPC documentation package (92% AI score).',
+      time: '45m ago',
+      unread: true,
+      category: 'submission',
+      icon: 'CheckSquare',
+      badge: 'New Submission',
+      badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+      target: 'submissions',
+      tenderId: 'GeM/2026/B/9401',
+    });
+  }
+
+  initial.push({
+    id: 'notif-seed-alert-1',
+    title: 'AI Compliance Flag: Land Border Rule 144(xi)',
+    description: 'Automated verification flagged sub-vendor declaration for mandatory security clearance.',
+    time: '2h ago',
+    unread: true,
+    category: 'alert',
+    icon: 'ShieldAlert',
+    badge: 'High Attention',
+    badgeColor: 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300',
+    target: 'compliance',
+  });
+
+  initial.push({
+    id: 'notif-seed-eval-1',
+    title: 'Comparative AI Matrix Ready',
+    description: 'AI evaluation ranking matrix generated for active corridor tenders.',
+    time: '4h ago',
+    unread: false,
+    category: 'evaluation',
+    icon: 'Trophy',
+    badge: 'AI Evaluated',
+    badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
+    target: 'evaluations',
+  });
+
+  try {
+    localStorage.setItem('gem_officer_notifications', JSON.stringify(initial));
+  } catch {}
+
+  return initial;
 };
 
 // Lightweight SVG sparkline for KPI metric trajectory
@@ -146,6 +246,7 @@ const Dashboard = ({ defaultTab = null }) => {
       return false;
     }
   });
+  const [previewDoc, setPreviewDoc] = useState(null);
 
   const toggleCollapse = () => {
     setSidebarCollapsed((prev) => {
@@ -264,42 +365,143 @@ const Dashboard = ({ defaultTab = null }) => {
 
   // Notification Center Dropdown State
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState(getInitialOfficerNotifications);
+  const [liveSubmissionToast, setLiveSubmissionToast] = useState(null);
+
+  const persistNotifications = useCallback((updatedList) => {
+    try {
+      localStorage.setItem('gem_officer_notifications', JSON.stringify(updatedList));
+    } catch {}
+  }, []);
 
   const unreadNotificationsCount = useMemo(() => {
     return notifications.filter((n) => n.unread).length;
   }, [notifications]);
 
   const handleMarkAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+    setNotifications((prev) => {
+      const updated = prev.map((n) => ({ ...n, unread: false }));
+      persistNotifications(updated);
+      return updated;
+    });
   };
 
   const handleMarkNotificationRead = (id) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
-    );
+    setNotifications((prev) => {
+      const updated = prev.map((n) => (n.id === id ? { ...n, unread: false } : n));
+      persistNotifications(updated);
+      return updated;
+    });
   };
 
   const handleDeleteNotification = (id) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setNotifications((prev) => {
+      const updated = prev.filter((n) => n.id !== id);
+      persistNotifications(updated);
+      return updated;
+    });
   };
 
-  const handleNotificationNavigate = (target) => {
+  const handleNotificationNavigate = (target, item = null) => {
     if (target === 'submissions') {
-      handleOpenSubmissions();
+      handleOpenSubmissions(item?.tenderId || null);
     } else if (target === 'top-bidders') {
-      handleOpenTopBidders();
+      handleOpenTopBidders(item?.tenderId || null);
     } else if (target === 'compliance') {
       handleOpenCompliance();
     } else if (target === 'evaluations') {
       setEvalModalOpen(true);
       setSidebarOpen(false);
     } else if (target === 'audit') {
-      setActiveMenu('audit');
-      setSearchParams({ tab: 'audit' });
-      setSidebarOpen(false);
+      handleOpenAudit();
+    } else if (target === 'tenders') {
+      handleOpenTenders();
     }
   };
+
+  // Live real-time listener for new submissions and notifications
+  useEffect(() => {
+    const handleNewNotification = (e) => {
+      const detail = e?.detail;
+      if (!detail) return;
+      setNotifications((prev) => {
+        if (prev.some((n) => n.id === detail.id)) return prev;
+        const updated = [detail, ...prev].slice(0, 50);
+        persistNotifications(updated);
+        return updated;
+      });
+      if (detail.category === 'submission') {
+        setLiveSubmissionToast(detail);
+      }
+    };
+
+    const handleSubmissionEvent = (e) => {
+      const detail = e?.detail;
+      if (!detail) return;
+      const tenderId = detail.tenderId || detail.tenderReferenceNo || 'Tender';
+      const bidder = detail.bidder || detail.bidderName || 'Registered Bidder';
+      const score = parseComplianceScore(detail.complianceScore ?? detail.score ?? 90);
+      const docCount = detail.docCount || detail.documents?.length || 4;
+      const notifId = `notif-sub-${detail.id || Date.now()}`;
+
+      const newNotif = {
+        id: notifId,
+        title: `New Bid Submission: ${tenderId}`,
+        description: `${bidder} submitted proposal (${docCount} docs, ${score}% AI compliance score).`,
+        time: 'Just now',
+        unread: true,
+        category: 'submission',
+        icon: 'CheckSquare',
+        badge: 'New Submission',
+        badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+        target: 'submissions',
+        tenderId,
+      };
+
+      setNotifications((prev) => {
+        if (prev.some((n) => n.id === notifId || (n.tenderId === tenderId && n.description?.includes(bidder)))) {
+          return prev;
+        }
+        const updated = [newNotif, ...prev].slice(0, 50);
+        persistNotifications(updated);
+        return updated;
+      });
+
+      setLiveSubmissionToast(newNotif);
+    };
+
+    const handleStorageChange = (e) => {
+      if (e?.key === 'gem_officer_notifications' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setNotifications(parsed);
+          }
+        } catch {}
+      }
+    };
+
+    window.addEventListener('gem_notification_created', handleNewNotification);
+    window.addEventListener('gem_submission_created', handleSubmissionEvent);
+    window.addEventListener('gem_officer_submissions_updated', handleSubmissionEvent);
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('gem_notification_created', handleNewNotification);
+      window.removeEventListener('gem_submission_created', handleSubmissionEvent);
+      window.removeEventListener('gem_officer_submissions_updated', handleSubmissionEvent);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [persistNotifications]);
+
+  // Auto-dismiss live toast after 8 seconds
+  useEffect(() => {
+    if (!liveSubmissionToast) return;
+    const timer = setTimeout(() => {
+      setLiveSubmissionToast(null);
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [liveSubmissionToast]);
 
   // Live Microservices & Officer Tenders State
   const [officerTenders, setOfficerTenders] = useState([]);
@@ -700,6 +902,27 @@ const Dashboard = ({ defaultTab = null }) => {
         });
         localStorage.setItem('gem_bidder_applications', JSON.stringify(updatedApps));
       } catch {}
+
+      // Officer notification for qualified bidder
+      const evalNotif = {
+        id: `notif-eval-${sub.id || Date.now()}`,
+        title: `Bidder Qualified: ${sub.bidder || sub.bidderName}`,
+        description: `Proposal for ${sub.tenderId} technically approved & cleared by Officer.`,
+        time: 'Just now',
+        unread: true,
+        category: 'evaluation',
+        icon: 'Trophy',
+        badge: 'Qualified',
+        badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+        target: 'submissions',
+        tenderId: sub.tenderId,
+      };
+      setNotifications((prev) => {
+        const updated = [evalNotif, ...prev.filter((n) => n.id !== evalNotif.id)].slice(0, 50);
+        persistNotifications(updated);
+        return updated;
+      });
+      window.dispatchEvent(new CustomEvent('gem_notification_created', { detail: evalNotif }));
 
       recordAuditLog({
         activity: 'Technical Evaluation Completed',
@@ -1230,7 +1453,7 @@ const Dashboard = ({ defaultTab = null }) => {
                   setChatBoxOpen(true);
                   setSidebarOpen(false);
                 }}
-                title="GeM Compliflix AI (Platform Copilot)"
+                title="GeM Compliflix AI (AI Assistant)"
                 aria-current={chatBoxOpen ? 'true' : undefined}
                 className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
                   } py-2.5 rounded-xl transition-all cursor-pointer text-left relative ${chatBoxOpen
@@ -1672,8 +1895,11 @@ const Dashboard = ({ defaultTab = null }) => {
               >
                 <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
                 {unreadNotificationsCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 min-w-4 h-4 px-1 rounded-full bg-red-600 text-white font-bold text-[9px] flex items-center justify-center border-2 border-white dark:border-[#181818] shadow-xs">
-                    {unreadNotificationsCount}
+                  <span className="absolute top-1.5 right-1.5 flex h-4 min-w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                    <span className="relative min-w-4 h-4 px-1 rounded-full bg-red-600 text-white font-bold text-[9px] flex items-center justify-center border-2 border-white dark:border-[#181818] shadow-xs">
+                      {unreadNotificationsCount}
+                    </span>
                   </span>
                 )}
               </button>
@@ -2851,7 +3077,7 @@ const Dashboard = ({ defaultTab = null }) => {
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() => alert(`Opening preview for ${doc.name}`)}
+                        onClick={() => setPreviewDoc({ ...doc, fileName: doc.name })}
                         className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
                       >
                         <Eye className="w-3 h-3" />
@@ -2859,7 +3085,7 @@ const Dashboard = ({ defaultTab = null }) => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => alert(`Downloading verified copy of ${doc.name}`)}
+                        onClick={() => downloadDocument(doc, selectedTender)}
                         className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
                       >
                         <Download className="w-3 h-3" />
@@ -2897,7 +3123,57 @@ const Dashboard = ({ defaultTab = null }) => {
         </div>
       )}
 
-      {/* -------------------- GEM COMPLIFLIX AI (PLATFORM COPILOT) -------------------- */}
+      {/* -------------------- REAL-TIME SUBMISSION NOTIFICATION TOAST -------------------- */}
+      {liveSubmissionToast && (
+        <div className="fixed top-20 right-6 z-50 animate-in slide-in-from-top-4 fade-in duration-300 max-w-sm w-[90vw] sm:w-[380px] bg-white dark:bg-[#1c1c1c] border-2 border-emerald-500 rounded-2xl p-4 shadow-2xl flex items-start gap-3.5 text-slate-800 dark:text-slate-100">
+          <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+            <Bell className="w-5 h-5 animate-bounce" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                New Submission Alert
+              </span>
+              <button
+                type="button"
+                onClick={() => setLiveSubmissionToast(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded cursor-pointer"
+                aria-label="Dismiss notification"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <p className="text-xs font-bold truncate mt-1 text-slate-900 dark:text-white">
+              {liveSubmissionToast.title}
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5 leading-snug">
+              {liveSubmissionToast.description}
+            </p>
+            <div className="mt-2.5 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  handleOpenSubmissions(liveSubmissionToast.tenderId);
+                  setLiveSubmissionToast(null);
+                }}
+                className="px-3 py-1 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition cursor-pointer flex items-center gap-1 shadow-xs"
+              >
+                <span>View Submission</span>
+                <ChevronRight className="w-3 h-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setLiveSubmissionToast(null)}
+                className="px-2.5 py-1 text-[11px] font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-[#282828] rounded-lg transition cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* -------------------- GEM COMPLIFLIX AI (PLATFORM ASSISTANT) -------------------- */}
       <ChatBox
         isOpen={chatBoxOpen}
         onClose={() => setChatBoxOpen(false)}
@@ -2912,7 +3188,7 @@ const Dashboard = ({ defaultTab = null }) => {
           type="button"
           onClick={() => setChatBoxOpen(true)}
           className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-tr from-blue-700 via-indigo-600 to-blue-500 hover:from-blue-800 hover:via-indigo-700 hover:to-blue-600 text-white shadow-2xl shadow-indigo-500/40 hover:shadow-indigo-500/60 hover:scale-110 active:scale-95 transition-all duration-300 ease-out cursor-pointer border-2 border-white/30 dark:border-white/20 group flex items-center justify-center focus:outline-none focus:ring-4 focus:ring-blue-400/40"
-          title="Open GeM Compliflix AI Copilot"
+          title="Open GeM Compliflix AI Assistant"
           aria-label="Ask GeM Compliflix AI about platform navigation, workflows, and GFR compliance"
         >
           {/* Active Online Status Indicator */}
@@ -2940,6 +3216,12 @@ const Dashboard = ({ defaultTab = null }) => {
         </button>
       )}
 
+      {/* Universal Document Preview & Download Modal */}
+      <DocumentPreviewModal
+        isOpen={Boolean(previewDoc)}
+        document={previewDoc}
+        onClose={() => setPreviewDoc(null)}
+      />
     </div>
   );
 };

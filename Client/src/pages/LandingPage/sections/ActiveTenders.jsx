@@ -28,7 +28,7 @@ const ActiveTenders = () => {
     const fetchActive = async () => {
       setLoading(true);
       try {
-        const data = await tenderService.getOfficerTenders();
+        const data = await tenderService.getTenders();
         if (isMounted && Array.isArray(data)) {
           setTenders(data);
         }
@@ -41,7 +41,7 @@ const ActiveTenders = () => {
     fetchActive();
 
     const handleSync = () => {
-      tenderService.getOfficerTenders().then((data) => {
+      tenderService.getTenders().then((data) => {
         if (isMounted && Array.isArray(data)) {
           setTenders(data);
         }

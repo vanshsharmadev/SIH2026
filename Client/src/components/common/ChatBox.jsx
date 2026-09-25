@@ -19,7 +19,7 @@ const INITIAL_MESSAGES = [
     sender: 'bot',
     text: `Hi! 👋
 
-I am **GeM Compliflix AI**, your copilot for navigating the GeM Compliance Platform.
+I am **GeM Compliflix AI**, your AI Assistant for navigating the GeM Compliance Platform.
 
 You can ask me about:
 • Creating and managing tenders
@@ -33,7 +33,7 @@ You can ask me about:
 
 What would you like help with?`,
     timestamp: 'Just now',
-    citation: 'GeM Compliance Platform • AI Copilot',
+    citation: 'GeM Compliance Platform • AI Assistant',
     confidence: 'Platform Verified',
   },
 ];
@@ -58,7 +58,7 @@ const SUGGESTIONS = [
  * Robust client-side fallback knowledge engine for GeM Compliflix AI.
  * Ensures instant, accurate, verified assistance even when offline or during downstream delays.
  */
-function resolveLocalCopilotKnowledge(query, { bidderId } = {}) {
+function resolveLocalAssistantKnowledge(query, { bidderId } = {}) {
   const q = (query || '').toLowerCase().trim();
 
   // Guard: Bidder-specific question when no bidder context exists
@@ -372,10 +372,10 @@ I can then help you understand the available compliance evidence and verificatio
   }
 
   return {
-    title: 'GeM Compliflix AI Copilot',
+    title: 'GeM Compliflix AI Assistant',
     citation: 'GeM Compliance Platform Knowledge Base',
     confidence: 'Platform Guide',
-    text: `I am **GeM Compliflix AI**, your copilot for the GeM Compliance Platform.
+    text: `I am **GeM Compliflix AI**, your AI Assistant for the GeM Compliance Platform.
 
 I can assist you with:
 - **Platform Navigation**: Locating **Upload & Extract**, **Tender Submissions**, **Compliance Verification**, **QCBS Top Bidders**, or **Reports**.
@@ -508,7 +508,7 @@ const ChatBox = ({
 
     // 2. Resilient Fallback to Local Knowledge Engine
     setTimeout(() => {
-      const resolved = resolveLocalCopilotKnowledge(query, {
+      const resolved = resolveLocalAssistantKnowledge(query, {
         bidderId: targetBidderId,
       });
 
@@ -579,7 +579,7 @@ const ChatBox = ({
                   )}
                 </div>
                 <p className="text-[10.5px] text-slate-300 font-medium">
-                  Your AI copilot for navigating the GeM Compliance Platform
+                  Your AI Assistant for navigating the GeM Compliance Platform
                 </p>
               </div>
             </div>
@@ -639,7 +639,7 @@ const ChatBox = ({
               )}
             </div>
             <span className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200/50 dark:border-indigo-800/40">
-              Copilot Active
+              AI Assistant Active
             </span>
           </div>
 

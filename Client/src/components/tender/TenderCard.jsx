@@ -13,7 +13,9 @@ import {
   ArrowRight,
   FileText,
   Lock,
+  Download,
 } from 'lucide-react';
+import { downloadDocument } from '../../services';
 
 const TenderCard = ({ tender, onViewDetails }) => {
   const navigate = useNavigate();
@@ -132,9 +134,23 @@ const TenderCard = ({ tender, onViewDetails }) => {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                downloadDocument(
+                  tender.documents?.[0] || tender,
+                  `${String(tender.referenceNo || 'Tender').replace(/[^a-zA-Z0-9]/g, '_')}_RFP.pdf`
+                );
+              }}
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-emerald-600 hover:border-emerald-300 dark:hover:border-emerald-700 transition cursor-pointer"
+              title="Download Official RFP PDF"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
                 onViewDetails && onViewDetails(tender);
               }}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#073567] hover:bg-[#05284f] dark:bg-blue-600 dark:hover:bg-blue-700 text-white text-xs font-semibold shadow-2xs group-hover:shadow-sm transition-all"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#073567] hover:bg-[#05284f] dark:bg-blue-600 dark:hover:bg-blue-700 text-white text-xs font-semibold shadow-2xs group-hover:shadow-sm transition-all cursor-pointer"
             >
               <span>Details</span>
               <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />

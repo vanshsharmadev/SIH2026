@@ -186,7 +186,7 @@ export default function NotificationDropdown({
                     onMarkAsRead(item.id);
                   }
                   if (item.target && onNavigate) {
-                    onNavigate(item.target);
+                    onNavigate(item.target, item);
                     onClose();
                   }
                 }}

@@ -44,7 +44,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context';
 import { getUserDisplayName, isOfficerUser } from '../../utils/roleUtils';
-import { documentService } from '../../services';
+import { documentService, downloadDocument } from '../../services';
+import DocumentPreviewModal from '../../components/common/DocumentPreviewModal';
 
 // Dynamic applications dataset (empty baseline; loaded from real user bids)
 const APPLICATIONS_DATA = [];
@@ -71,6 +72,7 @@ const MyApplications = () => {
   const [kebabMenuOpenId, setKebabMenuOpenId] = useState(null);
   const [copiedBidId, setCopiedBidId] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
+  const [previewDoc, setPreviewDoc] = useState(null);
 
   // Search & Filter controls
   const [searchQuery, setSearchQuery] = useState('');
@@ -1098,13 +1100,33 @@ const MyApplications = () => {
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      setActiveDocModal(app);
+                                      setPreviewDoc({
+                                        ...app,
+                                        sourceType: 'SUBMISSION_DOSSIER',
+                                        fileName: `GeM_Bid_Receipt_${String(app.tenderId || '2026').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`,
+                                      });
                                       setKebabMenuOpenId(null);
                                     }}
                                     className="w-full px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
                                   >
-                                    <Download className="w-3.5 h-3.5 text-slate-400" />
-                                    <span>Download Submission Dossier</span>
+                                    <Eye className="w-3.5 h-3.5 text-blue-500" />
+                                    <span>Preview Submission Dossier</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      downloadDocument({
+                                        ...app,
+                                        sourceType: 'SUBMISSION_DOSSIER',
+                                        fileName: `GeM_Bid_Receipt_${String(app.tenderId || '2026').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`,
+                                      });
+                                      setKebabMenuOpenId(null);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <Download className="w-3.5 h-3.5 text-emerald-500" />
+                                    <span>Download Dossier PDF</span>
                                   </button>
 
                                   <button
@@ -1466,14 +1488,22 @@ const MyApplications = () => {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200">
                           {doc.status}
                         </span>
                         <button
                           type="button"
-                          onClick={() => showToast(`Downloading ${doc.name}...`)}
-                          className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                          onClick={() => setPreviewDoc(doc)}
+                          className="p-1.5 rounded text-slate-400 hover:text-blue-600 hover:bg-slate-100 cursor-pointer"
+                          title="Preview document"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => downloadDocument(doc, { referenceNo: activeDocModal?.tenderId })}
+                          className="p-1.5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
                           title="Download document copy"
                         >
                           <Download className="w-3.5 h-3.5" />
@@ -1488,13 +1518,37 @@ const MyApplications = () => {
             {/* Footer */}
             <div className="px-5 py-3 border-t border-slate-200 dark:border-[#303030] bg-[#F8FAFC] dark:bg-[#181818] flex items-center justify-between text-xs">
               <span className="text-slate-500">Government of India • GeM Cryptographic Vault</span>
-              <button
-                type="button"
-                onClick={() => setActiveDocModal(null)}
-                className="px-4 py-1.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700 font-semibold cursor-pointer"
-              >
-                Close Dossier
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPreviewDoc({
+                      ...activeDocModal,
+                      sourceType: 'SUBMISSION_DOSSIER',
+                      fileName: `GeM_Bid_Receipt_${String(activeDocModal?.tenderId || '2026').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`,
+                    })
+                  }
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Preview Dossier</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => downloadDocument({ ...activeDocModal, sourceType: 'SUBMISSION_DOSSIER', fileName: `GeM_Bid_Receipt_${String(activeDocModal?.tenderId || '2026').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf` })}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Full Dossier PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveDocModal(null)}
+                  className="px-4 py-1.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700 font-semibold cursor-pointer"
+                >
+                  Close Dossier
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1815,6 +1869,13 @@ const MyApplications = () => {
         </div>
       )}
 
+      {/* Universal Document Preview & Download Modal */}
+      <DocumentPreviewModal
+        isOpen={Boolean(previewDoc)}
+        document={previewDoc}
+        tenderContext={{ referenceNo: activeDocModal?.tenderId }}
+        onClose={() => setPreviewDoc(null)}
+      />
     </div>
   );
 };

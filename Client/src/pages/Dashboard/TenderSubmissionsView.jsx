@@ -21,11 +21,13 @@ import {
   ClipboardCheck,
   Trophy,
   Loader2,
+  Download,
 } from 'lucide-react';
 import BidderChatBot from '../../components/common/BidderChatBot';
 import MarkdownRenderer from '../../components/common/MarkdownRenderer';
+import DocumentPreviewModal from '../../components/common/DocumentPreviewModal';
 import { AiEvaluationDrawer, ProcurementClearanceModal, TenderDetailModal } from '../../components/tender';
-import { mlService, tenderService, aiService, recordAuditLog, documentService } from '../../services';
+import { mlService, tenderService, aiService, recordAuditLog, documentService, downloadDocument } from '../../services';
 
 export const parseComplianceScore = (val) => {
   if (val === null || val === undefined) return 90;
@@ -250,6 +252,7 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance, initialTen
   const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
   const [detailTab, setDetailTab] = useState('overview'); // 'overview' | 'dossier'
   const [viewAllDocs, setViewAllDocs] = useState(false);
+  const [previewingDoc, setPreviewingDoc] = useState(null);
 
   // Officer Evaluation & Clearance Engine Modal state
   const [evaluationModalOpen, setEvaluationModalOpen] = useState(false);
@@ -745,7 +748,8 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance, initialTen
             onClick={onBackToDashboard}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
           >
-            <span>&larr; Back to Dashboard</span>
+            <ChevronLeft className="w-4 h-4 text-blue-600" />
+            <span> Back to Dashboard</span>
           </button>
         ) : null}
       </div>
@@ -1797,19 +1801,25 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance, initialTen
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0 ml-1">
-                          <span className="text-xs text-slate-400">{doc.size}</span>
-                          {(doc.cloudinaryUrl || doc.url) && (
-                            <a
-                              href={doc.cloudinaryUrl || doc.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-xs font-semibold hover:underline"
-                              title="View Document PDF"
-                            >
-                              <ExternalLink className="w-2.5 h-2.5" />
-                              <span>PDF</span>
-                            </a>
-                          )}
+                          <span className="text-xs text-slate-400 mr-1">{doc.size || '1.2 MB'}</span>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewingDoc({ ...doc, fileName: doc.name || doc.fileName })}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-xs font-semibold hover:bg-blue-100 transition cursor-pointer"
+                            title="Preview Document"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>Preview</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => downloadDocument(doc, { referenceNo: selectedSubmission.tenderId, bidder: selectedSubmission.bidder })}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-200 transition cursor-pointer"
+                            title="Download PDF"
+                          >
+                            <Download className="w-3 h-3" />
+                            <span>PDF</span>
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -1943,6 +1953,18 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance, initialTen
           onClose={() => setQcbsModalTender(null)}
         />
       )}
+
+      {/* Universal Document Preview & Download Modal */}
+      <DocumentPreviewModal
+        isOpen={Boolean(previewingDoc)}
+        document={previewingDoc}
+        tenderContext={{
+          referenceNo: selectedSubmission?.tenderId,
+          title: selectedSubmission?.tenderTitle,
+          bidder: selectedSubmission?.bidder,
+        }}
+        onClose={() => setPreviewingDoc(null)}
+      />
     </div>
   );
 };
