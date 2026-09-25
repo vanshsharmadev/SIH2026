@@ -956,5 +956,5 @@ The project includes automated regression testing and validation suites:
   - `DocumentPreviewModal.test.jsx`: Tests blob URL generation, SHA-256 copy action, and tab switching.
 - **Code Quality**: ESLint configuration enforcing ECMAScript modern standards and strict React hooks lint rules.
 
----
-*Authored for the Smart India Hackathon (SIH) 2026 Evaluation Committee — GeM CompliFlix AI Engineering Team.*
+*Authored for the Smart India Hackathon (SIH) 2026 Evaluation Committee — GeM CompliFlix Engineering Team.*
+
