@@ -642,6 +642,85 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance, initialTen
     }
   };
 
+  // Real CSV Table Export for Submissions
+  const handleExportSubmissionsCSV = () => {
+    const listToExport = filteredSubmissions.length > 0 ? filteredSubmissions : submissionsList;
+    if (!listToExport || listToExport.length === 0) {
+      alert('No submissions available to export.');
+      return;
+    }
+
+    const escapeCsvCell = (val) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const headers = [
+      'Submission ID',
+      'Tender Reference',
+      'Tender Title',
+      'Department / Ministry',
+      'Bidder Name',
+      'Quoted Amount',
+      'AI Compliance Score (%)',
+      'Compliance Status',
+      'Evaluation Status',
+      'Officer Clearance Verdict',
+      'Officer Remarks',
+      'Documents Count',
+      'Submission Date',
+      'Submission Time',
+    ];
+
+    const rows = listToExport.map((item) => [
+      escapeCsvCell(item.id || item.rawId || ''),
+      escapeCsvCell(item.tenderId || item.tenderReferenceNo || ''),
+      escapeCsvCell(item.tenderTitle || ''),
+      escapeCsvCell(item.department || ''),
+      escapeCsvCell(item.bidder || item.bidderName || item.companyName || ''),
+      escapeCsvCell(item.quotedAmount || ''),
+      escapeCsvCell(
+        item.complianceScore !== null && item.complianceScore !== undefined
+          ? `${item.complianceScore}%`
+          : 'N/A'
+      ),
+      escapeCsvCell(item.complianceStatus || ''),
+      escapeCsvCell(item.evaluationStatus || ''),
+      escapeCsvCell(item.officerVerdict || 'Pending'),
+      escapeCsvCell(item.officerRemarks || ''),
+      escapeCsvCell(item.docCount || item.documents?.length || 0),
+      escapeCsvCell(item.submittedOn || ''),
+      escapeCsvCell(item.submittedTime || ''),
+    ]);
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.setAttribute('download', `GeM_Tender_Submissions_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    recordAuditLog?.({
+      activity: 'Report Generated',
+      module: 'Tender Submissions',
+      details: `Submissions table (${listToExport.length} records) exported to CSV.`,
+      status: 'Success',
+    });
+
+    setActionToast({
+      title: 'Export Successful',
+      message: `Exported ${listToExport.length} submissions to CSV successfully.`,
+      verdict: 'CLEARED',
+    });
+    setTimeout(() => setActionToast(null), 4000);
+  };
+
   const getScoreColor = (score) => {
     if (score >= 80) return 'bg-emerald-500';
     if (score >= 60) return 'bg-amber-500';
@@ -1098,29 +1177,13 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance, initialTen
           </button>
         </div>
 
-        {/* Export Button & QCBS Rankings Button */}
+        {/* Export Button */}
         <div className="pb-1 flex items-center gap-2">
           <button
             type="button"
-            onClick={() => {
-              const targetTenderId = selectedSubmission?.tenderId || (filterTenderId && filterTenderId !== 'all' ? filterTenderId : null);
-              setQcbsModalTender({
-                id: targetTenderId || 'TND-DEFAULT',
-                referenceNo: targetTenderId || selectedSubmission?.referenceNo || 'GEM/2026/B/REF',
-                title: selectedSubmission?.tenderTitle || 'Selected Tender Project',
-                value: '₹ 18.50 Cr',
-              });
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/60 border border-amber-300/80 dark:border-amber-700/80 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/60 transition cursor-pointer shadow-2xs"
-            title="Inspect Top 10 Bidders ranked by GFR 192 QCBS (70% Technical / 30% Price)"
-          >
-            <Trophy className="w-3.5 h-3.5 text-amber-500" />
-            <span>Top 10 QCBS Bidders</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => alert('Exporting submissions table to CSV / Excel...')}
+            onClick={handleExportSubmissionsCSV}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer shadow-2xs"
+            title="Export submissions table as CSV spreadsheet"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
             <span>Export Table (CSV)</span>

@@ -63,15 +63,36 @@ import { useAuth, useTheme } from '../../context';
 import { ChatBox, NotificationDropdown } from '../../components/common';
 import { isOfficerUser } from '../../utils/roleUtils';
 import ComplianceCheckView from './ComplianceCheckView';
-import TenderSubmissionsView from './TenderSubmissionsView';
+import TenderSubmissionsView, { getUnifiedSubmissions, mapServerSubmissionToView } from './TenderSubmissionsView';
 import TopBiddersView from './TopBiddersView';
 import OfficerUploadExtractView from './OfficerUploadExtractView';
-import OfficerTendersView from './OfficerTendersView';
+import OfficerTendersView, { countSubmissionsForTender } from './OfficerTendersView';
 import Reports from '../Reports';
 import AuditTrail from '../Audit';
-import { recordAuditLog, tenderService, mlService, aiService } from '../../services';
+import { recordAuditLog, tenderService, mlService, aiService, documentService } from '../../services';
 import BidderDashboard from './BidderDashboard';
 import logoGemVariant from '../../assets/logo_gem_variant.png';
+
+/**
+ * Strict evaluation helper to check whether a submission/bidder is Technically Qualified
+ */
+export const isTechnicallyQualifiedSubmission = (s) => {
+  if (!s) return false;
+  const evalStatus = String(s.evaluationStatus || '').trim().toLowerCase();
+  const officerVerdict = String(s.officerVerdict || '').trim().toLowerCase();
+  const verdict = String(s.verdict || '').trim().toLowerCase();
+  const status = String(s.status || '').trim().toLowerCase();
+  const statusCategory = String(s.statusCategory || '').trim().toLowerCase();
+
+  if (s.isQualified === true) return true;
+  if (['cleared', 'approved', 'technically qualified', 'qualified'].includes(evalStatus)) return true;
+  if (['cleared', 'approved', 'technically qualified', 'qualified', 'conditionally_cleared', 'highly_recommended'].includes(officerVerdict)) return true;
+  if (['cleared', 'approved', 'technically qualified', 'qualified', 'highly_recommended'].includes(verdict)) return true;
+  if (['technically qualified', 'qualified'].includes(status)) return true;
+  if (['qualified', 'approved'].includes(statusCategory)) return true;
+
+  return false;
+};
 
 // Lightweight SVG sparkline for KPI metric trajectory
 const Sparkline = ({ data = [], color = '#3b82f6', width = 64, height = 24 }) => {
@@ -550,10 +571,10 @@ const Dashboard = ({ defaultTab = null }) => {
     }
   };
 
-  // Local storage synced officer submissions & activities (immediate cross-tab / refresh sync)
-  const [localOfficerSubmissions, setLocalOfficerSubmissions] = useState(() => {
+  // Unified submissions syncing backend API + localStorage (gem_officer_submissions & gem_bidder_applications)
+  const [unifiedSubmissions, setUnifiedSubmissions] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
+      return getUnifiedSubmissions();
     } catch {
       return [];
     }
@@ -567,11 +588,35 @@ const Dashboard = ({ defaultTab = null }) => {
     }
   });
 
-  useEffect(() => {
-    const handleStorageUpdate = () => {
+  const fetchLiveSubmissions = useCallback(async () => {
+    try {
+      const localSubs = getUnifiedSubmissions();
+      const serverSubs = await documentService.getAllSubmissions().catch(() => null);
+      if (Array.isArray(serverSubs) && serverSubs.length > 0) {
+        const mapped = serverSubs.map(mapServerSubmissionToView).filter(Boolean);
+        const serverKeys = new Set(mapped.map((m) => String(m.id || `${m.tenderId}-${m.bidder}`)));
+        const localOnly = (localSubs || []).filter(
+          (p) => !serverKeys.has(String(p.id || `${p.tenderId}-${p.bidder}`)) && !p.serverPersisted
+        );
+        setUnifiedSubmissions([...mapped, ...localOnly]);
+      } else {
+        setUnifiedSubmissions(localSubs);
+      }
+    } catch (err) {
+      console.warn('Dashboard fetchLiveSubmissions note:', err?.message || err);
       try {
-        const subs = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
-        setLocalOfficerSubmissions(subs);
+        setUnifiedSubmissions(getUnifiedSubmissions());
+      } catch {}
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLiveSubmissions();
+    const pollInterval = setInterval(fetchLiveSubmissions, 30000);
+
+    const handleStorageUpdate = () => {
+      fetchLiveSubmissions();
+      try {
         const acts = JSON.parse(localStorage.getItem('gem_officer_activities') || '[]');
         setLocalOfficerActivities(acts);
       } catch (err) { }
@@ -582,12 +627,120 @@ const Dashboard = ({ defaultTab = null }) => {
     window.addEventListener('gem_submission_created', handleStorageUpdate);
     window.addEventListener('gem_bidder_applications_updated', handleStorageUpdate);
     return () => {
+      clearInterval(pollInterval);
       window.removeEventListener('storage', handleStorageUpdate);
       window.removeEventListener('gem_officer_submissions_updated', handleStorageUpdate);
       window.removeEventListener('gem_submission_created', handleStorageUpdate);
       window.removeEventListener('gem_bidder_applications_updated', handleStorageUpdate);
     };
-  }, []);
+  }, [fetchLiveSubmissions]);
+
+  // Handler to approve and qualify bidder submission
+  const handleApproveSubmission = async (sub) => {
+    if (!sub) return;
+    try {
+      const subId = sub.rawId || (typeof sub.id === 'number' ? sub.id : null);
+      if (subId && sub.serverPersisted) {
+        await documentService.updateEvaluation(subId, 'CLEARED', 'Approved and technically qualified by Officer per GFR guidelines');
+      }
+
+      setUnifiedSubmissions((prev) =>
+        prev.map((item) => {
+          if (item.id === sub.id || (subId && item.rawId === subId)) {
+            return {
+              ...item,
+              evaluationStatus: 'Cleared',
+              officerVerdict: 'CLEARED',
+              status: 'Technically Qualified',
+              statusCategory: 'qualified',
+              isQualified: true,
+              officerRemarks: 'Approved and technically qualified by Officer',
+            };
+          }
+          return item;
+        })
+      );
+
+      try {
+        const stored = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
+        let found = false;
+        const updated = stored.map((item) => {
+          if (item.id === sub.id || (subId && item.id === subId)) {
+            found = true;
+            return {
+              ...item,
+              evaluationStatus: 'Cleared',
+              officerVerdict: 'CLEARED',
+              status: 'Technically Qualified',
+            };
+          }
+          return item;
+        });
+        if (!found) {
+          updated.push({
+            ...sub,
+            evaluationStatus: 'Cleared',
+            officerVerdict: 'CLEARED',
+            status: 'Technically Qualified',
+          });
+        }
+        localStorage.setItem('gem_officer_submissions', JSON.stringify(updated));
+
+        const bidderApps = JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
+        const updatedApps = bidderApps.map((a) => {
+          if (a.id === sub.id || a.tenderId === sub.tenderId) {
+            return {
+              ...a,
+              status: 'Technically Qualified',
+              statusCategory: 'qualified',
+              officerVerdict: 'CLEARED',
+            };
+          }
+          return a;
+        });
+        localStorage.setItem('gem_bidder_applications', JSON.stringify(updatedApps));
+      } catch {}
+
+      recordAuditLog({
+        activity: 'Technical Evaluation Completed',
+        module: 'Officer Dashboard',
+        details: `Bidder ${sub.bidder || sub.bidderName} approved and technically qualified for Tender #${sub.tenderId}`,
+        status: 'Success',
+      });
+
+      window.dispatchEvent(new CustomEvent('gem_officer_submissions_updated'));
+      window.dispatchEvent(new CustomEvent('gem_bidder_applications_updated'));
+
+      alert(`Bidder "${sub.bidder || sub.bidderName}" has been approved and marked as Technically Qualified!`);
+    } catch (err) {
+      console.warn('Approve error:', err);
+      alert(`Bidder "${sub.bidder || sub.bidderName}" approved!`);
+    } finally {
+      setSelectedDocSubmission(null);
+    }
+  };
+
+  const handleRequestClarification = (sub) => {
+    if (!sub) return;
+    try {
+      const stored = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
+      const updated = stored.map((item) => {
+        if (item.id === sub.id) {
+          return {
+            ...item,
+            evaluationStatus: 'Under Review',
+            officerVerdict: 'CONDITIONALLY_CLEARED',
+            status: 'Clarification Requested',
+          };
+        }
+        return item;
+      });
+      localStorage.setItem('gem_officer_submissions', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('gem_officer_submissions_updated'));
+    } catch {}
+    alert(`Clarification request dispatched to bidder: ${sub.bidder || sub.bidderName}`);
+    setSelectedDocSubmission(null);
+  };
 
   const officerName =
     user?.name && user.name.length > 1 && user.name !== 'OFFICIAL USER'
@@ -646,24 +799,25 @@ const Dashboard = ({ defaultTab = null }) => {
       deptCode: t.deptCode || 'GOV',
       lastDate: t.lastDate || t.closingDate || t.closes || '—',
       daysLeft: t.daysLeft ?? 0,
-      submissions: t.submissions || t.bidCount || 0,
+      submissions: countSubmissionsForTender(t, unifiedSubmissions),
       status: t.status || 'Active',
       statusType: t.status === 'Closed' ? 'closed' : t.status === 'Compliance issue' ? 'issue' : t.status === 'Under review' ? 'review' : 'active',
       value: t.value || t.estimatedValue || '—',
     }));
-  }, [allTenders]);
+  }, [allTenders, unifiedSubmissions]);
 
   // Default base submissions (strictly actual submissions only)
   const defaultSubmissions = [];
 
-  // Combined Recent Submissions (Redux + localStorage proposals from bidders)
+  // Combined Recent Submissions (Unified server/local proposals + Redux)
   const recentSubmissions = useMemo(() => {
     const base = (reduxSubmissions && reduxSubmissions.length > 0) ? reduxSubmissions : defaultSubmissions;
     const seen = new Set();
     const list = [];
-    // Prioritize newly uploaded proposals from bidders
-    for (const raw of localOfficerSubmissions) {
-      const key = raw.id || `${raw.tenderId}-${raw.bidder}`;
+    // Prioritize unified live submissions from server and local store
+    for (const raw of unifiedSubmissions) {
+      if (!raw) continue;
+      const key = String(raw.id || `${raw.tenderId}-${raw.bidder}`);
       if (!seen.has(key)) {
         seen.add(key);
         const score = raw.score !== undefined ? raw.score : (raw.complianceScore ?? 0);
@@ -685,7 +839,8 @@ const Dashboard = ({ defaultTab = null }) => {
       }
     }
     for (const raw of base) {
-      const key = raw.id || `${raw.tenderId}-${raw.bidder}`;
+      if (!raw) continue;
+      const key = String(raw.id || `${raw.tenderId}-${raw.bidder}`);
       if (!seen.has(key)) {
         seen.add(key);
         const score = raw.score !== undefined ? raw.score : (raw.complianceScore ?? 0);
@@ -707,7 +862,7 @@ const Dashboard = ({ defaultTab = null }) => {
       }
     }
     return list;
-  }, [reduxSubmissions, localOfficerSubmissions]);
+  }, [reduxSubmissions, unifiedSubmissions]);
 
   // Default Activities (empty; populated from live events)
   const defaultActivities = [];
@@ -739,18 +894,20 @@ const Dashboard = ({ defaultTab = null }) => {
     }));
   }, [reduxActivities, localOfficerActivities]);
 
+  // Calculate count of bidders who are Technically Qualified
+  const qualifiedSubmissionsCount = useMemo(() => {
+    return recentSubmissions.filter(isTechnicallyQualifiedSubmission).length;
+  }, [recentSubmissions]);
+
   const metrics = {
     totalTenders: allTenders.length || reduxMetrics?.totalTenders || 0,
     totalTendersTrend: reduxMetrics?.totalTendersTrend || '+0%',
     submissionsReceived: recentSubmissions.length || reduxMetrics?.submissionsReceived || 0,
     submissionsReceivedTrend: reduxMetrics?.submissionsReceivedTrend || '+0%',
-    evaluationsCompleted:
-      recentSubmissions.filter((s) => s.status === 'Compliant' || s.status === 'Non-Compliant' || s.status === 'Minor Issues').length ||
-      reduxMetrics?.evaluationsCompleted ||
-      0,
+    evaluationsCompleted: qualifiedSubmissionsCount || (recentSubmissions.length === 0 ? (reduxMetrics?.evaluationsCompleted || 0) : 0),
     evaluationsCompletedTrend: reduxMetrics?.evaluationsCompletedTrend || '+0%',
     complianceIssues:
-      recentSubmissions.filter((s) => s.status === 'Minor Issues' || s.status === 'Major Issues' || s.status === 'Non-Compliant').length ||
+      recentSubmissions.filter((s) => s.status === 'Minor Issues' || s.status === 'Major Issues' || s.status === 'Non-Compliant' || s.complianceStatus === 'Needs Review' || s.complianceStatus === 'Non-Compliant').length ||
       reduxMetrics?.complianceIssues ||
       0,
     complianceIssuesTrend: reduxMetrics?.complianceIssuesTrend || '0%',
@@ -799,20 +956,20 @@ const Dashboard = ({ defaultTab = null }) => {
 
   const compliance = {
     totalChecks: recentSubmissions.length || reduxCompliance?.totalChecks || 0,
-    compliant: recentSubmissions.filter((s) => s.status === 'Compliant').length || reduxCompliance?.compliant || 0,
+    compliant: recentSubmissions.filter((s) => s.status === 'Compliant' || s.complianceStatus === 'Compliant' || isTechnicallyQualifiedSubmission(s)).length || reduxCompliance?.compliant || 0,
     compliantPercentage: recentSubmissions.length
-      ? Math.round((recentSubmissions.filter((s) => s.status === 'Compliant').length / recentSubmissions.length) * 100)
+      ? Math.round((recentSubmissions.filter((s) => s.status === 'Compliant' || s.complianceStatus === 'Compliant' || isTechnicallyQualifiedSubmission(s)).length / recentSubmissions.length) * 100)
       : 0,
-    minorIssues: recentSubmissions.filter((s) => s.status === 'Minor Issues' || s.status === 'Needs Review').length || reduxCompliance?.minorIssues || 0,
+    minorIssues: recentSubmissions.filter((s) => s.status === 'Minor Issues' || s.status === 'Needs Review' || s.complianceStatus === 'Needs Review' || s.complianceStatus === 'Minor Issues').length || reduxCompliance?.minorIssues || 0,
     minorIssuesPercentage: recentSubmissions.length
-      ? Math.round((recentSubmissions.filter((s) => s.status === 'Minor Issues' || s.status === 'Needs Review').length / recentSubmissions.length) * 100)
+      ? Math.round((recentSubmissions.filter((s) => s.status === 'Minor Issues' || s.status === 'Needs Review' || s.complianceStatus === 'Needs Review' || s.complianceStatus === 'Minor Issues').length / recentSubmissions.length) * 100)
       : 0,
-    majorIssues: recentSubmissions.filter((s) => s.status === 'Major Issues' || s.status === 'Non-Compliant').length || reduxCompliance?.majorIssues || 0,
+    majorIssues: recentSubmissions.filter((s) => s.status === 'Major Issues' || s.status === 'Non-Compliant' || s.complianceStatus === 'Non-Compliant').length || reduxCompliance?.majorIssues || 0,
     majorIssuesPercentage: recentSubmissions.length
-      ? Math.round((recentSubmissions.filter((s) => s.status === 'Major Issues' || s.status === 'Non-Compliant').length / recentSubmissions.length) * 100)
+      ? Math.round((recentSubmissions.filter((s) => s.status === 'Major Issues' || s.status === 'Non-Compliant' || s.complianceStatus === 'Non-Compliant').length / recentSubmissions.length) * 100)
       : 0,
     complianceRate: recentSubmissions.length
-      ? Math.round((recentSubmissions.filter((s) => s.status === 'Compliant').length / recentSubmissions.length) * 100)
+      ? Math.round((recentSubmissions.filter((s) => s.status === 'Compliant' || s.complianceStatus === 'Compliant' || isTechnicallyQualifiedSubmission(s)).length / recentSubmissions.length) * 100)
       : 0,
     complianceRateTrend: reduxCompliance?.complianceRateTrend || '+0%',
     timeFilter: reduxCompliance?.timeFilter || 'Last 30 days',
@@ -1555,7 +1712,7 @@ const Dashboard = ({ defaultTab = null }) => {
           {activeMenu === 'compliance' ? (
             <ComplianceCheckView
               onBackToDashboard={handleOpenSubmissions}
-              submissionData={activeComplianceSubmission}
+              submissionData={activeComplianceSubmission || unifiedSubmissions?.[0] || null}
             />
           ) : activeMenu === 'tenders' ? (
             <OfficerTendersView
@@ -1729,51 +1886,6 @@ const Dashboard = ({ defaultTab = null }) => {
                   </div>
                 </div>
               </div>
-
-              {/* ==================== 2. "NEEDS ATTENTION" OPERATIONAL ALERT STRIP ==================== */}
-              {needsAttentionOpen && (
-                <div className="p-3.5 sm:p-4 rounded-xl bg-amber-500/10 dark:bg-amber-950/20 border border-amber-300/80 dark:border-amber-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-amber-500/20 dark:bg-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                      <AlertCircle className="w-4 h-4 animate-pulse" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold text-slate-900 dark:text-white">
-                          Operational Attention Required:
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300">
-                          {metrics.complianceIssues} issues across tenders
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300">
-                          {recentSubmissions.filter((s) => s.status === 'Pending' || s.status === 'Under Review').length} awaiting evaluation
-                        </span>
-                        <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-200/80 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                          {recentSubmissions.filter((s) => s.missingDocs > 0).length} missing statutory annexures
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 self-end sm:self-auto">
-                    <button
-                      type="button"
-                      onClick={handleOpenCompliance}
-                      className="px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-100/70 dark:bg-amber-900/30 hover:bg-amber-200/80 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 font-semibold text-xs transition cursor-pointer flex items-center gap-1.5"
-                    >
-                      <span>Review Issues</span>
-                      <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setNeedsAttentionOpen(false)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                      title="Dismiss alert"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
 
               {/* ==================== 3. UPPER SPLIT ROW: COMPLIANCE OVERVIEW + AI VERIFICATION ==================== */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -2366,16 +2478,28 @@ const Dashboard = ({ defaultTab = null }) => {
 
                               {/* Status */}
                               <td className="py-3 px-4 whitespace-nowrap">
-                                <span
-                                  className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold ${sub.statusColor === 'emerald' || sub.status === 'Compliant'
-                                      ? 'bg-emerald-100/80 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                                      : sub.statusColor === 'amber' || sub.status === 'Minor Issues'
-                                        ? 'bg-amber-100/80 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
-                                        : 'bg-rose-100/80 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
-                                    }`}
-                                >
-                                  {sub.status}
-                                </span>
+                                {isTechnicallyQualifiedSubmission(sub) ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-100/80 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-700/60">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                    <span>Technically Qualified</span>
+                                  </span>
+                                ) : (sub.evaluationStatus === 'Pending' || sub.status === 'Pending' || sub.status === 'Under Review' || sub.status === 'Under Evaluation') ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-blue-100/80 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                    <Clock className="w-3.5 h-3.5 text-blue-500" />
+                                    <span>Under Evaluation</span>
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold ${sub.statusColor === 'emerald' || sub.status === 'Compliant'
+                                        ? 'bg-emerald-100/80 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                        : sub.statusColor === 'amber' || sub.status === 'Minor Issues'
+                                          ? 'bg-amber-100/80 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                                          : 'bg-rose-100/80 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                      }`}
+                                  >
+                                    {sub.status || 'Compliant'}
+                                  </span>
+                                )}
                               </td>
 
                               {/* Action */}
@@ -2755,20 +2879,14 @@ const Dashboard = ({ defaultTab = null }) => {
               <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                 <button
                   type="button"
-                  onClick={() => {
-                    alert(`Clarification request dispatched to bidder: ${selectedDocSubmission.bidder}`);
-                    setSelectedDocSubmission(null);
-                  }}
+                  onClick={() => handleRequestClarification(selectedDocSubmission)}
                   className="px-3.5 py-2 text-xs font-bold rounded-xl border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition cursor-pointer"
                 >
                   Request Clarification
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    alert(`Bidder ${selectedDocSubmission.bidder} approved and qualified for technical stage!`);
-                    setSelectedDocSubmission(null);
-                  }}
+                  onClick={() => handleApproveSubmission(selectedDocSubmission)}
                   className="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm cursor-pointer"
                 >
                   Approve Documents

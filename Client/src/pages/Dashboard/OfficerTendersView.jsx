@@ -66,6 +66,55 @@ const DEPARTMENTS = [
   'Ministry of Railways',
 ];
 
+// Strict matcher to calculate how many submissions belong to a tender
+export const countSubmissionsForTender = (tender, submissions) => {
+  if (!tender) return 0;
+  const explicit = parseInt(tender.submissions, 10) || parseInt(tender.bidCount, 10) || 0;
+  if (!Array.isArray(submissions) || submissions.length === 0) return explicit;
+
+  const clean = (val) => String(val || '').trim().toLowerCase();
+  const stripGeM = (val) => clean(val).replace(/^gem\/2026\/b\//, '').replace(/^gem\//, '');
+
+  const tId = clean(tender.id);
+  const tRef = clean(tender.referenceNo);
+  const tTdr = clean(tender.tenderId);
+  const tTitle = clean(tender.title);
+
+  const tIds = new Set([tId, tRef, tTdr, stripGeM(tId), stripGeM(tRef), stripGeM(tTdr)].filter(Boolean));
+
+  let liveCount = 0;
+  for (const s of submissions) {
+    if (!s) continue;
+    const sTid = clean(s.tenderId);
+    const sRef = clean(s.tenderReferenceNo);
+    const sRawTid = clean(s.rawTenderId);
+    const sTitle = clean(s.tenderTitle || s.title);
+
+    const sIds = [sTid, sRef, sRawTid, stripGeM(sTid), stripGeM(sRef), stripGeM(sRawTid)].filter(Boolean);
+
+    let isMatch = false;
+
+    // 1. Direct ID / Reference match
+    for (const sid of sIds) {
+      if (tIds.has(sid)) {
+        isMatch = true;
+        break;
+      }
+    }
+
+    // 2. Exact Title match
+    if (!isMatch && tTitle && sTitle && tTitle === sTitle) {
+      isMatch = true;
+    }
+
+    if (isMatch) {
+      liveCount += 1;
+    }
+  }
+
+  return Math.max(liveCount, explicit);
+};
+
 const OfficerTendersView = ({
   onBackToDashboard,
   onOpenSubmissions,
@@ -182,54 +231,7 @@ const OfficerTendersView = ({
     };
   }, [refreshTenders, refreshSubmissions]);
 
-  // Strict matcher to calculate how many submissions belong to a tender
-  const countSubmissionsForTender = useCallback((tender, submissions) => {
-    if (!tender) return 0;
-    const explicit = parseInt(tender.submissions, 10) || parseInt(tender.bidCount, 10) || 0;
-    if (!Array.isArray(submissions) || submissions.length === 0) return explicit;
 
-    const clean = (val) => String(val || '').trim().toLowerCase();
-    const stripGeM = (val) => clean(val).replace(/^gem\/2026\/b\//, '').replace(/^gem\//, '');
-
-    const tId = clean(tender.id);
-    const tRef = clean(tender.referenceNo);
-    const tTdr = clean(tender.tenderId);
-    const tTitle = clean(tender.title);
-
-    const tIds = new Set([tId, tRef, tTdr, stripGeM(tId), stripGeM(tRef), stripGeM(tTdr)].filter(Boolean));
-
-    let liveCount = 0;
-    for (const s of submissions) {
-      if (!s) continue;
-      const sTid = clean(s.tenderId);
-      const sRef = clean(s.tenderReferenceNo);
-      const sRawTid = clean(s.rawTenderId);
-      const sTitle = clean(s.tenderTitle || s.title);
-
-      const sIds = [sTid, sRef, sRawTid, stripGeM(sTid), stripGeM(sRef), stripGeM(sRawTid)].filter(Boolean);
-
-      let isMatch = false;
-
-      // 1. Direct ID / Reference match
-      for (const sid of sIds) {
-        if (tIds.has(sid)) {
-          isMatch = true;
-          break;
-        }
-      }
-
-      // 2. Exact Title match
-      if (!isMatch && tTitle && sTitle && tTitle === sTitle) {
-        isMatch = true;
-      }
-
-      if (isMatch) {
-        liveCount += 1;
-      }
-    }
-
-    return Math.max(liveCount, explicit);
-  }, []);
 
   // Merged Tenders List (Prioritizing local session uploads, then propTenders, excluding deleted)
   const allTenders = useMemo(() => {
@@ -281,7 +283,7 @@ const OfficerTendersView = ({
     }
 
     return list;
-  }, [localCreatedTenders, propTenders, deletedTenderIds, unifiedSubmissions, countSubmissionsForTender]);
+  }, [localCreatedTenders, propTenders, deletedTenderIds, unifiedSubmissions]);
 
   // ---------------------------------------------------------------------------
   // 2. SEARCH, FILTER & SORT STATE
@@ -293,7 +295,7 @@ const OfficerTendersView = ({
   const [sortBy, setSortBy] = useState('newest'); // 'newest' | 'closing' | 'value-high' | 'value-low' | 'submissions'
   const [viewMode, setViewMode] = useState('cards'); // 'cards' | 'table'
   const [showFilters, setShowFilters] = useState(false); // Toggle filter dropdown panel
-  const [showSearchToolbar, setShowSearchToolbar] = useState(true); // Toggle entire search & filters toolbar
+  const [showSearchToolbar, setShowSearchToolbar] = useState(false); // Toggle entire search & filters toolbar (default hidden)
   const filterDropdownRef = useRef(null);
 
   // Check if any filter or search query is currently active
