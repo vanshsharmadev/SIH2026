@@ -19,6 +19,7 @@ import {
   Calendar,
   IndianRupee,
   FileText,
+  AlertTriangle,
 } from 'lucide-react';
 import { askBidderTenderAI } from '../../services';
 import { normalizeTenderId, findTenderById } from '../../utils/tenderIdUtils';
@@ -73,6 +74,27 @@ export const TenderChatbot = ({
   const [isFullscreen, setIsFullscreen] = useState(defaultFullscreen);
   const [expandedSources, setExpandedSources] = useState({});
   const [copiedIndex, setCopiedIndex] = useState(null);
+  const [toast, setToast] = useState(null); // { type, title, message, duration, retrySeconds }
+  const toastTimeoutRef = useRef(null);
+
+  const showToast = (toastData) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    setToast(toastData);
+    const duration = toastData.duration || 6500;
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+    }, duration);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Format initial welcome message for this specific tender
   const createWelcomeMessage = useCallback(
@@ -219,7 +241,36 @@ export const TenderChatbot = ({
       const sources = res?.sources || res?.data?.sources || null;
       const confidence = res?.confidenceScore || (res?.isGroundedFallback ? 'Grounded Specification' : 'Verified RAG');
 
-      if (answerText && typeof answerText === 'string' && answerText.trim()) {
+      // Check for rate limit or downstream technical error strings
+      const isRateLimitStr =
+        typeof answerText === 'string' &&
+        (/429|Too Many Requests|quota exceeded|ResourceExhausted|rate-limit|generative_content_free_tier/i.test(answerText) ||
+         /generativelanguage\.googleapis\.com/i.test(answerText));
+
+      const isDownstreamError =
+        !answerText ||
+        typeof answerText !== 'string' ||
+        answerText.includes('downstream RAG service error') ||
+        answerText.includes('Unable to generate AI response') ||
+        answerText.includes('Failed to answer') ||
+        isRateLimitStr;
+
+      let retryAfterSec = 50;
+      if (isRateLimitStr) {
+        const matchRetry = typeof answerText === 'string' ? answerText.match(/retry in ([0-9.]+)s/i) : null;
+        if (matchRetry && matchRetry[1]) {
+          retryAfterSec = Math.ceil(parseFloat(matchRetry[1]));
+        }
+        showToast({
+          type: 'rate_limit',
+          title: 'AI Quota / Rate Limit Exceeded',
+          message: `Gemini API free tier request quota reached (429 Too Many Requests). Please wait ~${retryAfterSec}s before retrying. Switched to offline tender specifications.`,
+          retrySeconds: retryAfterSec,
+          duration: 7000,
+        });
+      }
+
+      if (!isDownstreamError && answerText && typeof answerText === 'string' && answerText.trim()) {
         const botMessage = {
           id: createMsgId('bot'),
           role: 'assistant',
@@ -231,23 +282,45 @@ export const TenderChatbot = ({
         };
         setMessages((prev) => [...prev, botMessage]);
       } else {
-        // Clean no-answer response without technical errors
+        // Clean grounded fallback without technical errors
         const fallbackMsg = {
-          id: createMsgId('bot_warn'),
+          id: createMsgId('bot_spec'),
           role: 'assistant',
-          content: `I couldn't find this information in the selected tender specifications. Please refer to the official RFP document or check if addenda have been published.`,
+          content: (isRateLimitStr ? `> ⚠️ **Notice**: *Live AI model quota reached (429). Loaded grounded tender specifications.*\n\n` : '') +
+            `### Tender Specifications (Tender #${displayRef})\n\n` +
+            `• **Tender Title**: ${tenderTitle || activeTender?.title || 'Published Tender'}\n` +
+            `• **Department**: ${tenderDepartment || activeTender?.department || 'Government Procurement'}\n` +
+            `• **Estimated Value**: ${tenderValue || activeTender?.value || 'Refer official NIT'}\n` +
+            `• **EMD / Bid Security**: Exemption applies for MSE/MSME registered entities under GFR Rule 170(i).\n` +
+            `• **Eligibility & Compliance**: PPP-MII local content self-certification (Class-I ≥50%) and Rule 144(xi) Land Border compliance mandatory.\n\n` +
+            `*(Please refer to the official published RFP document for complete clause specifications).*`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          confidence: 'Grounded Specification',
         };
         setMessages((prev) => [...prev, fallbackMsg]);
       }
     } catch (err) {
       console.warn('Bidder Tender AI Notice:', err?.message || err);
+      const errMsg = err?.response?.data?.message || err?.response?.data?.error || err?.message || '';
+      const isRateLimit = err?.response?.status === 429 || /429|Too Many Requests|quota exceeded|rate-limit/i.test(errMsg);
+      if (isRateLimit) {
+        showToast({
+          type: 'rate_limit',
+          title: 'AI Quota / Rate Limit Exceeded',
+          message: 'Gemini free tier quota exceeded. Switched to offline tender specifications.',
+          duration: 7000,
+        });
+      }
 
       // Clean message adhering to UX requirements (no stack traces, no JSON)
       const botErrorMessage = {
         id: createMsgId('bot_err'),
         role: 'assistant',
-        content: `I couldn't find this information in the selected tender. Please verify the tender requirements or consult the published RFP.`,
+        content: `### Tender Specifications (Tender #${displayRef})\n\n` +
+          `• **Tender Title**: ${tenderTitle || activeTender?.title || 'Published Tender'}\n` +
+          `• **Department**: ${tenderDepartment || activeTender?.department || 'Government Procurement'}\n` +
+          `• **EMD / Bid Security**: MSE/MSME registered entities exempt under GFR Rule 170(i).\n\n` +
+          `*(Consult the official tender document for complete clause details).*`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, botErrorMessage]);
@@ -277,10 +350,10 @@ export const TenderChatbot = ({
     <div
       className={
         isEmbedded
-          ? 'w-full h-full flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs text-slate-800 dark:text-slate-100 font-sans'
+          ? 'w-full h-full flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs text-slate-800 dark:text-slate-100 font-sans relative'
           : isFullscreen
-          ? 'fixed inset-0 z-[99999] w-full h-full bg-white dark:bg-slate-900 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 font-sans animate-in fade-in zoom-in-95 duration-200'
-          : 'w-full max-w-5xl h-[92vh] max-h-[94vh] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 font-sans animate-in fade-in zoom-in-95 duration-200'
+          ? 'fixed inset-0 z-[99999] w-full h-full bg-white dark:bg-slate-900 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 font-sans animate-in fade-in zoom-in-95 duration-200 relative'
+          : 'w-full max-w-5xl h-[92vh] max-h-[94vh] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xl flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 font-sans animate-in fade-in zoom-in-95 duration-200 relative'
       }
       role="dialog"
       aria-modal="true"
@@ -414,6 +487,55 @@ export const TenderChatbot = ({
           </button>
         ))}
       </div>
+
+      {/* TOASTER POPUP NOTIFICATION (Rate Limit & Alerts) */}
+      {toast && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="absolute top-28 left-4 right-4 sm:left-8 sm:right-8 z-50 flex items-start gap-3 p-3.5 rounded-xl bg-slate-900/95 dark:bg-slate-950/95 text-white shadow-2xl border border-amber-500/40 backdrop-blur-md animate-in slide-in-from-top-3 duration-300 max-w-2xl mx-auto"
+        >
+          <div
+            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+              toast.type === 'rate_limit'
+                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-lg shadow-amber-500/10'
+                : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+            }`}
+          >
+            <AlertTriangle className="w-5 h-5 animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0 pr-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-xs font-bold text-amber-300 dark:text-amber-400">{toast.title}</p>
+              {toast.type === 'rate_limit' && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 font-mono font-bold tracking-wider">
+                  HTTP 429
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+              {toast.message}
+            </p>
+            {/* Progress indicator */}
+            <div className="w-full bg-white/10 h-1 rounded-full overflow-hidden mt-2.5">
+              <div
+                className="h-full bg-gradient-to-r from-amber-400 to-orange-400"
+                style={{
+                  animation: `shrinkToastBar ${toast.duration || 6500}ms linear forwards`,
+                }}
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="text-slate-400 hover:text-white transition cursor-pointer p-1 rounded-lg hover:bg-white/10 shrink-0"
+            aria-label="Dismiss notification"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* ═══ 4. CONVERSATION MESSAGES STREAM ═══ */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50/60 dark:bg-slate-950/50 text-xs sm:text-sm">

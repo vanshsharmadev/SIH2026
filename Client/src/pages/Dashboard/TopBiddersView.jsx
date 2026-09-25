@@ -24,11 +24,13 @@ import {
   ListFilter,
   Copy,
   Medal,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { tenderService, aiService, recordAuditLog } from '../../services';
 import { getRiskTierMeta, formatStatusLabel } from '../../utils/tenderComparisonAdapter';
 import { formatIndianLakhCrore, formatCurrencyINR } from '../../utils';
 import { AiEvaluationDrawer } from '../../components/tender';
+import { getUnifiedSubmissions } from './TenderSubmissionsView';
 
 const TopBiddersView = ({
   onBackToDashboard,
@@ -98,20 +100,23 @@ const TopBiddersView = ({
       let basis = 'AI Compliance Score (Descending)';
       let summary = null;
 
-      // 1. Check local submissions
+      // 1. Check unified submissions
       let localSubmissions = [];
       try {
-        const stored = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
-        if (Array.isArray(stored) && stored.length > 0) {
-          localSubmissions = stored;
-        }
+        localSubmissions = getUnifiedSubmissions();
       } catch {
         // ignore
       }
 
       const allSubmissions = localSubmissions;
+      const cleanTid = String(selectedTenderId || '').toLowerCase().trim();
       const matchedSubs = allSubmissions.filter(
-        (s) => String(s.tenderId) === String(selectedTenderId) || String(s.rawTenderId) === String(selectedTenderId)
+        (s) => {
+          const sTid = String(s.tenderId || '').toLowerCase().trim();
+          const sRef = String(s.tenderReferenceNo || '').toLowerCase().trim();
+          const sRaw = String(s.rawTenderId || '').toLowerCase().trim();
+          return sTid === cleanTid || sRef === cleanTid || sRaw === cleanTid || cleanTid.includes(sTid) || sTid.includes(cleanTid);
+        }
       );
 
       if (matchedSubs.length > 0) {
@@ -315,6 +320,72 @@ const TopBiddersView = ({
 
   const isAllSelected = filteredBidders.length > 0 && selectedBidderIds.length === filteredBidders.length;
 
+  // Real CSV Table Export for Top Bidders
+  const handleExportTopBiddersCSV = () => {
+    const listToExport = filteredBidders.length > 0 ? filteredBidders : bidders;
+    if (!listToExport || listToExport.length === 0) {
+      alert('No bidders available to export.');
+      return;
+    }
+
+    const escapeCsvCell = (val) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const headers = [
+      'Rank',
+      'Bidder ID',
+      'Organization / Bidder Name',
+      'GSTIN',
+      'Track Record',
+      'AI Compliance Score (%)',
+      'Authenticity Index (%)',
+      'Price Index (%)',
+      'Quoted Bid Amount',
+      'Statutory Risk Tier',
+      'Evaluation Status / Verdict',
+      'Verified Documents',
+    ];
+
+    const rows = listToExport.map((b) => [
+      escapeCsvCell(b.rank || b.rankDisplay || ''),
+      escapeCsvCell(b.id || b.bidderId || ''),
+      escapeCsvCell(b.companyName || ''),
+      escapeCsvCell(b.gstNumber || 'N/A'),
+      escapeCsvCell(b.experienceLabel || `${b.experienceYears || 0} Yrs Experience`),
+      escapeCsvCell(b.complianceScore !== null && b.complianceScore !== undefined ? `${b.complianceScore}%` : 'N/A'),
+      escapeCsvCell(b.authenticityScore !== null && b.authenticityScore !== undefined ? `${b.authenticityScore}%` : 'N/A'),
+      escapeCsvCell(b.priceScore !== null && b.priceScore !== undefined ? `${b.priceScore}%` : 'N/A'),
+      escapeCsvCell(b.bidAmount ? formatCurrencyINR(b.bidAmount) : 'N/A'),
+      escapeCsvCell(b.riskLevel || 'LOW'),
+      escapeCsvCell(b.status || 'Qualified'),
+      escapeCsvCell(b.docCount || 0),
+    ]);
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const tenderTag = (activeTender?.referenceNo || selectedTenderId || 'Tender').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.setAttribute('download', `GeM_Top_Bidders_${tenderTag}_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    recordAuditLog?.({
+      activity: 'Report Generated',
+      module: 'Top Bidders Evaluation',
+      tenderId: selectedTenderId,
+      details: `Top Bidders ranking (${listToExport.length} candidate bidders) exported to CSV spreadsheet.`,
+      status: 'Success',
+    });
+  };
+
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
       {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -492,33 +563,45 @@ const TopBiddersView = ({
           ))}
         </div>
 
-        {/* View Mode Toggle: Table vs Cards */}
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl shrink-0">
+        {/* View Mode Toggle: Table vs Cards & Export */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                viewMode === 'table'
+                  ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+              }`}
+              title="Compact Procurement Table"
+            >
+              <ListFilter className="w-3.5 h-3.5" />
+              <span>Table</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                viewMode === 'cards'
+                  ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+              }`}
+              title="Detailed Candidate Cards"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Cards</span>
+            </button>
+          </div>
+
           <button
             type="button"
-            onClick={() => setViewMode('table')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
-              viewMode === 'table'
-                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
-                : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
-            }`}
-            title="Compact Procurement Table"
+            onClick={handleExportTopBiddersCSV}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-750 transition cursor-pointer shadow-2xs"
+            title="Export Top Bidders Table (CSV)"
           >
-            <ListFilter className="w-3.5 h-3.5" />
-            <span>Table</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('cards')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
-              viewMode === 'cards'
-                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
-                : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
-            }`}
-            title="Detailed Candidate Cards"
-          >
-            <LayoutGrid className="w-3.5 h-3.5" />
-            <span>Cards</span>
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Export Table (CSV)</span>
           </button>
         </div>
       </div>
