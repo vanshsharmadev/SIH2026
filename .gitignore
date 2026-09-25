@@ -41,3 +41,4 @@ coverage/
 # Documentation & API specs with sensitive URLs
 api_documentation.json
 Server/api_documentation.json
+PROJECT_DOCUMENTATION.md

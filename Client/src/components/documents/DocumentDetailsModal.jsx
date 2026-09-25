@@ -11,8 +11,11 @@ import {
   Lock,
   Sparkles,
   RefreshCw,
+  Download,
+  Eye,
 } from 'lucide-react';
-import { documentService } from '../../services';
+import { documentService, downloadDocument } from '../../services';
+import DocumentPreviewModal from '../common/DocumentPreviewModal';
 
 const DocumentDetailsModal = ({ docId, initialDoc, onClose, onDeleteSuccess }) => {
   const [doc, setDoc] = useState(initialDoc || null);
@@ -23,6 +26,7 @@ const DocumentDetailsModal = ({ docId, initialDoc, onClose, onDeleteSuccess }) =
   const [error, setError] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -328,15 +332,24 @@ const DocumentDetailsModal = ({ docId, initialDoc, onClose, onDeleteSuccess }) =
                           {doc.fileName || 'Verified Document'}
                         </p>
                       </div>
-                      <a
-                        href={doc.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition shrink-0 cursor-pointer"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        <span>Open Original File</span>
-                      </a>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewModalOpen(true)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Preview Document</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => downloadDocument(doc)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs shadow-xs transition cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Download PDF</span>
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -348,31 +361,35 @@ const DocumentDetailsModal = ({ docId, initialDoc, onClose, onDeleteSuccess }) =
                         alt={doc.fileName}
                         className="max-h-80 w-auto rounded-lg object-contain shadow-sm"
                       />
-                    ) : isPdf && doc?.fileUrl ? (
+                    ) : (
                       <div className="w-full flex flex-col items-center justify-center py-8 text-center">
-                        <div className="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 flex items-center justify-center mb-3">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center mb-3">
                           <FileText className="w-6 h-6" />
                         </div>
                         <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                          {doc.fileName || 'PDF Document'}
+                          {doc.fileName || 'Verified Document'}
                         </p>
                         <p className="text-xs text-slate-400 mt-1 max-w-sm">
-                          Preview available in document viewer.
+                          Class-3 Cryptographically Signed • Ready for Interactive Inspection &amp; Export
                         </p>
-                        <a
-                          href={doc.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-3.5 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold hover:opacity-90 transition cursor-pointer"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          <span>Open Document in Viewer</span>
-                        </a>
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-slate-400">
-                        <FileText className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                        <p className="text-xs">Document stored securely in compliance repository</p>
+                        <div className="flex items-center gap-2 mt-4">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewModalOpen(true)}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition cursor-pointer shadow-xs"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Preview Document</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => downloadDocument(doc)}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold hover:opacity-90 transition cursor-pointer shadow-xs"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Download PDF</span>
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -486,6 +503,13 @@ Active in GST registry, regular returns filed up to recent tax period.`}
           </button>
         </div>
       </div>
+
+      {/* Universal Document Preview & Download Modal */}
+      <DocumentPreviewModal
+        isOpen={previewModalOpen}
+        document={doc}
+        onClose={() => setPreviewModalOpen(false)}
+      />
     </div>
   );
 };

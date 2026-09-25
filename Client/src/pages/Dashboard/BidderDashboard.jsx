@@ -33,8 +33,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context';
 import { isOfficerUser } from '../../utils/roleUtils';
-import { documentService, authService, tenderService, getActiveInitialTenders } from '../../services';
+import { documentService, authService, tenderService, getActiveInitialTenders, downloadDocument } from '../../services';
 import { DocumentDetailsModal, DocumentUploadModal } from '../../components/documents';
+import DocumentPreviewModal from '../../components/common/DocumentPreviewModal';
 import { TenderDetailModal } from '../../components/tender';
 import './BidderDashboard.css';
 
@@ -94,8 +95,10 @@ const BidderDashboard = () => {
   const [precheckResult, setPrecheckResult] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showCompanyDetails, setShowCompanyDetails] = useState(false);
-  // Start empty — only show real tenders fetched from backend API
-  const [matchedTenders, setMatchedTenders] = useState([]);
+  // Start with cached initial tenders for instant zero-latency rendering
+  const [matchedTenders, setMatchedTenders] = useState(() =>
+    (getActiveInitialTenders() || []).map(sanitizeTenderForRender)
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -168,11 +171,12 @@ const BidderDashboard = () => {
   const [bidStatusFilter, setBidStatusFilter] = useState('all');
   const [bidSort, setBidSort] = useState('newest');
 
-  // Live Bidder Compliance Documents State
-  const [documents, setDocuments] = useState([]);
+  // Live Bidder Compliance Documents State (initialized with defaults for instant display)
+  const [documents, setDocuments] = useState(() => documentService.DEFAULT_VAULT_DOCUMENTS || []);
   const [isFetchingDocs, setIsFetchingDocs] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [selectedDocDetails, setSelectedDocDetails] = useState(null);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const [docToast, setDocToast] = useState(null);
   const [isCheckingCis, setIsCheckingCis] = useState(false);
   const [cisCheckResult, setCisCheckResult] = useState(null);
@@ -1005,9 +1009,27 @@ const BidderDashboard = () => {
                                   <button
                                     type="button"
                                     className="bd-btn--icon"
-                                    title="Download Submission Receipt"
+                                    title="Preview Submission Dossier & Receipt"
                                     onClick={() =>
-                                      alert(`Downloading verified GeM Bid Submission Acknowledgement for ${bid.tenderId}.`)
+                                      setPreviewDoc({
+                                        ...bid,
+                                        sourceType: 'SUBMISSION_DOSSIER',
+                                        fileName: `GeM_Bid_Receipt_${String(bid.tenderId || '2026').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`,
+                                      })
+                                    }
+                                  >
+                                    <Eye aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="bd-btn--icon"
+                                    title="Download Submission Receipt PDF"
+                                    onClick={() =>
+                                      downloadDocument({
+                                        ...bid,
+                                        sourceType: 'SUBMISSION_DOSSIER',
+                                        fileName: `GeM_Bid_Receipt_${String(bid.tenderId || '2026').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`,
+                                      })
                                     }
                                   >
                                     <Download aria-hidden="true" />
@@ -1302,9 +1324,27 @@ const BidderDashboard = () => {
                             <button
                               type="button"
                               className="bd-btn--icon"
-                              title="Download Submission Receipt"
+                              title="Preview Submission Dossier & Receipt"
                               onClick={() =>
-                                alert(`Downloading verified GeM Bid Submission Acknowledgement for ${bid.tenderId}. Hash: sha256:4a8f9c1e...`)
+                                setPreviewDoc({
+                                  ...bid,
+                                  sourceType: 'SUBMISSION_DOSSIER',
+                                  fileName: `GeM_Bid_Receipt_${String(bid.tenderId || '2026').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`,
+                                })
+                              }
+                            >
+                              <Eye aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className="bd-btn--icon"
+                              title="Download Submission Receipt PDF"
+                              onClick={() =>
+                                downloadDocument({
+                                  ...bid,
+                                  sourceType: 'SUBMISSION_DOSSIER',
+                                  fileName: `GeM_Bid_Receipt_${String(bid.tenderId || '2026').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`,
+                                })
                               }
                             >
                               <Download aria-hidden="true" />
@@ -1560,19 +1600,26 @@ const BidderDashboard = () => {
                                 type="button"
                                 className="bd-btn--icon"
                                 onClick={() => setSelectedDocDetails(doc)}
-                                title="View Forensic Details & OCR"
+                                title="Forensics & OCR Details"
+                              >
+                                <ShieldCheck aria-hidden="true" />
+                              </button>
+                              <button
+                                type="button"
+                                className="bd-btn--icon"
+                                onClick={() => setPreviewDoc(doc)}
+                                title="Preview Document"
                               >
                                 <Eye aria-hidden="true" />
                               </button>
-                              <a
-                                href={fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                type="button"
                                 className="bd-btn--icon"
-                                title="View Document"
+                                onClick={() => downloadDocument(doc)}
+                                title="Download Document PDF"
                               >
-                                <ExternalLink aria-hidden="true" />
-                              </a>
+                                <Download aria-hidden="true" />
+                              </button>
                               <button
                                 type="button"
                                 className="bd-btn--icon"
@@ -1670,14 +1717,32 @@ const BidderDashboard = () => {
                     </div>
 
                     <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--bd-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenTender(tender, 'compliance')}
-                        className="bd-btn bd-btn--primary bd-btn--sm"
-                      >
-                        <ShieldCheck aria-hidden="true" style={{ color: '#6EE7B7' }} />
-                        Verify &amp; Apply
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenTender(tender, 'compliance')}
+                          className="bd-btn bd-btn--primary bd-btn--sm"
+                        >
+                          <ShieldCheck aria-hidden="true" style={{ color: '#6EE7B7' }} />
+                          Verify &amp; Apply
+                        </button>
+                        <button
+                          type="button"
+                          className="bd-btn--icon"
+                          title="Preview Official Tender Document"
+                          onClick={() => setPreviewDoc(tender.documents?.[0] || { ...tender, sourceType: 'TENDER', name: tender.title })}
+                        >
+                          <Eye aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          className="bd-btn--icon"
+                          title="Download Tender Document (PDF)"
+                          onClick={() => downloadDocument(tender.documents?.[0] || tender, `${String(tender.referenceNo || 'Tender').replace(/[^a-zA-Z0-9]/g, '_')}_RFP.pdf`)}
+                        >
+                          <Download aria-hidden="true" />
+                        </button>
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleOpenTender(tender)}
@@ -1861,6 +1926,13 @@ const BidderDashboard = () => {
         tender={activeTenderModal}
         initialTab={modalInitialTab}
         onClose={() => setActiveTenderModal(null)}
+      />
+
+      {/* ═══ UNIVERSAL DOCUMENT PREVIEW MODAL ═══ */}
+      <DocumentPreviewModal
+        isOpen={Boolean(previewDoc)}
+        document={previewDoc}
+        onClose={() => setPreviewDoc(null)}
       />
     </div>
   );

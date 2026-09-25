@@ -32,8 +32,10 @@ import {
   PlusCircle,
   FileCheck,
   Zap,
+  Download,
 } from 'lucide-react';
-import { tenderService, mlService, recordAuditLog, processTenderPdf } from '../../services';
+import { tenderService, mlService, recordAuditLog, processTenderPdf, downloadDocument, fileToDataUrl } from '../../services';
+import DocumentPreviewModal from '../../components/common/DocumentPreviewModal';
 import { useAuth } from '../../context';
 import { isOfficerUser } from '../../utils/roleUtils';
 
@@ -77,6 +79,7 @@ const OfficerUploadExtractView = ({
   const [processStage, setProcessStage] = useState(0); // 0 to 5
   const [processLogs, setProcessLogs] = useState([]);
   const [extractionResult, setExtractionResult] = useState(null);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const [activeResultTab, setActiveResultTab] = useState('rules'); // 'rules', 'ocr', 'forensic'
 
   // Copy feedback
@@ -155,7 +158,16 @@ const OfficerUploadExtractView = ({
       ? (String(emdAmount).includes('₹') ? emdAmount : `₹ ${Number(emdAmount).toLocaleString('en-IN')}`)
       : '₹ 9,70,00,000';
 
-    const fileUrl = `https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/tenders/${encodeURIComponent(selectedFile?.name || 'tender_notice.pdf')}`;
+    let fileDataUrl = null;
+    if (selectedFile) {
+      try {
+        fileDataUrl = await fileToDataUrl(selectedFile);
+      } catch (err) {
+        console.warn('Failed to convert file to dataUrl:', err);
+      }
+    }
+
+    const fileUrl = fileDataUrl || `https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/tenders/${encodeURIComponent(selectedFile?.name || 'tender_notice.pdf')}`;
 
     // 1. Instantly register in portal database so bidders can discover and apply immediately
     const immediateTender = {
@@ -196,6 +208,8 @@ const OfficerUploadExtractView = ({
           name: selectedFile?.name || 'Tender_Document.pdf',
           size: selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : '4.50 MB',
           url: fileUrl,
+          dataUrl: fileDataUrl,
+          fileUrl: fileUrl,
           sourceType: 'TENDER',
           tenderId: referenceNo,
         },
@@ -260,7 +274,7 @@ const OfficerUploadExtractView = ({
         ? (String(emdAmount).includes('₹') ? emdAmount : `₹ ${Number(emdAmount).toLocaleString('en-IN')}`)
         : '₹ 9,70,000';
 
-      const fileUrl = backendUpload?.fileUrl || `https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/tenders/${encodeURIComponent(selectedFile?.name || 'tender_notice.pdf')}`;
+      const fileUrl = backendUpload?.fileUrl || fileDataUrl || `https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/tenders/${encodeURIComponent(selectedFile?.name || 'tender_notice.pdf')}`;
 
       const rawOcr = backendUpload?.rawOcrText || `GOVERNMENT OF INDIA — PROCUREMENT NOTICE\nREF: ${referenceNo} | DEPARTMENT: ${department}\n\n1. SCOPE OF WORK:\n${description || tenderTitle}\n\n2. ELIGIBILITY & GFR 2017 COMPLIANCE:\n- GFR 2017 Rule 144(xi): Mandatory DPIIT Land Border declaration required.\n- Public Procurement (Preference to Make in India) Order 2017: Class-I Local Supplier (>= 50% Local Content).\n- MSME / Startup Exemption: Prior turnover & experience criteria relaxed for valid Udyam & DPIIT startups under GFR 173(i).\n\n3. CONTRACT VALUE & EMD:\n- Estimated Value: ${computedEstValueFormatted}\n- EMD Security: ${computedEmdFormatted}\n- Submission Window: ${closingDays} Days from publication.`;
 
@@ -316,6 +330,8 @@ const OfficerUploadExtractView = ({
         fileName: selectedFile?.name || 'Tender_Document.pdf',
         fileSize: selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : '4.50 MB',
         fileUrl,
+        url: fileUrl,
+        dataUrl: fileDataUrl,
         authenticityScore: backendUpload?.authenticityScore ? Math.round(backendUpload.authenticityScore) : 99,
         sourceType: 'TENDER',
         miiRequirement: 'Class-I (>= 50% Local Content)',
@@ -371,6 +387,8 @@ const OfficerUploadExtractView = ({
               name: resultObj.fileName,
               size: resultObj.fileSize,
               url: resultObj.fileUrl,
+              dataUrl: fileDataUrl,
+              fileUrl: resultObj.fileUrl,
               sourceType: 'TENDER',
               tenderId: resultObj.referenceNo,
             },
@@ -415,6 +433,25 @@ const OfficerUploadExtractView = ({
         try {
           const acts = JSON.parse(localStorage.getItem('gem_officer_activities') || '[]');
           localStorage.setItem('gem_officer_activities', JSON.stringify([newAct, ...acts]));
+        } catch {}
+
+        try {
+          const storedNotifs = JSON.parse(localStorage.getItem('gem_officer_notifications') || '[]');
+          const tenderNotif = {
+            id: `notif-tender-${resultObj.referenceNo || Date.now()}`,
+            title: `Tender Published & Extracted: ${resultObj.referenceNo}`,
+            description: `${resultObj.title} — AI compliance criteria & GFR clauses mapped.`,
+            time: 'Just now',
+            unread: true,
+            category: 'system',
+            icon: 'FileEdit',
+            badge: 'Tender Published',
+            badgeColor: 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300',
+            target: 'tenders',
+            tenderId: resultObj.referenceNo,
+          };
+          localStorage.setItem('gem_officer_notifications', JSON.stringify([tenderNotif, ...storedNotifs].slice(0, 50)));
+          window.dispatchEvent(new CustomEvent('gem_notification_created', { detail: tenderNotif }));
         } catch {}
       }
 
@@ -914,15 +951,24 @@ const OfficerUploadExtractView = ({
                     <Eye className="w-3.5 h-3.5" />
                     <span>View on Bidders Portal</span>
                   </Link>
-                  <a
-                    href={extractionResult.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1.5 rounded-xl bg-white dark:bg-[#121212] border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-100 transition flex items-center gap-1.5"
+                  <button
+                    type="button"
+                    onClick={() => setPreviewDoc(extractionResult)}
+                    className="px-3 py-1.5 rounded-xl bg-white dark:bg-[#121212] border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-100 dark:hover:bg-[#1e1e1e] transition flex items-center gap-1.5 cursor-pointer"
+                    title="Preview extracted tender document"
                   >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>PDF</span>
-                  </a>
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Preview</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadDocument(extractionResult, `${(extractionResult.referenceNo || 'Tender').replace(/[^a-zA-Z0-9]/g, '_')}_RFP.pdf`)}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    title="Download official PDF document"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download PDF</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -1282,17 +1328,22 @@ const OfficerUploadExtractView = ({
                               <Eye className="w-3 h-3" />
                               <span>Bidder View</span>
                             </Link>
-                            {tdr.documents?.[0]?.url && (
-                              <a
-                                href={tdr.documents[0].url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="View Cloudinary RFP Document"
-                                className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-[#282828] transition"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                              </a>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => setPreviewDoc(tdr.documents?.[0] || tdr)}
+                              title="Preview Document"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-[#282828] transition cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadDocument(tdr.documents?.[0] || tdr, `${(tdr.referenceNo || tdr.id || 'tender').replace(/[^a-zA-Z0-9]/g, '_')}_RFP.pdf`)}
+                              title="Download PDF"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-slate-100 dark:hover:bg-[#282828] transition cursor-pointer"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => {
@@ -1325,6 +1376,13 @@ const OfficerUploadExtractView = ({
           </div>
         </div>
       )}
+
+      {/* Interactive Document Preview Modal */}
+      <DocumentPreviewModal
+        isOpen={Boolean(previewDoc)}
+        document={previewDoc}
+        onClose={() => setPreviewDoc(null)}
+      />
     </div>
   );
 };

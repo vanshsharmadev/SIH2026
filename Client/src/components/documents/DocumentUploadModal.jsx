@@ -7,7 +7,7 @@ import {
   RefreshCw,
   Sparkles,
 } from 'lucide-react';
-import { documentService } from '../../services';
+import { documentService, fileToDataUrl } from '../../services';
 import { useAuth } from '../../context';
 
 const DOCUMENT_CATEGORIES = [
@@ -184,14 +184,20 @@ const DocumentUploadModal = ({ isOpen, onClose, onUploadSuccess, tenderId = null
       setUploadProgress(85);
       setStageText('Finalizing verified document record...');
 
-      setTimeout(() => {
+      setTimeout(async () => {
         setUploadProgress(100);
+        let dataUrl = '';
+        try {
+          dataUrl = await fileToDataUrl(selectedFile);
+        } catch {}
+
         const fallbackDoc = {
           id: Date.now(),
           fileName: selectedFile.name,
           documentType,
           fileSize: selectedFile.size,
-          fileUrl: `https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/bidders/${encodeURIComponent(selectedFile.name)}`,
+          fileUrl: dataUrl || `https://res.cloudinary.com/sih2026-gem/image/upload/v1725700000/bidders/${encodeURIComponent(selectedFile.name)}`,
+          dataUrl: dataUrl || null,
           cloudinaryPublicId: `bidders/docs/${selectedFile.name.replace(/\.[^/.]+$/, '')}_${Date.now().toString().slice(-4)}`,
           authenticityScore: 98,
           isAuthentic: true,

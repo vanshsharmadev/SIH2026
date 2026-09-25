@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Moon, Sun, Globe, ChevronDown, Check, Menu, X, LogOut, ShieldCheck, LayoutDashboard, User, FileText, Settings } from 'lucide-react';
+import { Moon, Sun, Globe, ChevronDown, Check, Menu, X, LogOut, ShieldCheck, LayoutDashboard, User, FileText, Settings, Bell } from 'lucide-react';
 import { useLanguage, useTheme, useAuth } from '../../context';
 import { isOfficerUser, getUserDisplayName } from '../../utils/roleUtils';
 import ScreenReaderModal from './ScreenReaderModal';
 import NationalEmblem from './NationalEmblem';
+import NotificationDropdown from './NotificationDropdown';
 import logoGemVariant from '../../assets/logo_gem_variant.png';
 
 const Navbar = ({ fontScale, setFontScale }) => {
@@ -36,6 +37,134 @@ const Navbar = ({ fontScale, setFontScale }) => {
   };
 
   const initials = getInitials(displayName);
+
+  // Global Notification Center for Authenticated Users
+  const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
+  const [navNotifications, setNavNotifications] = useState([]);
+
+  const loadNavNotifications = useCallback(() => {
+    try {
+      const storageKey = isOfficer ? 'gem_officer_notifications' : 'gem_bidder_notifications';
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      if (!isOfficer) {
+        const bidderSeed = [
+          {
+            id: 'notif-bidder-seed-1',
+            title: 'Bid Proposal Received & Logged',
+            description: 'Your bid proposal for GeM/2026/B/8912 was successfully registered with 94% compliance score.',
+            time: '1h ago',
+            unread: true,
+            category: 'submission',
+            icon: 'CheckSquare',
+            badge: 'Under Review',
+            badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+            target: 'my-applications',
+          },
+          {
+            id: 'notif-bidder-seed-2',
+            title: 'Mandatory GFR 144(xi) Cleared',
+            description: 'Land border and Make-in-India Class-I self-certification passed AI validation.',
+            time: '3h ago',
+            unread: false,
+            category: 'alert',
+            icon: 'ShieldAlert',
+            badge: 'Verified',
+            badgeColor: 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300',
+            target: 'my-applications',
+          },
+        ];
+        localStorage.setItem('gem_bidder_notifications', JSON.stringify(bidderSeed));
+        return bidderSeed;
+      }
+    } catch {}
+    return [];
+  }, [isOfficer]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    setNavNotifications(loadNavNotifications());
+
+    const handleSync = () => {
+      setNavNotifications(loadNavNotifications());
+    };
+
+    window.addEventListener('gem_notification_created', handleSync);
+    window.addEventListener('gem_submission_created', handleSync);
+    window.addEventListener('gem_bidder_applications_updated', handleSync);
+    window.addEventListener('gem_officer_submissions_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+
+    return () => {
+      window.removeEventListener('gem_notification_created', handleSync);
+      window.removeEventListener('gem_submission_created', handleSync);
+      window.removeEventListener('gem_bidder_applications_updated', handleSync);
+      window.removeEventListener('gem_officer_submissions_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, [isAuthenticated, loadNavNotifications]);
+
+  const navUnreadCount = useMemo(() => {
+    return navNotifications.filter((n) => n.unread).length;
+  }, [navNotifications]);
+
+  const handleMarkAllNavRead = () => {
+    setNavNotifications((prev) => {
+      const updated = prev.map((n) => ({ ...n, unread: false }));
+      const storageKey = isOfficer ? 'gem_officer_notifications' : 'gem_bidder_notifications';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const handleMarkNavRead = (id) => {
+    setNavNotifications((prev) => {
+      const updated = prev.map((n) => (n.id === id ? { ...n, unread: false } : n));
+      const storageKey = isOfficer ? 'gem_officer_notifications' : 'gem_bidder_notifications';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const handleDeleteNavNotif = (id) => {
+    setNavNotifications((prev) => {
+      const updated = prev.filter((n) => n.id !== id);
+      const storageKey = isOfficer ? 'gem_officer_notifications' : 'gem_bidder_notifications';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const handleNavNotificationNavigate = (target, item = null) => {
+    if (isOfficer) {
+      if (target === 'submissions') {
+        navigate(item?.tenderId ? `/dashboard?tab=submissions&tenderId=${encodeURIComponent(item.tenderId)}` : '/dashboard?tab=submissions');
+      } else if (target === 'tenders') {
+        navigate('/dashboard?tab=tenders');
+      } else if (target === 'compliance') {
+        navigate('/dashboard?tab=compliance');
+      } else if (target === 'audit') {
+        navigate('/dashboard?tab=audit');
+      } else {
+        navigate('/dashboard');
+      }
+    } else {
+      if (target === 'bids' || target === 'my-applications') {
+        navigate('/my-applications');
+      } else {
+        navigate('/bidder-dashboard');
+      }
+    }
+  };
 
   // Dynamically measure Navbar height and expose as CSS custom property for sticky subnavs
   useEffect(() => {
@@ -273,7 +402,7 @@ const Navbar = ({ fontScale, setFontScale }) => {
             <img
               src={logoGemVariant}
               alt="GeM Compliflix"
-              className="h-9 sm:h-10 w-auto object-contain shrink-0 group-hover:scale-105 transition-transform"
+              className="h-11 sm:h-12 md:h-13 w-auto object-contain shrink-0 group-hover:scale-105 transition-transform drop-shadow-xs"
             />
             <div className="flex flex-col leading-none">
               <div className="flex items-center text-xl sm:text-[22px] font-black tracking-tight">
@@ -375,7 +504,46 @@ const Navbar = ({ fontScale, setFontScale }) => {
           </nav>
 
           {/* Right: Login / User Session Buttons */}
-          <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* Real-time Notification Bell for Authenticated Users */}
+            {isAuthenticated && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setNotificationDropdownOpen((prev) => !prev)}
+                  className={`relative p-2 rounded-xl transition cursor-pointer ${
+                    notificationDropdownOpen
+                      ? 'bg-blue-50 text-blue-600 dark:bg-blue-600/20 dark:text-blue-400'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                  }`}
+                  title="Notifications"
+                  aria-expanded={notificationDropdownOpen}
+                  aria-haspopup="dialog"
+                  aria-label={`Notifications (${navUnreadCount} unread)`}
+                >
+                  <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
+                  {navUnreadCount > 0 && (
+                    <span className="absolute top-1.5 right-1.5 flex h-4 min-w-4">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                      <span className="relative min-w-4 h-4 px-1 rounded-full bg-red-600 text-white font-bold text-[9px] flex items-center justify-center border-2 border-white dark:border-[#181818] shadow-xs">
+                        {navUnreadCount}
+                      </span>
+                    </span>
+                  )}
+                </button>
+
+                <NotificationDropdown
+                  isOpen={notificationDropdownOpen}
+                  onClose={() => setNotificationDropdownOpen(false)}
+                  notifications={navNotifications}
+                  onMarkAllAsRead={handleMarkAllNavRead}
+                  onMarkAsRead={handleMarkNavRead}
+                  onDeleteNotification={handleDeleteNavNotif}
+                  onNavigate={handleNavNotificationNavigate}
+                />
+              </div>
+            )}
+
             {isAuthenticated ? (
               <div className="relative" ref={userDropdownRef}>
                 <button

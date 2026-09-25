@@ -26,12 +26,14 @@ import {
   Clock,
   UploadCloud,
   ShieldAlert,
+  Eye,
 } from 'lucide-react';
 import { useAuth } from '../../context';
 import { isTenderClosed } from '../../utils';
 import { addSubmission, addActivity } from '../../store/slices/dashboardSlice';
 import { getUserDisplayName, isOfficerUser } from '../../utils/roleUtils';
-import { tenderService, mlService, recordAuditLog, documentService } from '../../services';
+import { tenderService, mlService, recordAuditLog, documentService, downloadDocument, fileToDataUrl } from '../../services';
+import DocumentPreviewModal from '../../components/common/DocumentPreviewModal';
 
 const Verification = () => {
   const navigate = useNavigate();
@@ -130,6 +132,7 @@ const Verification = () => {
   const [validationError, setValidationError] = useState('');
   const [uploadError, setUploadError] = useState(null);
   const [submittedJustNow, setSubmittedJustNow] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const toastTimeoutRef = useRef(null);
 
   // Duplicate AI processing protection refs
@@ -314,11 +317,14 @@ const Verification = () => {
           }
         }
 
+        const fileDataUrl = await fileToDataUrl(fileObj).catch(() => '');
+
         processedDocs.push({
           name: fileObj.name,
           size: typeof fileObj.size === 'number' ? `${(fileObj.size / (1024 * 1024)).toFixed(1)} MB` : (fileObj.size || '1.8 MB'),
           status: isAiProcessed ? 'Verified & AI-Vectorized' : 'Verified',
           cloudinaryUrl: data.fileUrl,
+          dataUrl: fileDataUrl || data.dataUrl || null,
           cloudinaryPublicId: cloudinaryPublicId,
           documentId: docId,
           documentType: actualDocType,
@@ -524,6 +530,27 @@ const Verification = () => {
           ])
         );
 
+        // Record Officer Notification
+        const officerNotif = {
+          id: `notif-sub-${submissionId || Date.now()}`,
+          title: `New Bid Submitted: ${safeTender.referenceNo}`,
+          description: `${bidderDisplayName} submitted bid documents (${docsSummary.length} documents uploaded & AI verified).`,
+          time: 'Just now',
+          unread: true,
+          category: 'submission',
+          icon: 'CheckSquare',
+          badge: 'New Submission',
+          badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+          target: 'submissions',
+          tenderId: safeTender.referenceNo,
+        };
+        try {
+          const storedNotifs = JSON.parse(localStorage.getItem('gem_officer_notifications') || '[]');
+          const updatedNotifs = [officerNotif, ...storedNotifs.filter((n) => n.id !== officerNotif.id)].slice(0, 50);
+          localStorage.setItem('gem_officer_notifications', JSON.stringify(updatedNotifs));
+        } catch {}
+
+        window.dispatchEvent(new CustomEvent('gem_notification_created', { detail: officerNotif }));
         window.dispatchEvent(new CustomEvent('gem_officer_submissions_updated', { detail: officerSubmissionPayload }));
         window.dispatchEvent(new CustomEvent('gem_submission_created', { detail: officerSubmissionPayload }));
         window.dispatchEvent(new Event('storage'));
@@ -931,7 +958,7 @@ const Verification = () => {
                 </h3>
                 {result && (
                   <button
-                    onClick={() => alert(`Official Compliance Certificate for ${safeTender.referenceNo} downloaded!`)}
+                    onClick={() => downloadDocument({ ...safeTender, sourceType: 'TENDER', fileName: `GeM_Compliance_Certificate_${String(safeTender.referenceNo || 'Tender').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf` }, safeTender)}
                     className="inline-flex items-center gap-1 text-xs font-bold text-[#008bdc] dark:text-blue-400 hover:underline cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -1149,19 +1176,25 @@ const Verification = () => {
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {doc.cloudinaryUrl && (
-                              <a
-                                href={doc.cloudinaryUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[10.5px] font-bold hover:bg-blue-100 transition"
-                                title="View Document"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                                <span>View PDF</span>
-                              </a>
-                            )}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewDoc(doc)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[10.5px] font-bold hover:bg-blue-100 transition cursor-pointer"
+                              title="Preview Document"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>Preview</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadDocument(doc, safeTender)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[10.5px] font-bold hover:bg-slate-200 transition cursor-pointer"
+                              title="Download PDF"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span>PDF</span>
+                            </button>
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
                               {doc.status}
                             </span>
@@ -1340,6 +1373,13 @@ const Verification = () => {
         </div>
       )}
 
+      {/* Universal Document Preview & Download Modal */}
+      <DocumentPreviewModal
+        isOpen={Boolean(previewDoc)}
+        document={previewDoc}
+        tenderContext={safeTender}
+        onClose={() => setPreviewDoc(null)}
+      />
     </div>
   );
 };
