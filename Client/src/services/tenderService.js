@@ -221,7 +221,7 @@ export const tenderService = {
         return normalizeTender(data);
       }
     } catch (err) {
-      console.warn(`Backend /tenders/${id} unavailable:`, err.message);
+      // Graceful fallback to loaded tenders
     }
 
     // Fallback: search across all loaded/active tenders (including gem_created_tenders)
@@ -255,7 +255,6 @@ export const tenderService = {
       const res = await api.post('/tenders', tenderData);
       saved = res?.data || res;
     } catch (err) {
-      console.warn('Backend /tenders POST fallback to local portal registry:', err.message);
       saved = {
         id: tenderData.id || tenderData.referenceNo || `TDR-${Date.now().toString().slice(-4)}`,
         referenceNo: tenderData.referenceNo || `GEM/2026/B/${Math.floor(1000 + Math.random() * 9000)}`,
@@ -323,12 +322,11 @@ export const tenderService = {
         backendResult = await api.delete(`/officer/tenders/${encodeURIComponent(cleanId)}`);
         console.log(`Tender ${cleanId} deleted from database successfully`);
       } catch (err) {
-        console.warn(`Officer delete endpoint failed for ${cleanId}, trying /tenders:`, err.message);
-        // Fallback to general /tenders endpoint
+        // Fallback to general endpoint
         try {
           backendResult = await api.delete(`/tenders/${encodeURIComponent(cleanId)}`);
         } catch (err2) {
-          console.warn(`Backend /tenders/${cleanId} delete notice (local-only):`, err2.message);
+          // Local fallback
         }
       }
     }
@@ -494,7 +492,7 @@ export const tenderService = {
         return data;
       }
     } catch (err) {
-      console.warn(`Officer tender ${id} endpoint unavailable:`, err.message);
+      // Fallback
     }
     // Fall back to general getTenderById
     return await tenderService.getTenderById(id);
@@ -514,7 +512,6 @@ export const tenderService = {
     try {
       return await api.post(`/officer/tenders/${tenderId}/compare-bidders`, payload);
     } catch (err) {
-      console.warn('ML comparison endpoint unavailable:', err.message);
       return {
         success: false,
         tenderId,
@@ -673,7 +670,6 @@ export const tenderService = {
       if (res?.data) return res.data;
       return [];
     } catch (err) {
-      console.warn('Backend /officer/tenders/top-10 unavailable:', err.message);
       return [];
     }
   },

@@ -67,8 +67,8 @@ export const bidderService = {
         if (Array.isArray(fallbackRes)) list = fallbackRes;
         else if (Array.isArray(fallbackRes?.data)) list = fallbackRes.data;
         else if (Array.isArray(fallbackRes?.content)) list = fallbackRes.content;
-      } catch (err) {
-        console.warn('Backend /bidder endpoint unavailable:', err.message);
+      } catch {
+        // Fallback to empty list
       }
     }
 

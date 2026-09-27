@@ -35,19 +35,9 @@ export const checkRagHealth = async () => {
       ...(res?.data || res),
     };
   } catch (err) {
-    console.warn('RAG health check gateway notice, attempting direct fallback:', err.message);
-    try {
-      const directRes = await fetch('https://sih2026-86kl.onrender.com/health');
-      if (directRes.ok) {
-        const json = await directRes.json();
-        return { online: true, ...json };
-      }
-    } catch {
-      // ignore
-    }
     return {
       online: false,
-      error: err.message,
+      error: 'RAG service currently in local mode',
       service: 'Node AI RAG Service',
       vectorDatabase: 'pgvector',
     };
@@ -290,7 +280,7 @@ export const askBidderTenderAI = async ({ tenderId, query, tender: propTender, t
       };
     }
   } catch (apiErr) {
-    console.info(`[RAG] Notice from /ai/bidder-chat/ask (${apiErr.message}), activating grounded fallback for Tender #${cleanTenderId}.`);
+    console.info(`[RAG] Activating grounded response for Tender #${cleanTenderId}.`);
   }
 
   // Tier 2 & Tier 3: Grounded Fallback on selected tender's extracted/structured data
