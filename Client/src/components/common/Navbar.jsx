@@ -48,37 +48,24 @@ const Navbar = ({ fontScale, setFontScale }) => {
       const raw = localStorage.getItem(storageKey);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-      if (!isOfficer) {
-        const bidderSeed = [
-          {
-            id: 'notif-bidder-seed-1',
-            title: 'Bid Proposal Received & Logged',
-            description: 'Your bid proposal for GeM/2026/B/8912 was successfully registered with 94% compliance score.',
-            time: '1h ago',
-            unread: true,
-            category: 'submission',
-            icon: 'CheckSquare',
-            badge: 'Under Review',
-            badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
-            target: 'my-applications',
-          },
-          {
-            id: 'notif-bidder-seed-2',
-            title: 'Mandatory GFR 144(xi) Cleared',
-            description: 'Land border and Make-in-India Class-I self-certification passed AI validation.',
-            time: '3h ago',
-            unread: false,
-            category: 'alert',
-            icon: 'ShieldAlert',
-            badge: 'Verified',
-            badgeColor: 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300',
-            target: 'my-applications',
-          },
-        ];
-        localStorage.setItem('gem_bidder_notifications', JSON.stringify(bidderSeed));
-        return bidderSeed;
+        if (Array.isArray(parsed)) {
+          const clean = parsed.filter(
+            (n) =>
+              !n.id?.startsWith('notif-seed-') &&
+              !n.id?.startsWith('notif-sub-') &&
+              !n.id?.startsWith('notif-bidder-seed-') &&
+              !n.title?.includes('Larsen & Toubro') &&
+              !n.title?.includes('Tata Projects') &&
+              !n.description?.includes('Larsen & Toubro') &&
+              !n.description?.includes('Tata Projects') &&
+              !n.title?.includes('Land Border Rule 144(xi)') &&
+              !n.title?.includes('Comparative AI Matrix Ready')
+          );
+          if (clean.length !== parsed.length) {
+            localStorage.setItem(storageKey, JSON.stringify(clean));
+          }
+          return clean;
+        }
       }
     } catch {}
     return [];

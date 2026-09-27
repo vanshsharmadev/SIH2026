@@ -102,96 +102,36 @@ export const getInitialOfficerNotifications = () => {
     const raw = localStorage.getItem('gem_officer_notifications');
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+      if (Array.isArray(parsed)) {
+        // Strip out all mock/seed dummy notifications
+        const realNotifs = parsed.filter(
+          (n) =>
+            !n.id?.startsWith('notif-seed-') &&
+            !n.id?.startsWith('notif-sub-') &&
+            !n.id?.startsWith('notif-bidder-seed-') &&
+            !n.title?.includes('Larsen & Toubro') &&
+            !n.title?.includes('Tata Projects') &&
+            !n.description?.includes('Larsen & Toubro') &&
+            !n.description?.includes('Tata Projects') &&
+            !n.title?.includes('Land Border Rule 144(xi)') &&
+            !n.title?.includes('Comparative AI Matrix Ready')
+        );
+        if (realNotifs.length !== parsed.length) {
+          localStorage.setItem('gem_officer_notifications', JSON.stringify(realNotifs));
+        }
+        return realNotifs;
       }
     }
-  } catch (err) {
-    console.warn('Error reading gem_officer_notifications:', err);
+  } catch {
+    // ignore
   }
 
-  const initial = [];
+  // Never seed fake dummy notifications; return empty list so clean empty state renders
   try {
-    const subs = getUnifiedSubmissions();
-    if (Array.isArray(subs) && subs.length > 0) {
-      subs.slice(0, 3).forEach((sub, i) => {
-        initial.push({
-          id: `notif-sub-${sub.id || i}`,
-          title: `New Bid Submission: ${sub.tenderId || 'GeM/2026/B/8912'}`,
-          description: `${sub.bidder || sub.bidderName || 'Commercial Bidder'} submitted proposal (${sub.docCount || 4} documents, ${sub.complianceScore || 90}% AI score).`,
-          time: sub.submittedTime || (i === 0 ? 'Just now' : i === 1 ? '18m ago' : '1h ago'),
-          unread: i < 2,
-          category: 'submission',
-          icon: 'CheckSquare',
-          badge: 'New Submission',
-          badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
-          target: 'submissions',
-          tenderId: sub.tenderId,
-        });
-      });
-    }
+    localStorage.setItem('gem_officer_notifications', JSON.stringify([]));
   } catch {}
 
-  if (initial.length === 0) {
-    initial.push({
-      id: 'notif-seed-sub-1',
-      title: 'New Bid Submission: GeM/2026/B/8912',
-      description: 'Larsen & Toubro Heavy Civil Infrastructure submitted bid proposal (96% AI compliance score).',
-      time: '12m ago',
-      unread: true,
-      category: 'submission',
-      icon: 'CheckSquare',
-      badge: 'New Submission',
-      badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
-      target: 'submissions',
-      tenderId: 'GeM/2026/B/8912',
-    });
-    initial.push({
-      id: 'notif-seed-sub-2',
-      title: 'New Bid Submission: GeM/2026/B/9401',
-      description: 'Tata Projects Ltd submitted EPC documentation package (92% AI score).',
-      time: '45m ago',
-      unread: true,
-      category: 'submission',
-      icon: 'CheckSquare',
-      badge: 'New Submission',
-      badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
-      target: 'submissions',
-      tenderId: 'GeM/2026/B/9401',
-    });
-  }
-
-  initial.push({
-    id: 'notif-seed-alert-1',
-    title: 'AI Compliance Flag: Land Border Rule 144(xi)',
-    description: 'Automated verification flagged sub-vendor declaration for mandatory security clearance.',
-    time: '2h ago',
-    unread: true,
-    category: 'alert',
-    icon: 'ShieldAlert',
-    badge: 'High Attention',
-    badgeColor: 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300',
-    target: 'compliance',
-  });
-
-  initial.push({
-    id: 'notif-seed-eval-1',
-    title: 'Comparative AI Matrix Ready',
-    description: 'AI evaluation ranking matrix generated for active corridor tenders.',
-    time: '4h ago',
-    unread: false,
-    category: 'evaluation',
-    icon: 'Trophy',
-    badge: 'AI Evaluated',
-    badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
-    target: 'evaluations',
-  });
-
-  try {
-    localStorage.setItem('gem_officer_notifications', JSON.stringify(initial));
-  } catch {}
-
-  return initial;
+  return [];
 };
 
 // Lightweight SVG sparkline for KPI metric trajectory
