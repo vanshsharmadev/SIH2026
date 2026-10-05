@@ -857,7 +857,7 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance, initialTen
         </div>
 
         {/* Card 5: Compliant */}
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition">
+        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition col-span-2 sm:col-span-1 lg:col-span-1">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
               <CheckCircle2 className="w-5 h-5" />

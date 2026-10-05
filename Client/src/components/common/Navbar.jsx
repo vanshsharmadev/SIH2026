@@ -241,32 +241,33 @@ const Navbar = ({ fontScale, setFontScale }) => {
   return (
     <>
       <header
-        ref={headerRef}
         className={`fixed top-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#181818]/95 backdrop-blur-md border-b select-none transition-all duration-200 ${
           isScrolled ? 'shadow-md border-slate-300 dark:border-[#303030]' : 'shadow-xs border-slate-200 dark:border-[#303030]'
         }`}
       >
-        {/* 1. Top Government Utility Bar */}
-        <div className="w-full bg-[#f8fafc] dark:bg-[#141414] border-b border-slate-200/90 dark:border-[#282828] text-slate-700 dark:text-slate-300 text-xs py-1 px-4 sm:px-6 lg:px-8 transition-colors">
-          <div className="max-w-[1360px] mx-auto flex items-center justify-between">
-            {/* Left: Indian Flag + Government of India */}
-            <div className="flex items-center gap-2">
-              {/* Indian Flag Badge */}
-              <div className="w-4 h-3 rounded-[2px] overflow-hidden flex flex-col shadow-2xs border border-slate-300 dark:border-slate-700">
-                <div className="h-1 bg-[#FF9933]" />
-                <div className="h-1 bg-white flex items-center justify-center">
-                  <div className="w-0.5 h-0.5 rounded-full bg-[#000080]" />
+        {/* Main Nav Container tracked for height calculation (excludes mobile drawer to prevent layout jump) */}
+        <div ref={headerRef}>
+          {/* 1. Top Government Utility Bar */}
+          <div className="w-full bg-[#f8fafc] dark:bg-[#141414] border-b border-slate-200/90 dark:border-[#282828] text-slate-700 dark:text-slate-300 text-xs py-1 px-4 sm:px-6 lg:px-8 transition-colors">
+            <div className="max-w-[1360px] mx-auto flex items-center justify-between">
+              {/* Left: Indian Flag + Government of India */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                {/* Indian Flag Badge */}
+                <div className="w-4 h-3 rounded-[2px] overflow-hidden flex flex-col shadow-2xs border border-slate-300 dark:border-slate-700 shrink-0">
+                  <div className="h-1 bg-[#FF9933]" />
+                  <div className="h-1 bg-white flex items-center justify-center">
+                    <div className="w-0.5 h-0.5 rounded-full bg-[#000080]" />
+                  </div>
+                  <div className="h-1 bg-[#138808]" />
                 </div>
-                <div className="h-1 bg-[#138808]" />
+                <span className="font-semibold text-slate-800 dark:text-slate-100 text-[11px] sm:text-xs whitespace-nowrap">
+                  भारत सरकार
+                </span>
+                <span className="text-slate-400 dark:text-slate-600 text-[10px] hidden sm:inline">|</span>
+                <span className="font-medium text-slate-600 dark:text-slate-300 text-[11px] sm:text-xs hidden sm:inline whitespace-nowrap">
+                  Government of India
+                </span>
               </div>
-              <span className="font-semibold text-slate-800 dark:text-slate-100 text-[11px] sm:text-xs">
-                भारत सरकार
-              </span>
-              <span className="text-slate-400 dark:text-slate-600 text-[10px]">|</span>
-              <span className="font-medium text-slate-600 dark:text-slate-300 text-[11px] sm:text-xs">
-                Government of India
-              </span>
-            </div>
 
             {/* Right: Accessibility + Font Controls + Theme + Language */}
             <div className="flex items-center gap-2 sm:gap-3 text-[11px] sm:text-xs">
@@ -383,20 +384,20 @@ const Navbar = ({ fontScale, setFontScale }) => {
         </div>
 
         {/* 2. Main Navigation Bar */}
-        <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-4">
+        <div className="max-w-[1360px] mx-auto px-3.5 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-2 sm:gap-4">
           {/* Left: National Emblem + GeM Compliflix Brand */}
-          <Link to="/" className="flex items-center gap-2.5 sm:gap-3 group shrink-0">
+          <Link to="/" className="flex items-center gap-2 sm:gap-3 group shrink-0 min-w-0">
             <img
               src={logoGemVariant}
               alt="GeM Compliflix"
-              className="h-11 sm:h-12 md:h-13 w-auto object-contain shrink-0 group-hover:scale-105 transition-transform drop-shadow-xs"
+              className="h-9 sm:h-11 md:h-13 w-auto object-contain shrink-0 group-hover:scale-105 transition-transform drop-shadow-xs"
             />
-            <div className="flex flex-col leading-none">
-              <div className="flex items-center text-xl sm:text-[22px] font-black tracking-tight">
+            <div className="flex flex-col leading-none min-w-0">
+              <div className="flex items-center text-lg sm:text-[22px] font-black tracking-tight">
                 <span className="text-[#0A2540] dark:text-white">GeM</span>
                 <span className="text-[#0E9F6E] ml-1">Compliflix</span>
               </div>
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+              <span className="hidden sm:block text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 whitespace-nowrap">
                 Compliant Procurement. Stronger India.
               </span>
             </div>
@@ -491,7 +492,7 @@ const Navbar = ({ fontScale, setFontScale }) => {
           </nav>
 
           {/* Right: Login / User Session Buttons */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Real-time Notification Bell for Authenticated Users */}
             {isAuthenticated && (
               <div className="relative">
@@ -532,7 +533,7 @@ const Navbar = ({ fontScale, setFontScale }) => {
             )}
 
             {isAuthenticated ? (
-              <div className="relative" ref={userDropdownRef}>
+              <div className="hidden sm:block relative" ref={userDropdownRef}>
                 <button
                   type="button"
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
@@ -545,8 +546,8 @@ const Navbar = ({ fontScale, setFontScale }) => {
                     {initials}
                   </div>
 
-                  {/* User Details */}
-                  <div className="flex flex-col text-left leading-none">
+                  {/* User Details (Desktop & Tablet) */}
+                  <div className="hidden sm:flex flex-col text-left leading-none">
                     <span className="text-xs sm:text-[13px] font-bold text-[#0b2545] dark:text-white tracking-tight">
                       {displayName}
                     </span>
@@ -664,7 +665,7 @@ const Navbar = ({ fontScale, setFontScale }) => {
                 {/* Get Started Button (Solid Navy) */}
                 <Link
                   to="/signup"
-                  className="px-3.5 sm:px-4 py-1.5 bg-[#073567] hover:bg-[#05284f] dark:bg-blue-600 dark:hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-2xs transition-all hover:shadow-sm cursor-pointer"
+                  className="hidden sm:inline-flex px-3.5 sm:px-4 py-1.5 bg-[#073567] hover:bg-[#05284f] dark:bg-blue-600 dark:hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-2xs transition-all hover:shadow-sm cursor-pointer"
                 >
                   Get Started
                 </Link>
@@ -674,17 +675,18 @@ const Navbar = ({ fontScale, setFontScale }) => {
             {/* Mobile Menu Toggle */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+              className="lg:hidden p-1.5 sm:p-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition shrink-0 cursor-pointer"
               aria-label="Toggle Menu"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
+      </div>
 
         {/* Mobile Menu Drawer */}
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-4 py-3 space-y-2 animate-in slide-in-from-top duration-150">
+          <div className="lg:hidden max-h-[calc(100vh-var(--navbar-height,88px))] overflow-y-auto bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-4 py-3 space-y-2 animate-in slide-in-from-top duration-150 shadow-xl">
             {isAuthenticated && (
               <div className="p-3 mb-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">

@@ -383,15 +383,15 @@ const Reports = () => {
       {isStandalone && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800">
           <div>
-            <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
               Compliance Reports
             </h1>
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-              <Link to="/dashboard" className="hover:text-blue-600 dark:hover:text-blue-400 transition">
+            <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 whitespace-nowrap overflow-hidden">
+              <Link to="/dashboard" className="hover:text-blue-600 dark:hover:text-blue-400 transition shrink-0">
                 Dashboard
               </Link>
-              <span>&gt;</span>
-              <span className="text-slate-700 dark:text-slate-300 font-semibold">Compliance Reports</span>
+              <span className="shrink-0">&gt;</span>
+              <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Compliance Reports</span>
             </div>
           </div>
         </div>
