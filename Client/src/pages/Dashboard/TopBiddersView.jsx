@@ -391,40 +391,40 @@ const TopBiddersView = ({
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* 1. TOP NAVIGATION & TENDER SWITCHER BAR                            */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#181818] rounded-2xl border border-slate-200/90 dark:border-[#303030] shadow-2xs p-4 sm:p-5">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 bg-white dark:bg-[#181818] rounded-2xl border border-slate-200/90 dark:border-[#303030] shadow-2xs p-3.5 sm:p-5">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           {onBackToDashboard && (
             <button
               type="button"
               onClick={onBackToDashboard}
-              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer shrink-0"
+              className="p-1.5 sm:p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer shrink-0"
               title="Return to Main Dashboard"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
           )}
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+              <h2 className="text-base sm:text-xl font-black text-slate-900 dark:text-white tracking-tight leading-snug">
                 Top 10 Bidders Evaluation
               </h2>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-mono">
                 {rankingBasis}
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Review candidate proposals, compliance scores, and run comparative evaluations for active procurements.
             </p>
           </div>
         </div>
 
         {/* Right Side: Tender Selector & View Submissions */}
-        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-          <div className="relative">
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 flex-wrap w-full md:w-auto">
+          <div className="relative flex-1 sm:flex-initial">
             <select
               value={selectedTenderId}
               onChange={(e) => setSelectedTenderId(e.target.value)}
-              className="pl-3 pr-8 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-750 focus:outline-none focus:ring-2 focus:ring-blue-600 cursor-pointer appearance-none transition max-w-[240px] sm:max-w-[280px] truncate shadow-2xs"
+              className="w-full sm:w-auto pl-3 pr-8 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-750 focus:outline-none focus:ring-2 focus:ring-blue-600 cursor-pointer appearance-none transition max-w-full sm:max-w-[280px] truncate shadow-2xs"
             >
               {availableTenders.length === 0 ? (
                 <option value="">No tenders available</option>
@@ -466,58 +466,58 @@ const TopBiddersView = ({
       {/* 2. SUMMARY RIBBON STRIP (GFR 192 / Top Winner / L1)                */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {summaryData && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-3.5">
           {/* Winner Callout */}
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border border-amber-300/60 dark:border-amber-700/50 flex items-center gap-3.5 shadow-2xs">
-            <div className="w-11 h-11 rounded-xl bg-amber-400/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-              <Trophy className="w-5 h-5" />
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border border-amber-300/60 dark:border-amber-700/50 flex items-center gap-3 sm:gap-3.5 shadow-2xs">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-amber-400/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <Trophy className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider block">
                 Top Evaluated Bidder (Rank #1)
               </span>
-              <span className="text-sm font-black text-slate-900 dark:text-white truncate block">
+              <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate block">
                 {summaryData.bestEvaluatedBidder || bidders[0]?.companyName}
               </span>
-              <span className="text-[11px] font-extrabold text-amber-600 dark:text-amber-400">
+              <span className="text-[10.5px] sm:text-[11px] font-extrabold text-amber-600 dark:text-amber-400">
                 {summaryData.bestEvaluatedScore || bidders[0]?.complianceScore}% Score
               </span>
             </div>
           </div>
 
           {/* L1 Lowest Price Quote */}
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-300/60 dark:border-emerald-700/50 flex items-center gap-3.5 shadow-2xs">
-            <div className="w-11 h-11 rounded-xl bg-emerald-400/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-              <TrendingDown className="w-5 h-5" />
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-300/60 dark:border-emerald-700/50 flex items-center gap-3 sm:gap-3.5 shadow-2xs">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-400/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <TrendingDown className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider block">
                 Benchmark Quote (L1 Lowest)
               </span>
-              <span className="text-sm sm:text-base font-black text-emerald-700 dark:text-emerald-300 block">
+              <span className="text-xs sm:text-base font-black text-emerald-700 dark:text-emerald-300 block">
                 {formatIndianLakhCrore(summaryData.lowestQuotedPriceInr)}
               </span>
-              <span className="text-[10.5px] text-slate-500 dark:text-slate-400">
+              <span className="text-[10px] sm:text-[10.5px] text-slate-500 dark:text-slate-400">
                 100% Price Index Normalization
               </span>
             </div>
           </div>
 
           {/* Scoring Framework */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-[#303030] flex items-center gap-3.5 shadow-2xs">
-            <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-              <Scale className="w-5 h-5" />
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-[#303030] flex items-center gap-3 sm:gap-3.5 shadow-2xs">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+              <Scale className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                 Selection Framework
               </span>
-              <div className="flex items-center gap-1.5 mt-0.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+              <div className="flex items-center gap-1 sm:gap-1.5 mt-0.5 text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-200 flex-wrap">
                 <span className="text-blue-600 dark:text-blue-400">Technical: {summaryData.qualityWeightage || '70%'}</span>
                 <span>+</span>
                 <span className="text-emerald-600 dark:text-emerald-400">Price: {summaryData.priceWeightage || '30%'}</span>
               </div>
-              <span className="text-[10.5px] text-slate-400 block mt-0.5">
+              <span className="text-[10px] sm:text-[10.5px] text-slate-400 block mt-0.5">
                 Rule 192 GFR 2017 &bull; CIS Verified
               </span>
             </div>
@@ -528,9 +528,9 @@ const TopBiddersView = ({
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* 3. TOOLBAR CONTROLS (SEARCH, RISK, VIEW MODE)                       */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-white dark:bg-[#181818] rounded-2xl border border-slate-200/90 dark:border-[#303030] shadow-2xs text-xs">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3.5 bg-white dark:bg-[#181818] rounded-2xl border border-slate-200/90 dark:border-[#303030] shadow-2xs text-xs">
         {/* Search Input */}
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative flex-1 min-w-0 sm:min-w-[200px]">
           <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
@@ -542,8 +542,8 @@ const TopBiddersView = ({
         </div>
 
         {/* Risk Filter Buttons */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1 mr-0.5">
             <SlidersHorizontal className="w-3 h-3" />
             Risk:
           </span>
@@ -564,7 +564,7 @@ const TopBiddersView = ({
         </div>
 
         {/* View Mode Toggle: Table vs Cards & Export */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center justify-between md:justify-end gap-2 shrink-0">
           <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
             <button
               type="button"
@@ -597,11 +597,12 @@ const TopBiddersView = ({
           <button
             type="button"
             onClick={handleExportTopBiddersCSV}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-750 transition cursor-pointer shadow-2xs"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-750 transition cursor-pointer shadow-2xs whitespace-nowrap"
             title="Export Top Bidders Table (CSV)"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Export Table (CSV)</span>
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span className="hidden sm:inline">Export Table (CSV)</span>
+            <span className="sm:hidden">Export (CSV)</span>
           </button>
         </div>
       </div>

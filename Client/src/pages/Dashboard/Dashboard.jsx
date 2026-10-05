@@ -1647,155 +1647,155 @@ const Dashboard = ({ defaultTab = null }) => {
 
         {/* Top Header Bar - FIXED AT TOP */}
         <header
-          className={`fixed top-0 right-0 z-30 bg-white/95 dark:bg-[#181818]/95 backdrop-blur-md border-b border-slate-200/90 dark:border-[#262626] px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 shadow-2xs transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'left-0 lg:left-20' : 'left-0 lg:left-64'
+          className={`fixed top-0 right-0 z-30 bg-white/95 dark:bg-[#181818]/95 backdrop-blur-md border-b border-slate-200/90 dark:border-[#262626] px-3.5 sm:px-6 py-2 sm:py-3.5 flex items-center justify-between gap-2.5 sm:gap-4 shadow-2xs transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'left-0 lg:left-20' : 'left-0 lg:left-64'
             }`}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
             {/* Mobile hamburger button */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#202020] cursor-pointer"
+              className="lg:hidden p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#202020] cursor-pointer shrink-0"
               aria-label="Open menu"
             >
               <Menu className="w-5 h-5" />
             </button>
 
-            <div>
+            <div className="min-w-0 flex-1">
               {activeMenu === 'tenders' ? (
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                     Tenders Management
                   </h2>
-                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 whitespace-nowrap overflow-hidden">
                     <button
                       type="button"
                       onClick={handleOpenDashboard}
-                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shrink-0"
                     >
                       Dashboard
                     </button>
-                    <span>&gt;</span>
-                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Tenders</span>
-                    <span>&gt;</span>
-                    <span className="text-slate-400">List &amp; Upload</span>
+                    <span className="shrink-0">&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Tenders</span>
+                    <span className="hidden sm:inline shrink-0">&gt;</span>
+                    <span className="hidden sm:inline text-slate-400 shrink-0">List &amp; Upload</span>
                   </div>
                 </div>
               ) : activeMenu === 'submissions' ? (
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                     Tender Submissions
                   </h2>
-                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 whitespace-nowrap overflow-hidden">
                     <button
                       type="button"
                       onClick={handleOpenDashboard}
-                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shrink-0"
                     >
                       Dashboard
                     </button>
-                    <span>&gt;</span>
-                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Tender Submissions</span>
+                    <span className="shrink-0">&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Tender Submissions</span>
                   </div>
                 </div>
               ) : activeMenu === 'top-bidders' ? (
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                     Top 10 Bidders
                   </h2>
-                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 whitespace-nowrap overflow-hidden">
                     <button
                       type="button"
                       onClick={handleOpenDashboard}
-                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shrink-0"
                     >
                       Dashboard
                     </button>
-                    <span>&gt;</span>
-                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Top 10 Bidders</span>
-                    <span>&gt;</span>
-                    <span className="text-slate-400 font-mono">QCBS GFR 192</span>
+                    <span className="shrink-0">&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Top 10 Bidders</span>
+                    <span className="hidden sm:inline shrink-0">&gt;</span>
+                    <span className="hidden sm:inline text-slate-400 font-mono shrink-0">QCBS GFR 192</span>
                   </div>
                 </div>
               ) : activeMenu === 'audit' ? (
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                     Audit Trail
                   </h2>
-                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 whitespace-nowrap overflow-hidden">
                     <button
                       type="button"
                       onClick={handleOpenDashboard}
-                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shrink-0"
                     >
                       Dashboard
                     </button>
-                    <span>&gt;</span>
-                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Audit Trail</span>
-                    <span>&gt;</span>
-                    <span className="text-slate-400">Activity Logs</span>
+                    <span className="shrink-0">&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Audit Trail</span>
+                    <span className="hidden sm:inline shrink-0">&gt;</span>
+                    <span className="hidden sm:inline text-slate-400 shrink-0">Activity Logs</span>
                   </div>
                 </div>
               ) : activeMenu === 'reports' ? (
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                     Compliance Reports
                   </h2>
-                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 whitespace-nowrap overflow-hidden">
                     <button
                       type="button"
                       onClick={handleOpenDashboard}
-                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shrink-0"
                     >
                       Dashboard
                     </button>
-                    <span>&gt;</span>
-                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Compliance Reports</span>
+                    <span className="shrink-0">&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Compliance Reports</span>
                   </div>
                 </div>
               ) : activeMenu === 'upload-extract' ? (
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                     Upload &amp; Extract Studio
                   </h2>
-                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 whitespace-nowrap overflow-hidden">
                     <button
                       type="button"
                       onClick={handleOpenDashboard}
-                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shrink-0"
                     >
                       Dashboard
                     </button>
-                    <span>&gt;</span>
-                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Upload &amp; AI Extraction</span>
-                    <span>&gt;</span>
-                    <span className="text-slate-400 font-mono">ML OCR Studio</span>
+                    <span className="shrink-0">&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Upload &amp; AI Extraction</span>
+                    <span className="hidden sm:inline shrink-0">&gt;</span>
+                    <span className="hidden sm:inline text-slate-400 font-mono shrink-0">ML OCR Studio</span>
                   </div>
                 </div>
               ) : activeMenu === 'compliance' ? (
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                     Compliance Check
                   </h2>
-                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 whitespace-nowrap overflow-hidden">
                     <button
                       type="button"
                       onClick={handleOpenDashboard}
-                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shrink-0"
                     >
                       Dashboard
                     </button>
-                    <span>&gt;</span>
-                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Compliance Check</span>
-                    <span>&gt;</span>
-                    <span className="text-slate-600 dark:text-slate-400">Overview</span>
+                    <span className="shrink-0">&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Compliance Check</span>
+                    <span className="hidden sm:inline shrink-0">&gt;</span>
+                    <span className="hidden sm:inline text-slate-600 dark:text-slate-400 shrink-0">Overview</span>
                   </div>
                 </div>
               ) : (
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                     Dashboard
                   </h2>
-                  <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 truncate">
                     AI-Powered Tender Compliance &amp; Verification
                   </p>
                 </div>
@@ -1874,7 +1874,7 @@ const Dashboard = ({ defaultTab = null }) => {
         </header>
 
         {/* Dashboard Content Container */}
-        <main className="pt-[76px] sm:pt-[82px] pb-24 p-4 sm:p-6 space-y-6 flex-1">
+        <main className="pt-[64px] sm:pt-[82px] pb-24 p-3.5 sm:p-6 space-y-5 sm:space-y-6 flex-1">
           {activeMenu === 'compliance' ? (
             <ComplianceCheckView
               onBackToDashboard={handleOpenSubmissions}
