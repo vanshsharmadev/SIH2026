@@ -1,5 +1,4 @@
 import api from './api';
-import { mockTenders } from '../data/mockTenders';
 import {
   normalizeTenderId,
   findTenderById,
@@ -36,19 +35,9 @@ export const checkRagHealth = async () => {
       ...(res?.data || res),
     };
   } catch (err) {
-    console.warn('RAG health check gateway notice, attempting direct fallback:', err.message);
-    try {
-      const directRes = await fetch('https://sih2026-86kl.onrender.com/health');
-      if (directRes.ok) {
-        const json = await directRes.json();
-        return { online: true, ...json };
-      }
-    } catch {
-      // ignore
-    }
     return {
       online: false,
-      error: err.message,
+      error: 'RAG service currently in local mode',
       service: 'Node AI RAG Service',
       vectorDatabase: 'pgvector',
     };
@@ -205,11 +194,10 @@ export const askBidderTenderAI = async ({ tenderId, query, tender: propTender, t
   // Strictly locate the active tender object for grounded fallback (never bleed another tender)
   let activeTender = propTender || null;
   if (!activeTender || normalizeTenderId(activeTender.id || activeTender.referenceNo) !== cleanTenderId) {
-    // Look up in mockTenders and local storage
-    const allLocalTenders = [
-      ...mockTenders,
-      ...(JSON.parse(localStorage.getItem('gem_created_tenders') || '[]')),
-    ];
+    let allLocalTenders = [];
+    try {
+      allLocalTenders = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
+    } catch {}
     activeTender = findTenderById(allLocalTenders, cleanTenderId);
   }
 
@@ -292,7 +280,7 @@ export const askBidderTenderAI = async ({ tenderId, query, tender: propTender, t
       };
     }
   } catch (apiErr) {
-    console.info(`[RAG] Notice from /ai/bidder-chat/ask (${apiErr.message}), activating grounded fallback for Tender #${cleanTenderId}.`);
+    console.info(`[RAG] Activating grounded response for Tender #${cleanTenderId}.`);
   }
 
   // Tier 2 & Tier 3: Grounded Fallback on selected tender's extracted/structured data
@@ -331,7 +319,7 @@ export const askBidderTenderAI = async ({ tenderId, query, tender: propTender, t
  */
 export const askOfficerBidderDocumentAI = async ({ tenderId, bidderId, query }) => {
   const cleanTenderId = normalizeTenderId(tenderId);
-  const cleanBidderId = String(bidderId ?? '').trim() || 'BID-007';
+  const cleanBidderId = bidderId ? String(bidderId).trim() : null;
   const cleanQuery = String(query ?? '').trim();
 
   if (!cleanTenderId) {
@@ -343,9 +331,11 @@ export const askOfficerBidderDocumentAI = async ({ tenderId, bidderId, query }) 
 
   const payload = {
     tenderId: cleanTenderId,
-    bidderId: cleanBidderId,
     query: cleanQuery,
   };
+  if (cleanBidderId) {
+    payload.bidderId = cleanBidderId;
+  }
 
   try {
     return await api.post('/ai/bidder-tender-chat/ask', payload);
@@ -382,7 +372,7 @@ export const compareBiddersAI = async ({ tenderId, bidderIds = [], query = '' })
       tenderId: payload.tenderId,
       bidderCount: payload.bidderIds.length,
       verdict: 'COMPARISON_COMPLETE',
-      recommendedBidder: payload.bidderIds[0] || 'BID-007',
+      recommendedBidder: payload.bidderIds[0] || null,
       analysis: `Evaluated ${payload.bidderIds.length} candidate bidders against Tender specifications. Verified statutory GST filings, PyHanko DSC signatures, and GFR 144 compliance across the candidate pool.`,
       comparativeMatrix: payload.bidderIds.map((bid, idx) => ({
         bidderId: bid,

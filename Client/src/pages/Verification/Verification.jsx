@@ -25,13 +25,15 @@ import {
   ArrowRight,
   Clock,
   UploadCloud,
+  ShieldAlert,
+  Eye,
 } from 'lucide-react';
 import { useAuth } from '../../context';
-import { mockTenders } from '../../data/mockTenders';
 import { isTenderClosed } from '../../utils';
 import { addSubmission, addActivity } from '../../store/slices/dashboardSlice';
 import { getUserDisplayName, isOfficerUser } from '../../utils/roleUtils';
-import { tenderService, mlService, recordAuditLog, documentService } from '../../services';
+import { tenderService, mlService, recordAuditLog, documentService, downloadDocument, fileToDataUrl } from '../../services';
+import DocumentPreviewModal from '../../components/common/DocumentPreviewModal';
 
 const Verification = () => {
   const navigate = useNavigate();
@@ -63,7 +65,7 @@ const Verification = () => {
       const local = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
       if (Array.isArray(local) && local.length > 0) return local;
     } catch {}
-    return Array.isArray(mockTenders) && mockTenders.length > 0 ? mockTenders : [];
+    return [];
   });
   const [selectedTenderId, setSelectedTenderId] = useState(targetParam || null);
 
@@ -73,7 +75,7 @@ const Verification = () => {
     let isMounted = true;
     const load = async () => {
       try {
-        const data = await tenderService.getTenders();
+        const data = await tenderService.getOfficerTenders();
         if (isMounted && Array.isArray(data)) {
           setTendersList(data);
           if (data.length > 0 && !selectedTenderId) {
@@ -130,6 +132,7 @@ const Verification = () => {
   const [validationError, setValidationError] = useState('');
   const [uploadError, setUploadError] = useState(null);
   const [submittedJustNow, setSubmittedJustNow] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const toastTimeoutRef = useRef(null);
 
   // Duplicate AI processing protection refs
@@ -168,27 +171,15 @@ const Verification = () => {
   const selectedTender =
     tendersList.find((t) => String(t.id) === String(selectedTenderId) || t.referenceNo === selectedTenderId) ||
     tendersList[0] ||
-    (Array.isArray(mockTenders) && mockTenders.length > 0 ? mockTenders[0] : null);
+    null;
 
-  const safeTender = selectedTender || {
-    id: 'GEM/2026/B/890123',
-    referenceNo: 'GEM/2026/B/890123',
-    title: 'GeM Procurement Opportunity',
-    ministry: 'Ministry of Commerce and Industry',
-    department: 'GeM Procurement Cell',
-    value: '₹ 1.20 Cr',
-    minLocalContent: '50% (Class-I)',
-    complianceScore: 96,
-    emdAmount: '₹ 2,40,000',
-    closes: 'Open',
-    documents: [],
-    eligibility: 'Standard GFR 2017 & Make In India Criteria',
-  };
+  const safeTender = selectedTender;
 
   const isDirectTarget = Boolean(targetParam);
-  const isClosed = isTenderClosed(safeTender);
+  const isClosed = safeTender ? isTenderClosed(safeTender) : false;
 
   const alreadySubmitted = useMemo(() => {
+    if (!safeTender) return false;
     try {
       const storedBidderApps = JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
       return storedBidderApps.some(
@@ -197,16 +188,18 @@ const Verification = () => {
     } catch {
       return false;
     }
-  }, [safeTender.referenceNo, safeTender.id]);
+  }, [safeTender?.referenceNo, safeTender?.id]);
 
-  const scanSteps = [
-    `Parsing ${safeTender.referenceNo} eligibility criteria & BOQ schedule...`,
-    uploadedFiles.length > 0
-      ? `Scanning ${uploadedFiles.length} attached bidder proposal documents...`
-      : 'Evaluating General Financial Rules (GFR 2017) Rule 144(xi)...',
-    `Auditing Make In India (MII) threshold (${safeTender.minLocalContent})...`,
-    'Cross-verifying MSME Udyam and Debarred Vendor Database...',
-  ];
+  const scanSteps = safeTender
+    ? [
+        `Parsing ${safeTender.referenceNo} eligibility criteria & BOQ schedule...`,
+        uploadedFiles.length > 0
+          ? `Scanning ${uploadedFiles.length} attached bidder proposal documents...`
+          : 'Evaluating General Financial Rules (GFR 2017) Rule 144(xi)...',
+        `Auditing Make In India (MII) threshold (${safeTender.minLocalContent})...`,
+        'Cross-verifying MSME Udyam and Debarred Vendor Database...',
+      ]
+    : [];
 
   const [isUploadingDocs, setIsUploadingDocs] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -324,11 +317,14 @@ const Verification = () => {
           }
         }
 
+        const fileDataUrl = await fileToDataUrl(fileObj).catch(() => '');
+
         processedDocs.push({
           name: fileObj.name,
           size: typeof fileObj.size === 'number' ? `${(fileObj.size / (1024 * 1024)).toFixed(1)} MB` : (fileObj.size || '1.8 MB'),
           status: isAiProcessed ? 'Verified & AI-Vectorized' : 'Verified',
           cloudinaryUrl: data.fileUrl,
+          dataUrl: fileDataUrl || data.dataUrl || null,
           cloudinaryPublicId: cloudinaryPublicId,
           documentId: docId,
           documentType: actualDocType,
@@ -364,7 +360,7 @@ const Verification = () => {
       const livePredict = await mlService
         .predictCompliance({
           tender_id: safeTender.referenceNo || safeTender.id,
-          bidder_id: user?.id || 'BID-007',
+          bidder_id: user?.id || user?.bidderId || null,
           documents_count: uploadedFiles.length,
         })
         .catch(() => null);
@@ -534,6 +530,27 @@ const Verification = () => {
           ])
         );
 
+        // Record Officer Notification
+        const officerNotif = {
+          id: `notif-sub-${submissionId || Date.now()}`,
+          title: `New Bid Submitted: ${safeTender.referenceNo}`,
+          description: `${bidderDisplayName} submitted bid documents (${docsSummary.length} documents uploaded & AI verified).`,
+          time: 'Just now',
+          unread: true,
+          category: 'submission',
+          icon: 'CheckSquare',
+          badge: 'New Submission',
+          badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+          target: 'submissions',
+          tenderId: safeTender.referenceNo,
+        };
+        try {
+          const storedNotifs = JSON.parse(localStorage.getItem('gem_officer_notifications') || '[]');
+          const updatedNotifs = [officerNotif, ...storedNotifs.filter((n) => n.id !== officerNotif.id)].slice(0, 50);
+          localStorage.setItem('gem_officer_notifications', JSON.stringify(updatedNotifs));
+        } catch {}
+
+        window.dispatchEvent(new CustomEvent('gem_notification_created', { detail: officerNotif }));
         window.dispatchEvent(new CustomEvent('gem_officer_submissions_updated', { detail: officerSubmissionPayload }));
         window.dispatchEvent(new CustomEvent('gem_submission_created', { detail: officerSubmissionPayload }));
         window.dispatchEvent(new Event('storage'));
@@ -600,10 +617,33 @@ const Verification = () => {
     setShowTenderSelector(false);
     setResult(null);
     setValidationError('');
-    setUploadError(null);
-    setSubmittedJustNow(false);
     setSearchParams({ tenderId: newId });
   };
+
+  if (!safeTender) {
+    return (
+      <div className="w-full max-w-2xl mx-auto py-16 px-4 text-center space-y-4 animate-in fade-in duration-200">
+        <div className="w-16 h-16 mx-auto rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+          No Active Tenders Available for Verification
+        </h2>
+        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+          There are currently no public procurement tenders published on the portal. Once an authorized procurement officer publishes a tender notice, bidders can upload and pre-screen their compliance dossiers here.
+        </p>
+        <div className="pt-2">
+          <Link
+            to="/tenders"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm"
+          >
+            <span>Browse Tender Directory</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-5 select-none animate-in fade-in duration-200">
@@ -918,7 +958,7 @@ const Verification = () => {
                 </h3>
                 {result && (
                   <button
-                    onClick={() => alert(`Official Compliance Certificate for ${safeTender.referenceNo} downloaded!`)}
+                    onClick={() => downloadDocument({ ...safeTender, sourceType: 'TENDER', fileName: `GeM_Compliance_Certificate_${String(safeTender.referenceNo || 'Tender').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf` }, safeTender)}
                     className="inline-flex items-center gap-1 text-xs font-bold text-[#008bdc] dark:text-blue-400 hover:underline cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -1136,19 +1176,25 @@ const Verification = () => {
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {doc.cloudinaryUrl && (
-                              <a
-                                href={doc.cloudinaryUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[10.5px] font-bold hover:bg-blue-100 transition"
-                                title="View Document"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                                <span>View PDF</span>
-                              </a>
-                            )}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewDoc(doc)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[10.5px] font-bold hover:bg-blue-100 transition cursor-pointer"
+                              title="Preview Document"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>Preview</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadDocument(doc, safeTender)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[10.5px] font-bold hover:bg-slate-200 transition cursor-pointer"
+                              title="Download PDF"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span>PDF</span>
+                            </button>
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
                               {doc.status}
                             </span>
@@ -1327,6 +1373,13 @@ const Verification = () => {
         </div>
       )}
 
+      {/* Universal Document Preview & Download Modal */}
+      <DocumentPreviewModal
+        isOpen={Boolean(previewDoc)}
+        document={previewDoc}
+        tenderContext={safeTender}
+        onClose={() => setPreviewDoc(null)}
+      />
     </div>
   );
 };

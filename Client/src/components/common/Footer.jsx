@@ -501,7 +501,7 @@ const Footer = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-8">
             
             {/* Col 1: Brand & Gov Info */}
-            <div className="lg:col-span-4 space-y-4">
+            <div className="md:col-span-2 lg:col-span-4 space-y-4">
               <div className="flex items-center gap-3">
                 <img
                   src={logoGemVariant}
@@ -746,8 +746,8 @@ const Footer = () => {
 
         {/* Lower Copyright & NIC Attribution Bar */}
         <div className="border-t border-slate-800/80 dark:border-[#303030] bg-[#051322] dark:bg-[#141414] py-3 text-xs text-slate-400 select-none">
-          <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2 text-slate-400 text-[11px] sm:text-xs">
+          <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-2 gap-y-1 text-slate-400 text-[11px] sm:text-xs">
               <span>&copy; 2026 GeM Compliflix. All rights reserved.</span>
               <span className="text-slate-600">|</span>
               <span className="font-medium text-slate-300">सत्यमेव जयते</span>
@@ -755,11 +755,11 @@ const Footer = () => {
               <span>Government of India</span>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5">
               <span className="text-slate-400 text-[11px] sm:text-xs font-normal tracking-tight">
                 Designed, Developed and Maintained by
               </span>
-              <NicLogo className="h-5 sm:h-6" />
+              <NicLogo className="h-5 sm:h-6 shrink-0" />
             </div>
           </div>
         </div>

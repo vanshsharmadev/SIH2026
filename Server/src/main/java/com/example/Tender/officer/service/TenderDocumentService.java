@@ -193,6 +193,31 @@ public class TenderDocumentService {
     }
 
     /**
+     * Delete a tender document from DB and Cloudinary.
+     * Only the officer who uploaded the tender can delete it.
+     */
+    @Transactional
+    public void deleteTender(Long id, OfficerPrincipal principal) {
+        TenderDocument tender = tenderDocumentRepository.findByIdAndUploadedByOfficerId(id, principal.getId())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Tender not found with ID: " + id + " or you do not have permission to delete it"));
+
+        // Delete from Cloudinary CDN if file was uploaded
+        if (tender.getCloudinaryPublicId() != null && !tender.getCloudinaryPublicId().isBlank()) {
+            try {
+                cloudinaryService.deleteFile(tender.getCloudinaryPublicId());
+                log.info("Deleted tender file from Cloudinary: publicId={}", tender.getCloudinaryPublicId());
+            } catch (Exception e) {
+                log.warn("Could not delete Cloudinary file for tender {}: {}", id, e.getMessage());
+            }
+        }
+
+        // Delete from PostgreSQL
+        tenderDocumentRepository.delete(tender);
+        log.info("Tender ID {} deleted from database by officer {}", id, principal.getEmail());
+    }
+
+    /**
      * Get specific tender document by ID.
      */
     public TenderUploadResponse getTenderById(Long id, OfficerPrincipal principal) {

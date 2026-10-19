@@ -33,10 +33,56 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context';
 import { isOfficerUser } from '../../utils/roleUtils';
-import { documentService, authService, tenderService } from '../../services';
+import { documentService, authService, tenderService, getActiveInitialTenders, downloadDocument } from '../../services';
 import { DocumentDetailsModal, DocumentUploadModal } from '../../components/documents';
+import DocumentPreviewModal from '../../components/common/DocumentPreviewModal';
 import { TenderDetailModal } from '../../components/tender';
 import './BidderDashboard.css';
+
+/**
+ * Safely converts any value to a renderable string.
+ * Prevents React "Objects are not valid as a React child" errors
+ * when localStorage data contains nested objects (e.g. {value, start, end, validated}).
+ */
+const safeString = (val, fallback = '') => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'string' || typeof val === 'number') return val;
+  if (typeof val === 'object') {
+    // Common pattern: {value: "...", start, end, validated}
+    if ('value' in val) return safeString(val.value, fallback);
+    try { return JSON.stringify(val); } catch { return fallback; }
+  }
+  return String(val);
+};
+
+/**
+ * Ensure every field that gets rendered in JSX is a primitive (string/number),
+ * never an object. This guards against backend / localStorage schema mismatches.
+ */
+const sanitizeTenderForRender = (t) => {
+  if (!t || typeof t !== 'object') return t;
+  return {
+    ...t,
+    daysLeft: safeString(t.daysLeft, '21 days'),
+    value: safeString(t.value, 'As per RFP'),
+    minLocalContent: safeString(t.minLocalContent, '50% (Class-I)'),
+    miiRequirement: safeString(t.miiRequirement, ''),
+    title: safeString(t.title, 'Government Procurement Opportunity'),
+    ministry: safeString(t.ministry, 'Government of India'),
+    department: safeString(t.department, 'Government Department'),
+    location: safeString(t.location, ''),
+    category: safeString(t.category, ''),
+    emdAmount: safeString(t.emdAmount, ''),
+    published: safeString(t.published, ''),
+    closes: safeString(t.closes, ''),
+    closingDate: safeString(t.closingDate, ''),
+    lastDate: safeString(t.lastDate, ''),
+    referenceNo: safeString(t.referenceNo, ''),
+    status: safeString(t.status, 'Open'),
+    eligibility: safeString(t.eligibility, ''),
+    description: safeString(t.description, ''),
+  };
+};
 
 const BidderDashboard = () => {
   const { user, isAuthenticated } = useAuth();
@@ -49,21 +95,19 @@ const BidderDashboard = () => {
   const [precheckResult, setPrecheckResult] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showCompanyDetails, setShowCompanyDetails] = useState(false);
-  const [matchedTenders, setMatchedTenders] = useState(() => {
-    try {
-      const local = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
-      if (Array.isArray(local) && local.length > 0) return local;
-    } catch {}
-    return [];
-  });
+  // Start with cached initial tenders for instant zero-latency rendering
+  const [matchedTenders, setMatchedTenders] = useState(() =>
+    (getActiveInitialTenders() || []).map(sanitizeTenderForRender)
+  );
 
   useEffect(() => {
     let isMounted = true;
     const fetchTenders = async () => {
       try {
+        // Use getTenders() to query public / bidder endpoint
         const data = await tenderService.getTenders();
         if (isMounted && Array.isArray(data)) {
-          setMatchedTenders(data);
+          setMatchedTenders(data.map(sanitizeTenderForRender));
         }
       } catch (err) {
         console.warn('Could not fetch tenders for bidder dashboard:', err);
@@ -74,19 +118,17 @@ const BidderDashboard = () => {
     const handleSync = () => {
       tenderService.getTenders().then((data) => {
         if (isMounted && Array.isArray(data)) {
-          setMatchedTenders(data);
+          setMatchedTenders(data.map(sanitizeTenderForRender));
         }
       });
     };
     window.addEventListener('storage', handleSync);
     window.addEventListener('gem_tenders_updated', handleSync);
-    window.addEventListener('focus', handleSync);
 
     return () => {
       isMounted = false;
       window.removeEventListener('storage', handleSync);
       window.removeEventListener('gem_tenders_updated', handleSync);
-      window.removeEventListener('focus', handleSync);
     };
   }, []);
 
@@ -129,11 +171,12 @@ const BidderDashboard = () => {
   const [bidStatusFilter, setBidStatusFilter] = useState('all');
   const [bidSort, setBidSort] = useState('newest');
 
-  // Live Bidder Compliance Documents State
-  const [documents, setDocuments] = useState([]);
+  // Live Bidder Compliance Documents State (initialized with defaults for instant display)
+  const [documents, setDocuments] = useState(() => documentService.DEFAULT_VAULT_DOCUMENTS || []);
   const [isFetchingDocs, setIsFetchingDocs] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [selectedDocDetails, setSelectedDocDetails] = useState(null);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const [docToast, setDocToast] = useState(null);
   const [isCheckingCis, setIsCheckingCis] = useState(false);
   const [cisCheckResult, setCisCheckResult] = useState(null);
@@ -194,12 +237,10 @@ const BidderDashboard = () => {
       }
     };
     window.addEventListener('storage', handleSync);
-    window.addEventListener('focus', handleSync);
     window.addEventListener('gem_submission_created', handleSync);
     window.addEventListener('gem_bidder_applications_updated', handleSync);
     return () => {
       window.removeEventListener('storage', handleSync);
-      window.removeEventListener('focus', handleSync);
       window.removeEventListener('gem_submission_created', handleSync);
       window.removeEventListener('gem_bidder_applications_updated', handleSync);
     };
@@ -968,9 +1009,27 @@ const BidderDashboard = () => {
                                   <button
                                     type="button"
                                     className="bd-btn--icon"
-                                    title="Download Submission Receipt"
+                                    title="Preview Submission Dossier & Receipt"
                                     onClick={() =>
-                                      alert(`Downloading verified GeM Bid Submission Acknowledgement for ${bid.tenderId}.`)
+                                      setPreviewDoc({
+                                        ...bid,
+                                        sourceType: 'SUBMISSION_DOSSIER',
+                                        fileName: `GeM_Bid_Receipt_${String(bid.tenderId || '2026').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`,
+                                      })
+                                    }
+                                  >
+                                    <Eye aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="bd-btn--icon"
+                                    title="Download Submission Receipt PDF"
+                                    onClick={() =>
+                                      downloadDocument({
+                                        ...bid,
+                                        sourceType: 'SUBMISSION_DOSSIER',
+                                        fileName: `GeM_Bid_Receipt_${String(bid.tenderId || '2026').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`,
+                                      })
                                     }
                                   >
                                     <Download aria-hidden="true" />
@@ -1265,9 +1324,27 @@ const BidderDashboard = () => {
                             <button
                               type="button"
                               className="bd-btn--icon"
-                              title="Download Submission Receipt"
+                              title="Preview Submission Dossier & Receipt"
                               onClick={() =>
-                                alert(`Downloading verified GeM Bid Submission Acknowledgement for ${bid.tenderId}. Hash: sha256:4a8f9c1e...`)
+                                setPreviewDoc({
+                                  ...bid,
+                                  sourceType: 'SUBMISSION_DOSSIER',
+                                  fileName: `GeM_Bid_Receipt_${String(bid.tenderId || '2026').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`,
+                                })
+                              }
+                            >
+                              <Eye aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              className="bd-btn--icon"
+                              title="Download Submission Receipt PDF"
+                              onClick={() =>
+                                downloadDocument({
+                                  ...bid,
+                                  sourceType: 'SUBMISSION_DOSSIER',
+                                  fileName: `GeM_Bid_Receipt_${String(bid.tenderId || '2026').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`,
+                                })
                               }
                             >
                               <Download aria-hidden="true" />
@@ -1523,19 +1600,26 @@ const BidderDashboard = () => {
                                 type="button"
                                 className="bd-btn--icon"
                                 onClick={() => setSelectedDocDetails(doc)}
-                                title="View Forensic Details & OCR"
+                                title="Forensics & OCR Details"
+                              >
+                                <ShieldCheck aria-hidden="true" />
+                              </button>
+                              <button
+                                type="button"
+                                className="bd-btn--icon"
+                                onClick={() => setPreviewDoc(doc)}
+                                title="Preview Document"
                               >
                                 <Eye aria-hidden="true" />
                               </button>
-                              <a
-                                href={fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                type="button"
                                 className="bd-btn--icon"
-                                title="View Document"
+                                onClick={() => downloadDocument(doc)}
+                                title="Download Document PDF"
                               >
-                                <ExternalLink aria-hidden="true" />
-                              </a>
+                                <Download aria-hidden="true" />
+                              </button>
                               <button
                                 type="button"
                                 className="bd-btn--icon"
@@ -1633,14 +1717,32 @@ const BidderDashboard = () => {
                     </div>
 
                     <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--bd-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenTender(tender, 'compliance')}
-                        className="bd-btn bd-btn--primary bd-btn--sm"
-                      >
-                        <ShieldCheck aria-hidden="true" style={{ color: '#6EE7B7' }} />
-                        Verify &amp; Apply
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenTender(tender, 'compliance')}
+                          className="bd-btn bd-btn--primary bd-btn--sm"
+                        >
+                          <ShieldCheck aria-hidden="true" style={{ color: '#6EE7B7' }} />
+                          Verify &amp; Apply
+                        </button>
+                        <button
+                          type="button"
+                          className="bd-btn--icon"
+                          title="Preview Official Tender Document"
+                          onClick={() => setPreviewDoc(tender.documents?.[0] || { ...tender, sourceType: 'TENDER', name: tender.title })}
+                        >
+                          <Eye aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          className="bd-btn--icon"
+                          title="Download Tender Document (PDF)"
+                          onClick={() => downloadDocument(tender.documents?.[0] || tender, `${String(tender.referenceNo || 'Tender').replace(/[^a-zA-Z0-9]/g, '_')}_RFP.pdf`)}
+                        >
+                          <Download aria-hidden="true" />
+                        </button>
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleOpenTender(tender)}
@@ -1824,6 +1926,13 @@ const BidderDashboard = () => {
         tender={activeTenderModal}
         initialTab={modalInitialTab}
         onClose={() => setActiveTenderModal(null)}
+      />
+
+      {/* ═══ UNIVERSAL DOCUMENT PREVIEW MODAL ═══ */}
+      <DocumentPreviewModal
+        isOpen={Boolean(previewDoc)}
+        document={previewDoc}
+        onClose={() => setPreviewDoc(null)}
       />
     </div>
   );

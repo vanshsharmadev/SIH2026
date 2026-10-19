@@ -97,17 +97,19 @@ const WhyChoose = () => {
         </div>
 
         {/* Enterprise Security Reassurance Strip */}
-        <div className="mt-10 p-4 rounded-xl bg-slate-50 dark:bg-[#181818] border border-slate-200/80 dark:border-[#2a2a2a] flex flex-wrap items-center justify-between gap-4 text-xs">
-          <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 font-semibold">
-            <Lock className="w-4 h-4 text-blue-600 dark:text-[#4da3ff]" />
-            <span>Bank-Grade 256-bit AES Encryption</span>
-            <span className="text-slate-300 dark:text-slate-600">|</span>
+        <div className="mt-10 p-4 rounded-xl bg-slate-50 dark:bg-[#181818] border border-slate-200/80 dark:border-[#2a2a2a] flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 text-xs">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-slate-700 dark:text-slate-300 font-semibold">
+            <div className="flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5 text-blue-600 dark:text-[#4da3ff] shrink-0" />
+              <span>Bank-Grade 256-bit AES Encryption</span>
+            </div>
+            <span className="text-slate-300 dark:text-slate-600 hidden sm:inline">|</span>
             <span>Zero Data Sharing with Third Parties</span>
-            <span className="text-slate-300 dark:text-slate-600">|</span>
+            <span className="text-slate-300 dark:text-slate-600 hidden sm:inline">|</span>
             <span>Local India MeitY-Empaneled Cloud Hosting</span>
           </div>
-          <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 font-medium">
-            <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+          <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-medium shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200/70 dark:border-[#282828]">
+            <TrendingUp className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
             <span>99.9% Uptime SLA for Tender Deadlines</span>
           </div>
         </div>

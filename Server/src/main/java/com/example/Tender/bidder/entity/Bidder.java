@@ -105,6 +105,35 @@ public class Bidder {
     @Builder.Default
     private boolean emailVerified = false;
 
+    @Column(name = "pan_number")
+    private String panNumber;
+
+    @Builder.Default
+    @Column(name = "pan_verified", nullable = false)
+    private boolean panVerified = false;
+
+    @Column(name = "pan_verified_at")
+    private LocalDateTime panVerifiedAt;
+
+    @Column(name = "udyam_number")
+    private String udyamNumber;
+
+    @Builder.Default
+    @Column(name = "udyam_verified", nullable = false)
+    private boolean udyamVerified = false;
+
+    @Column(name = "udyam_verified_at")
+    private LocalDateTime udyamVerifiedAt;
+
+    @Column(name = "address")
+    private String address;
+
+    @Column(name = "registration_number")
+    private String registrationNumber;
+
+    @Column(name = "profile_metadata", columnDefinition = "text")
+    private String profileMetadata;
+
     private LocalDateTime gstVerifiedAt;
 
     private LocalDateTime emailVerifiedAt;

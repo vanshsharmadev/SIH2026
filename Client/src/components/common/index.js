@@ -12,4 +12,4 @@ export { default as MarkdownRenderer } from './MarkdownRenderer';
 export { default as NationalEmblem } from './NationalEmblem';
 export { default as ErrorBoundary } from './ErrorBoundary';
 export { default as NotificationDropdown } from './NotificationDropdown';
-export { TenderChatbot } from '../tender';
+export { default as DocumentPreviewModal } from './DocumentPreviewModal';

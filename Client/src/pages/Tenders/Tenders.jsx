@@ -30,14 +30,9 @@ const Tenders = () => {
   const [searchParams] = useSearchParams();
   const queryTenderId = searchParams.get('tenderId') || searchParams.get('tender');
   const queryTab = searchParams.get('tab');
-  const [tendersList, setTendersList] = useState(() => {
-    try {
-      const local = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
-      if (Array.isArray(local) && local.length > 0) return local;
-    } catch {}
-    return [];
-  });
-  const [isLoadingTenders, setIsLoadingTenders] = useState(false);
+  // Start empty — only show real tenders fetched from backend API
+  const [tendersList, setTendersList] = useState([]);
+  const [isLoadingTenders, setIsLoadingTenders] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -70,12 +65,14 @@ const Tenders = () => {
     }
   }, [queryTenderId, queryTab, tendersList]);
 
-  // Fetch real tenders from deployed backend API and local officer registry
+  // Fetch real tenders from deployed backend API — use getOfficerTenders() so bidder
+  // sees exactly the same tenders that the officer has uploaded/published.
   useEffect(() => {
     let isMounted = true;
     const loadTenders = async () => {
       try {
         setIsLoadingTenders(true);
+        // Use getTenders() to query public / bidder endpoint
         const remoteData = await tenderService.getTenders();
         if (isMounted && Array.isArray(remoteData)) {
           setTendersList(remoteData);

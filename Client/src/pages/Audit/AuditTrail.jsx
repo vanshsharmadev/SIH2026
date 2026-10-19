@@ -123,9 +123,9 @@ const AuditTrail = () => {
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [selectedIpFilter, setSelectedIpFilter] = useState('');
 
-  // Selected Log for Inspector Panel (Default to first log)
-  const [selectedLog, setSelectedLog] = useState(() => logs[0] || null);
-  const [inspectorOpen, setInspectorOpen] = useState(true);
+  // Selected Log for Inspector Panel (Default to closed until user clicks a log)
+  const [selectedLog, setSelectedLog] = useState(null);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
 
   // Sorting
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc' | 'desc'
@@ -150,7 +150,7 @@ const AuditTrail = () => {
       const updated = getAuditLogs();
       setLogs(updated);
       setSelectedLog((prev) => {
-        if (!prev) return updated[0] || null;
+        if (!prev) return null;
         const found = updated.find((l) => l.id === prev.id);
         return found || updated[0] || null;
       });
@@ -323,17 +323,17 @@ const AuditTrail = () => {
       {isStandalone && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800">
           <div>
-            <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
               Audit Trail
             </h1>
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium mt-1.5">
-              <Link to="/dashboard" className="hover:text-blue-600 dark:hover:text-blue-400 transition">
+            <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 whitespace-nowrap overflow-hidden">
+              <Link to="/dashboard" className="hover:text-blue-600 dark:hover:text-blue-400 transition shrink-0">
                 Dashboard
               </Link>
-              <span>&gt;</span>
-              <span className="text-slate-700 dark:text-slate-300 font-semibold">Audit Trail</span>
-              <span>&gt;</span>
-              <span className="text-slate-400">Activity Logs</span>
+              <span className="shrink-0">&gt;</span>
+              <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Audit Trail</span>
+              <span className="hidden sm:inline shrink-0">&gt;</span>
+              <span className="hidden sm:inline text-slate-400 shrink-0">Activity Logs</span>
             </div>
           </div>
         </div>
@@ -666,7 +666,12 @@ const AuditTrail = () => {
               {!inspectorOpen && (
                 <button
                   type="button"
-                  onClick={() => setInspectorOpen(true)}
+                  onClick={() => {
+                    if (!selectedLog && logs.length > 0) {
+                      setSelectedLog(paginatedLogs[0] || logs[0]);
+                    }
+                    setInspectorOpen(true);
+                  }}
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
                 >
                   <Eye className="w-3.5 h-3.5 text-slate-500" />

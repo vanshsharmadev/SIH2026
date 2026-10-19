@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useNavigate, Navigate, useSearchParams } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -60,17 +60,79 @@ import {
 } from '../../store/slices/dashboardSlice';
 import { selectAllTenders } from '../../store/slices/tenderSlice';
 import { useAuth, useTheme } from '../../context';
-import { ChatBox, NotificationDropdown } from '../../components/common';
+import { ChatBox, NotificationDropdown, DocumentPreviewModal } from '../../components/common';
 import { isOfficerUser } from '../../utils/roleUtils';
 import ComplianceCheckView from './ComplianceCheckView';
-import TenderSubmissionsView from './TenderSubmissionsView';
+import TenderSubmissionsView, { getUnifiedSubmissions, mapServerSubmissionToView, parseComplianceScore } from './TenderSubmissionsView';
 import TopBiddersView from './TopBiddersView';
 import OfficerUploadExtractView from './OfficerUploadExtractView';
+import OfficerTendersView, { countSubmissionsForTender } from './OfficerTendersView';
 import Reports from '../Reports';
 import AuditTrail from '../Audit';
-import { recordAuditLog, tenderService, mlService, aiService } from '../../services';
+import { recordAuditLog, tenderService, mlService, aiService, documentService, downloadDocument } from '../../services';
 import BidderDashboard from './BidderDashboard';
 import logoGemVariant from '../../assets/logo_gem_variant.png';
+
+/**
+ * Strict evaluation helper to check whether a submission/bidder is Technically Qualified
+ */
+export const isTechnicallyQualifiedSubmission = (s) => {
+  if (!s) return false;
+  const evalStatus = String(s.evaluationStatus || '').trim().toLowerCase();
+  const officerVerdict = String(s.officerVerdict || '').trim().toLowerCase();
+  const verdict = String(s.verdict || '').trim().toLowerCase();
+  const status = String(s.status || '').trim().toLowerCase();
+  const statusCategory = String(s.statusCategory || '').trim().toLowerCase();
+
+  if (s.isQualified === true) return true;
+  if (['cleared', 'approved', 'technically qualified', 'qualified'].includes(evalStatus)) return true;
+  if (['cleared', 'approved', 'technically qualified', 'qualified', 'conditionally_cleared', 'highly_recommended'].includes(officerVerdict)) return true;
+  if (['cleared', 'approved', 'technically qualified', 'qualified', 'highly_recommended'].includes(verdict)) return true;
+  if (['technically qualified', 'qualified'].includes(status)) return true;
+  if (['qualified', 'approved'].includes(statusCategory)) return true;
+
+  return false;
+};
+
+/**
+ * Robust initial notifications loader and seeder for Officer Notification Center
+ */
+export const getInitialOfficerNotifications = () => {
+  try {
+    const raw = localStorage.getItem('gem_officer_notifications');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        // Strip out all mock/seed dummy notifications
+        const realNotifs = parsed.filter(
+          (n) =>
+            !n.id?.startsWith('notif-seed-') &&
+            !n.id?.startsWith('notif-sub-') &&
+            !n.id?.startsWith('notif-bidder-seed-') &&
+            !n.title?.includes('Larsen & Toubro') &&
+            !n.title?.includes('Tata Projects') &&
+            !n.description?.includes('Larsen & Toubro') &&
+            !n.description?.includes('Tata Projects') &&
+            !n.title?.includes('Land Border Rule 144(xi)') &&
+            !n.title?.includes('Comparative AI Matrix Ready')
+        );
+        if (realNotifs.length !== parsed.length) {
+          localStorage.setItem('gem_officer_notifications', JSON.stringify(realNotifs));
+        }
+        return realNotifs;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // Never seed fake dummy notifications; return empty list so clean empty state renders
+  try {
+    localStorage.setItem('gem_officer_notifications', JSON.stringify([]));
+  } catch {}
+
+  return [];
+};
 
 // Lightweight SVG sparkline for KPI metric trajectory
 const Sparkline = ({ data = [], color = '#3b82f6', width = 64, height = 24 }) => {
@@ -124,6 +186,7 @@ const Dashboard = ({ defaultTab = null }) => {
       return false;
     }
   });
+  const [previewDoc, setPreviewDoc] = useState(null);
 
   const toggleCollapse = () => {
     setSidebarCollapsed((prev) => {
@@ -142,6 +205,7 @@ const Dashboard = ({ defaultTab = null }) => {
   const [activeMenu, setActiveMenu] = useState(() => {
     if (tabParam === 'compliance') return 'compliance';
     if (tabParam === 'submissions') return 'submissions';
+    if (tabParam === 'tenders') return 'tenders';
     if (tabParam === 'top-bidders') return 'top-bidders';
     if (tabParam === 'upload-extract' || tabParam === 'upload') return 'upload-extract';
     if (tabParam === 'reports') return 'reports';
@@ -155,6 +219,8 @@ const Dashboard = ({ defaultTab = null }) => {
       setActiveMenu('compliance');
     } else if (tab === 'submissions') {
       setActiveMenu('submissions');
+    } else if (tab === 'tenders') {
+      setActiveMenu('tenders');
     } else if (tab === 'top-bidders') {
       setActiveMenu('top-bidders');
     } else if (tab === 'upload-extract' || tab === 'upload') {
@@ -163,7 +229,7 @@ const Dashboard = ({ defaultTab = null }) => {
       setActiveMenu('reports');
     } else if (tab === 'audit') {
       setActiveMenu('audit');
-    } else if (!tab && (activeMenu === 'compliance' || activeMenu === 'submissions' || activeMenu === 'top-bidders' || activeMenu === 'upload-extract' || activeMenu === 'reports' || activeMenu === 'audit')) {
+    } else if (!tab && (activeMenu === 'compliance' || activeMenu === 'submissions' || activeMenu === 'tenders' || activeMenu === 'top-bidders' || activeMenu === 'upload-extract' || activeMenu === 'reports' || activeMenu === 'audit')) {
       setActiveMenu('dashboard');
     }
   }, [searchParams, defaultTab]);
@@ -177,13 +243,31 @@ const Dashboard = ({ defaultTab = null }) => {
     setSidebarOpen(false);
   };
 
-  const handleOpenSubmissions = () => {
+  const handleOpenSubmissions = (target = null) => {
+    const tenderId =
+      target && typeof target === 'string' && target !== '[object Object]'
+        ? target.trim()
+        : typeof target === 'number'
+        ? String(target)
+        : null;
     setActiveMenu('submissions');
-    setSearchParams({ tab: 'submissions' });
+    setSearchParams(tenderId ? { tab: 'submissions', tenderId } : { tab: 'submissions' });
     setSidebarOpen(false);
   };
 
-  const handleOpenTopBidders = (tenderId = null) => {
+  const handleOpenTenders = () => {
+    setActiveMenu('tenders');
+    setSearchParams({ tab: 'tenders' });
+    setSidebarOpen(false);
+  };
+
+  const handleOpenTopBidders = (target = null) => {
+    const tenderId =
+      target && typeof target === 'string' && target !== '[object Object]'
+        ? target.trim()
+        : typeof target === 'number'
+        ? String(target)
+        : null;
     setActiveMenu('top-bidders');
     setSearchParams(tenderId ? { tab: 'top-bidders', tenderId } : { tab: 'top-bidders' });
     setSidebarOpen(false);
@@ -221,82 +305,203 @@ const Dashboard = ({ defaultTab = null }) => {
 
   // Notification Center Dropdown State
   const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState(getInitialOfficerNotifications);
+  const [liveSubmissionToast, setLiveSubmissionToast] = useState(null);
+
+  const persistNotifications = useCallback((updatedList) => {
+    try {
+      localStorage.setItem('gem_officer_notifications', JSON.stringify(updatedList));
+    } catch {}
+  }, []);
 
   const unreadNotificationsCount = useMemo(() => {
     return notifications.filter((n) => n.unread).length;
   }, [notifications]);
 
   const handleMarkAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+    setNotifications((prev) => {
+      const updated = prev.map((n) => ({ ...n, unread: false }));
+      persistNotifications(updated);
+      return updated;
+    });
   };
 
   const handleMarkNotificationRead = (id) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
-    );
+    setNotifications((prev) => {
+      const updated = prev.map((n) => (n.id === id ? { ...n, unread: false } : n));
+      persistNotifications(updated);
+      return updated;
+    });
   };
 
   const handleDeleteNotification = (id) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setNotifications((prev) => {
+      const updated = prev.filter((n) => n.id !== id);
+      persistNotifications(updated);
+      return updated;
+    });
   };
 
-  const handleNotificationNavigate = (target) => {
+  const handleNotificationNavigate = (target, item = null) => {
     if (target === 'submissions') {
-      handleOpenSubmissions();
+      handleOpenSubmissions(item?.tenderId || null);
     } else if (target === 'top-bidders') {
-      handleOpenTopBidders();
+      handleOpenTopBidders(item?.tenderId || null);
     } else if (target === 'compliance') {
       handleOpenCompliance();
     } else if (target === 'evaluations') {
       setEvalModalOpen(true);
       setSidebarOpen(false);
     } else if (target === 'audit') {
-      setActiveMenu('audit');
-      setSearchParams({ tab: 'audit' });
-      setSidebarOpen(false);
+      handleOpenAudit();
+    } else if (target === 'tenders') {
+      handleOpenTenders();
     }
   };
+
+  // Live real-time listener for new submissions and notifications
+  useEffect(() => {
+    const handleNewNotification = (e) => {
+      const detail = e?.detail;
+      if (!detail) return;
+      setNotifications((prev) => {
+        if (prev.some((n) => n.id === detail.id)) return prev;
+        const updated = [detail, ...prev].slice(0, 50);
+        persistNotifications(updated);
+        return updated;
+      });
+      if (detail.category === 'submission') {
+        setLiveSubmissionToast(detail);
+      }
+    };
+
+    const handleSubmissionEvent = (e) => {
+      const detail = e?.detail;
+      if (!detail) return;
+      const tenderId = detail.tenderId || detail.tenderReferenceNo || 'Tender';
+      const bidder = detail.bidder || detail.bidderName || 'Registered Bidder';
+      const score = parseComplianceScore(detail.complianceScore ?? detail.score ?? 90);
+      const docCount = detail.docCount || detail.documents?.length || 4;
+      const notifId = `notif-sub-${detail.id || Date.now()}`;
+
+      const newNotif = {
+        id: notifId,
+        title: `New Bid Submission: ${tenderId}`,
+        description: `${bidder} submitted proposal (${docCount} docs, ${score}% AI compliance score).`,
+        time: 'Just now',
+        unread: true,
+        category: 'submission',
+        icon: 'CheckSquare',
+        badge: 'New Submission',
+        badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+        target: 'submissions',
+        tenderId,
+      };
+
+      setNotifications((prev) => {
+        if (prev.some((n) => n.id === notifId || (n.tenderId === tenderId && n.description?.includes(bidder)))) {
+          return prev;
+        }
+        const updated = [newNotif, ...prev].slice(0, 50);
+        persistNotifications(updated);
+        return updated;
+      });
+
+      setLiveSubmissionToast(newNotif);
+    };
+
+    const handleStorageChange = (e) => {
+      if (e?.key === 'gem_officer_notifications' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setNotifications(parsed);
+          }
+        } catch {}
+      }
+    };
+
+    window.addEventListener('gem_notification_created', handleNewNotification);
+    window.addEventListener('gem_submission_created', handleSubmissionEvent);
+    window.addEventListener('gem_officer_submissions_updated', handleSubmissionEvent);
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('gem_notification_created', handleNewNotification);
+      window.removeEventListener('gem_submission_created', handleSubmissionEvent);
+      window.removeEventListener('gem_officer_submissions_updated', handleSubmissionEvent);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [persistNotifications]);
+
+  // Auto-dismiss live toast after 8 seconds
+  useEffect(() => {
+    if (!liveSubmissionToast) return;
+    const timer = setTimeout(() => {
+      setLiveSubmissionToast(null);
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [liveSubmissionToast]);
 
   // Live Microservices & Officer Tenders State
   const [officerTenders, setOfficerTenders] = useState([]);
   const [mlServiceHealth, setMlServiceHealth] = useState({ online: null, loading: true });
   const [ragServiceHealth, setRagServiceHealth] = useState({ online: null, loading: true });
 
+  const fetchOfficerDashboardData = useCallback(async () => {
+    try {
+      const [tendersRes, mlRes, ragRes] = await Promise.allSettled([
+        tenderService.getOfficerTenders(),
+        mlService.checkMLHealth(),
+        aiService.checkRagHealth(),
+      ]);
+      if (tendersRes.status === 'fulfilled' && Array.isArray(tendersRes.value)) {
+        setOfficerTenders(tendersRes.value);
+        // Cache clean API data in localStorage (replace, don't merge with old junk)
+        if (tendersRes.value.length > 0) {
+          try {
+            localStorage.setItem('gem_officer_tenders', JSON.stringify(tendersRes.value));
+            localStorage.setItem('gem_created_tenders', JSON.stringify(tendersRes.value));
+          } catch {}
+        }
+      }
+      if (mlRes.status === 'fulfilled') {
+        setMlServiceHealth({
+          online: mlRes.value?.online !== false && mlRes.value?.status !== 'DOWN',
+          ...(mlRes.value || {}),
+          loading: false,
+        });
+      }
+      if (ragRes.status === 'fulfilled') {
+        setRagServiceHealth({
+          online: ragRes.value?.online !== false && ragRes.value?.status !== 'DOWN',
+          ...(ragRes.value || {}),
+          loading: false,
+        });
+      }
+    } catch (err) {
+      console.warn('Dashboard live services sync notice:', err.message);
+    }
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
-    const fetchOfficerDashboardData = async () => {
-      try {
-        const [tendersRes, mlRes, ragRes] = await Promise.allSettled([
-          tenderService.getOfficerTenders(),
-          mlService.checkMLHealth(),
-          aiService.checkRagHealth(),
-        ]);
-        if (!isMounted) return;
-        if (tendersRes.status === 'fulfilled' && Array.isArray(tendersRes.value)) {
-          setOfficerTenders(tendersRes.value);
-        }
-        if (mlRes.status === 'fulfilled') {
-          setMlServiceHealth({
-            online: mlRes.value?.online !== false && mlRes.value?.status !== 'DOWN',
-            ...(mlRes.value || {}),
-            loading: false,
-          });
-        }
-        if (ragRes.status === 'fulfilled') {
-          setRagServiceHealth({
-            online: ragRes.value?.online !== false && ragRes.value?.status !== 'DOWN',
-            ...(ragRes.value || {}),
-            loading: false,
-          });
-        }
-      } catch (err) {
-        console.warn('Dashboard live services sync notice:', err.message);
-      }
-    };
     fetchOfficerDashboardData();
 
-    const handleStorageChange = () => {
+    const handleStorageChange = (e) => {
+      if (e?.detail?.deletedId || e?.detail?.deletedRef || e?.detail?.deletedTenderId) {
+        const delId = String(e.detail.deletedId || '').trim().toLowerCase();
+        const delRef = String(e.detail.deletedRef || '').trim().toLowerCase();
+        const delTId = String(e.detail.deletedTenderId || '').trim().toLowerCase();
+        setOfficerTenders((prev) =>
+          prev.filter((t) => {
+            const tId = String(t.id || '').trim().toLowerCase();
+            const tRef = String(t.referenceNo || '').trim().toLowerCase();
+            const tTdr = String(t.tenderId || '').trim().toLowerCase();
+            return (!delId || tId !== delId) && (!delRef || tRef !== delRef) && (!delTId || tTdr !== delTId);
+          })
+        );
+      }
       tenderService.getOfficerTenders().then((data) => {
         if (isMounted && Array.isArray(data)) {
           setOfficerTenders(data);
@@ -304,12 +509,14 @@ const Dashboard = ({ defaultTab = null }) => {
       });
     };
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('gem_tenders_updated', handleStorageChange);
 
     return () => {
       isMounted = false;
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('gem_tenders_updated', handleStorageChange);
     };
-  }, []);
+  }, [fetchOfficerDashboardData]);
 
   // Close account menu on click outside
   useEffect(() => {
@@ -506,10 +713,10 @@ const Dashboard = ({ defaultTab = null }) => {
     }
   };
 
-  // Local storage synced officer submissions & activities (immediate cross-tab / refresh sync)
-  const [localOfficerSubmissions, setLocalOfficerSubmissions] = useState(() => {
+  // Unified submissions syncing backend API + localStorage (gem_officer_submissions & gem_bidder_applications)
+  const [unifiedSubmissions, setUnifiedSubmissions] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
+      return getUnifiedSubmissions();
     } catch {
       return [];
     }
@@ -523,29 +730,180 @@ const Dashboard = ({ defaultTab = null }) => {
     }
   });
 
-  useEffect(() => {
-    const handleStorageUpdate = () => {
+  const fetchLiveSubmissions = useCallback(async () => {
+    try {
+      const localSubs = getUnifiedSubmissions();
+      const serverSubs = await documentService.getAllSubmissions().catch(() => null);
+      if (Array.isArray(serverSubs) && serverSubs.length > 0) {
+        const mapped = serverSubs.map(mapServerSubmissionToView).filter(Boolean);
+        const serverKeys = new Set(mapped.map((m) => String(m.id || `${m.tenderId}-${m.bidder}`)));
+        const localOnly = (localSubs || []).filter(
+          (p) => !serverKeys.has(String(p.id || `${p.tenderId}-${p.bidder}`)) && !p.serverPersisted
+        );
+        setUnifiedSubmissions([...mapped, ...localOnly]);
+      } else {
+        setUnifiedSubmissions(localSubs);
+      }
+    } catch (err) {
+      console.warn('Dashboard fetchLiveSubmissions note:', err?.message || err);
       try {
-        const subs = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
-        setLocalOfficerSubmissions(subs);
+        setUnifiedSubmissions(getUnifiedSubmissions());
+      } catch {}
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLiveSubmissions();
+    const pollInterval = setInterval(fetchLiveSubmissions, 30000);
+
+    const handleStorageUpdate = () => {
+      fetchLiveSubmissions();
+      try {
         const acts = JSON.parse(localStorage.getItem('gem_officer_activities') || '[]');
         setLocalOfficerActivities(acts);
       } catch (err) { }
     };
 
     window.addEventListener('storage', handleStorageUpdate);
-    window.addEventListener('focus', handleStorageUpdate);
     window.addEventListener('gem_officer_submissions_updated', handleStorageUpdate);
     window.addEventListener('gem_submission_created', handleStorageUpdate);
     window.addEventListener('gem_bidder_applications_updated', handleStorageUpdate);
     return () => {
+      clearInterval(pollInterval);
       window.removeEventListener('storage', handleStorageUpdate);
-      window.removeEventListener('focus', handleStorageUpdate);
       window.removeEventListener('gem_officer_submissions_updated', handleStorageUpdate);
       window.removeEventListener('gem_submission_created', handleStorageUpdate);
       window.removeEventListener('gem_bidder_applications_updated', handleStorageUpdate);
     };
-  }, []);
+  }, [fetchLiveSubmissions]);
+
+  // Handler to approve and qualify bidder submission
+  const handleApproveSubmission = async (sub) => {
+    if (!sub) return;
+    try {
+      const subId = sub.rawId || (typeof sub.id === 'number' ? sub.id : null);
+      if (subId && sub.serverPersisted) {
+        await documentService.updateEvaluation(subId, 'CLEARED', 'Approved and technically qualified by Officer per GFR guidelines');
+      }
+
+      setUnifiedSubmissions((prev) =>
+        prev.map((item) => {
+          if (item.id === sub.id || (subId && item.rawId === subId)) {
+            return {
+              ...item,
+              evaluationStatus: 'Cleared',
+              officerVerdict: 'CLEARED',
+              status: 'Technically Qualified',
+              statusCategory: 'qualified',
+              isQualified: true,
+              officerRemarks: 'Approved and technically qualified by Officer',
+            };
+          }
+          return item;
+        })
+      );
+
+      try {
+        const stored = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
+        let found = false;
+        const updated = stored.map((item) => {
+          if (item.id === sub.id || (subId && item.id === subId)) {
+            found = true;
+            return {
+              ...item,
+              evaluationStatus: 'Cleared',
+              officerVerdict: 'CLEARED',
+              status: 'Technically Qualified',
+            };
+          }
+          return item;
+        });
+        if (!found) {
+          updated.push({
+            ...sub,
+            evaluationStatus: 'Cleared',
+            officerVerdict: 'CLEARED',
+            status: 'Technically Qualified',
+          });
+        }
+        localStorage.setItem('gem_officer_submissions', JSON.stringify(updated));
+
+        const bidderApps = JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
+        const updatedApps = bidderApps.map((a) => {
+          if (a.id === sub.id || a.tenderId === sub.tenderId) {
+            return {
+              ...a,
+              status: 'Technically Qualified',
+              statusCategory: 'qualified',
+              officerVerdict: 'CLEARED',
+            };
+          }
+          return a;
+        });
+        localStorage.setItem('gem_bidder_applications', JSON.stringify(updatedApps));
+      } catch {}
+
+      // Officer notification for qualified bidder
+      const evalNotif = {
+        id: `notif-eval-${sub.id || Date.now()}`,
+        title: `Bidder Qualified: ${sub.bidder || sub.bidderName}`,
+        description: `Proposal for ${sub.tenderId} technically approved & cleared by Officer.`,
+        time: 'Just now',
+        unread: true,
+        category: 'evaluation',
+        icon: 'Trophy',
+        badge: 'Qualified',
+        badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+        target: 'submissions',
+        tenderId: sub.tenderId,
+      };
+      setNotifications((prev) => {
+        const updated = [evalNotif, ...prev.filter((n) => n.id !== evalNotif.id)].slice(0, 50);
+        persistNotifications(updated);
+        return updated;
+      });
+      window.dispatchEvent(new CustomEvent('gem_notification_created', { detail: evalNotif }));
+
+      recordAuditLog({
+        activity: 'Technical Evaluation Completed',
+        module: 'Officer Dashboard',
+        details: `Bidder ${sub.bidder || sub.bidderName} approved and technically qualified for Tender #${sub.tenderId}`,
+        status: 'Success',
+      });
+
+      window.dispatchEvent(new CustomEvent('gem_officer_submissions_updated'));
+      window.dispatchEvent(new CustomEvent('gem_bidder_applications_updated'));
+
+      alert(`Bidder "${sub.bidder || sub.bidderName}" has been approved and marked as Technically Qualified!`);
+    } catch (err) {
+      console.warn('Approve error:', err);
+      alert(`Bidder "${sub.bidder || sub.bidderName}" approved!`);
+    } finally {
+      setSelectedDocSubmission(null);
+    }
+  };
+
+  const handleRequestClarification = (sub) => {
+    if (!sub) return;
+    try {
+      const stored = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
+      const updated = stored.map((item) => {
+        if (item.id === sub.id) {
+          return {
+            ...item,
+            evaluationStatus: 'Under Review',
+            officerVerdict: 'CONDITIONALLY_CLEARED',
+            status: 'Clarification Requested',
+          };
+        }
+        return item;
+      });
+      localStorage.setItem('gem_officer_submissions', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('gem_officer_submissions_updated'));
+    } catch {}
+    alert(`Clarification request dispatched to bidder: ${sub.bidder || sub.bidderName}`);
+    setSelectedDocSubmission(null);
+  };
 
   const officerName =
     user?.name && user.name.length > 1 && user.name !== 'OFFICIAL USER'
@@ -577,9 +935,23 @@ const Dashboard = ({ defaultTab = null }) => {
 
   // Tenders Data (from live API / officer uploads / store)
   const allTenders = useMemo(() => {
-    if (officerTenders && officerTenders.length > 0) return officerTenders;
-    if (reduxTenders && reduxTenders.length > 0) return reduxTenders;
-    return [];
+    let list = [];
+    if (officerTenders && officerTenders.length > 0) list = officerTenders;
+    else if (reduxTenders && reduxTenders.length > 0) list = reduxTenders;
+
+    try {
+      const deleted = JSON.parse(localStorage.getItem('gem_deleted_tenders') || '[]');
+      if (Array.isArray(deleted) && deleted.length > 0) {
+        const deletedSet = new Set(deleted.map((d) => String(d).trim().toLowerCase()));
+        return list.filter((t) => {
+          const id = String(t.id || '').trim().toLowerCase();
+          const ref = String(t.referenceNo || '').trim().toLowerCase();
+          const tId = String(t.tenderId || '').trim().toLowerCase();
+          return !deletedSet.has(id) && !deletedSet.has(ref) && !deletedSet.has(tId);
+        });
+      }
+    } catch {}
+    return list;
   }, [officerTenders, reduxTenders]);
 
   const recentTenders = useMemo(() => {
@@ -590,24 +962,25 @@ const Dashboard = ({ defaultTab = null }) => {
       deptCode: t.deptCode || 'GOV',
       lastDate: t.lastDate || t.closingDate || t.closes || '—',
       daysLeft: t.daysLeft ?? 0,
-      submissions: t.submissions || t.bidCount || 0,
+      submissions: countSubmissionsForTender(t, unifiedSubmissions),
       status: t.status || 'Active',
       statusType: t.status === 'Closed' ? 'closed' : t.status === 'Compliance issue' ? 'issue' : t.status === 'Under review' ? 'review' : 'active',
       value: t.value || t.estimatedValue || '—',
     }));
-  }, [allTenders]);
+  }, [allTenders, unifiedSubmissions]);
 
   // Default base submissions (strictly actual submissions only)
   const defaultSubmissions = [];
 
-  // Combined Recent Submissions (Redux + localStorage proposals from bidders)
+  // Combined Recent Submissions (Unified server/local proposals + Redux)
   const recentSubmissions = useMemo(() => {
     const base = (reduxSubmissions && reduxSubmissions.length > 0) ? reduxSubmissions : defaultSubmissions;
     const seen = new Set();
     const list = [];
-    // Prioritize newly uploaded proposals from bidders
-    for (const raw of localOfficerSubmissions) {
-      const key = raw.id || `${raw.tenderId}-${raw.bidder}`;
+    // Prioritize unified live submissions from server and local store
+    for (const raw of unifiedSubmissions) {
+      if (!raw) continue;
+      const key = String(raw.id || `${raw.tenderId}-${raw.bidder}`);
       if (!seen.has(key)) {
         seen.add(key);
         const score = raw.score !== undefined ? raw.score : (raw.complianceScore ?? 0);
@@ -629,7 +1002,8 @@ const Dashboard = ({ defaultTab = null }) => {
       }
     }
     for (const raw of base) {
-      const key = raw.id || `${raw.tenderId}-${raw.bidder}`;
+      if (!raw) continue;
+      const key = String(raw.id || `${raw.tenderId}-${raw.bidder}`);
       if (!seen.has(key)) {
         seen.add(key);
         const score = raw.score !== undefined ? raw.score : (raw.complianceScore ?? 0);
@@ -651,7 +1025,7 @@ const Dashboard = ({ defaultTab = null }) => {
       }
     }
     return list;
-  }, [reduxSubmissions, localOfficerSubmissions]);
+  }, [reduxSubmissions, unifiedSubmissions]);
 
   // Default Activities (empty; populated from live events)
   const defaultActivities = [];
@@ -683,18 +1057,20 @@ const Dashboard = ({ defaultTab = null }) => {
     }));
   }, [reduxActivities, localOfficerActivities]);
 
+  // Calculate count of bidders who are Technically Qualified
+  const qualifiedSubmissionsCount = useMemo(() => {
+    return recentSubmissions.filter(isTechnicallyQualifiedSubmission).length;
+  }, [recentSubmissions]);
+
   const metrics = {
     totalTenders: allTenders.length || reduxMetrics?.totalTenders || 0,
     totalTendersTrend: reduxMetrics?.totalTendersTrend || '+0%',
     submissionsReceived: recentSubmissions.length || reduxMetrics?.submissionsReceived || 0,
     submissionsReceivedTrend: reduxMetrics?.submissionsReceivedTrend || '+0%',
-    evaluationsCompleted:
-      recentSubmissions.filter((s) => s.status === 'Compliant' || s.status === 'Non-Compliant' || s.status === 'Minor Issues').length ||
-      reduxMetrics?.evaluationsCompleted ||
-      0,
+    evaluationsCompleted: qualifiedSubmissionsCount || (recentSubmissions.length === 0 ? (reduxMetrics?.evaluationsCompleted || 0) : 0),
     evaluationsCompletedTrend: reduxMetrics?.evaluationsCompletedTrend || '+0%',
     complianceIssues:
-      recentSubmissions.filter((s) => s.status === 'Minor Issues' || s.status === 'Major Issues' || s.status === 'Non-Compliant').length ||
+      recentSubmissions.filter((s) => s.status === 'Minor Issues' || s.status === 'Major Issues' || s.status === 'Non-Compliant' || s.complianceStatus === 'Needs Review' || s.complianceStatus === 'Non-Compliant').length ||
       reduxMetrics?.complianceIssues ||
       0,
     complianceIssuesTrend: reduxMetrics?.complianceIssuesTrend || '0%',
@@ -743,20 +1119,20 @@ const Dashboard = ({ defaultTab = null }) => {
 
   const compliance = {
     totalChecks: recentSubmissions.length || reduxCompliance?.totalChecks || 0,
-    compliant: recentSubmissions.filter((s) => s.status === 'Compliant').length || reduxCompliance?.compliant || 0,
+    compliant: recentSubmissions.filter((s) => s.status === 'Compliant' || s.complianceStatus === 'Compliant' || isTechnicallyQualifiedSubmission(s)).length || reduxCompliance?.compliant || 0,
     compliantPercentage: recentSubmissions.length
-      ? Math.round((recentSubmissions.filter((s) => s.status === 'Compliant').length / recentSubmissions.length) * 100)
+      ? Math.round((recentSubmissions.filter((s) => s.status === 'Compliant' || s.complianceStatus === 'Compliant' || isTechnicallyQualifiedSubmission(s)).length / recentSubmissions.length) * 100)
       : 0,
-    minorIssues: recentSubmissions.filter((s) => s.status === 'Minor Issues' || s.status === 'Needs Review').length || reduxCompliance?.minorIssues || 0,
+    minorIssues: recentSubmissions.filter((s) => s.status === 'Minor Issues' || s.status === 'Needs Review' || s.complianceStatus === 'Needs Review' || s.complianceStatus === 'Minor Issues').length || reduxCompliance?.minorIssues || 0,
     minorIssuesPercentage: recentSubmissions.length
-      ? Math.round((recentSubmissions.filter((s) => s.status === 'Minor Issues' || s.status === 'Needs Review').length / recentSubmissions.length) * 100)
+      ? Math.round((recentSubmissions.filter((s) => s.status === 'Minor Issues' || s.status === 'Needs Review' || s.complianceStatus === 'Needs Review' || s.complianceStatus === 'Minor Issues').length / recentSubmissions.length) * 100)
       : 0,
-    majorIssues: recentSubmissions.filter((s) => s.status === 'Major Issues' || s.status === 'Non-Compliant').length || reduxCompliance?.majorIssues || 0,
+    majorIssues: recentSubmissions.filter((s) => s.status === 'Major Issues' || s.status === 'Non-Compliant' || s.complianceStatus === 'Non-Compliant').length || reduxCompliance?.majorIssues || 0,
     majorIssuesPercentage: recentSubmissions.length
-      ? Math.round((recentSubmissions.filter((s) => s.status === 'Major Issues' || s.status === 'Non-Compliant').length / recentSubmissions.length) * 100)
+      ? Math.round((recentSubmissions.filter((s) => s.status === 'Major Issues' || s.status === 'Non-Compliant' || s.complianceStatus === 'Non-Compliant').length / recentSubmissions.length) * 100)
       : 0,
     complianceRate: recentSubmissions.length
-      ? Math.round((recentSubmissions.filter((s) => s.status === 'Compliant').length / recentSubmissions.length) * 100)
+      ? Math.round((recentSubmissions.filter((s) => s.status === 'Compliant' || s.complianceStatus === 'Compliant' || isTechnicallyQualifiedSubmission(s)).length / recentSubmissions.length) * 100)
       : 0,
     complianceRateTrend: reduxCompliance?.complianceRateTrend || '+0%',
     timeFilter: reduxCompliance?.timeFilter || 'Last 30 days',
@@ -907,15 +1283,22 @@ const Dashboard = ({ defaultTab = null }) => {
 
             {/* Tenders Directory */}
             <div className="relative group">
-              <Link
-                to="/tenders"
-                onClick={() => setSidebarOpen(false)}
-                title="Tenders Directory"
-                className={`flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
-                  } py-2.5 rounded-xl transition-all cursor-pointer text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#202020] hover:text-slate-900 dark:hover:text-white border border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
+              <button
+                type="button"
+                onClick={handleOpenTenders}
+                title="Tenders Management"
+                aria-current={activeMenu === 'tenders' ? 'page' : undefined}
+                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
+                  } py-2.5 rounded-xl transition-all cursor-pointer text-left relative group ${activeMenu === 'tenders'
+                    ? 'bg-blue-50 dark:bg-blue-600/15 text-blue-700 dark:text-white font-bold border border-blue-200 dark:border-blue-500/30'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#202020] hover:text-slate-900 dark:hover:text-white border border-transparent'
+                  } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
               >
+                {activeMenu === 'tenders' && (
+                  <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-md bg-blue-500" />
+                )}
                 <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
-                  <FileSpreadsheet className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white" />
+                  <FileSpreadsheet className={`w-4 h-4 shrink-0 ${activeMenu === 'tenders' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white'}`} />
                   {!sidebarCollapsed && <span className="truncate font-medium">Tenders</span>}
                 </div>
                 {!sidebarCollapsed && (
@@ -923,7 +1306,7 @@ const Dashboard = ({ defaultTab = null }) => {
                     {metrics.totalTenders}
                   </span>
                 )}
-              </Link>
+              </button>
               {sidebarCollapsed && (
                 <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 dark:bg-[#1e1e1e] border border-slate-700 dark:border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
                   Tenders ({metrics.totalTenders})
@@ -991,34 +1374,6 @@ const Dashboard = ({ defaultTab = null }) => {
                 </div>
               )}
             </div>
-
-            {/* Compliance Check */}
-            <div className="relative group">
-              <button
-                type="button"
-                onClick={handleOpenCompliance}
-                title="Compliance Check"
-                aria-current={activeMenu === 'compliance' ? 'page' : undefined}
-                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
-                  } py-2.5 rounded-xl transition-all cursor-pointer text-left relative group ${activeMenu === 'compliance'
-                    ? 'bg-blue-50 dark:bg-blue-600/15 text-blue-700 dark:text-white font-bold border border-blue-200 dark:border-blue-500/30'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#202020] hover:text-slate-900 dark:hover:text-white border border-transparent'
-                  } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
-              >
-                {activeMenu === 'compliance' && (
-                  <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-md bg-blue-500" />
-                )}
-                <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
-                  <ShieldCheck className={`w-4 h-4 shrink-0 ${activeMenu === 'compliance' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white'}`} />
-                  {!sidebarCollapsed && <span className="truncate">Compliance Check</span>}
-                </div>
-              </button>
-              {sidebarCollapsed && (
-                <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 dark:bg-[#1e1e1e] border border-slate-700 dark:border-[#333] text-white text-xs font-semibold whitespace-nowrap shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                  Compliance Check
-                </div>
-              )}
-            </div>
           </div>
 
           {/* ZONE 2: OPERATIONS & AI */}
@@ -1038,7 +1393,7 @@ const Dashboard = ({ defaultTab = null }) => {
                   setChatBoxOpen(true);
                   setSidebarOpen(false);
                 }}
-                title="AI Chatbox (GFR 2017 & GeM Guidelines)"
+                title="GeM Compliflix AI (AI Assistant)"
                 aria-current={chatBoxOpen ? 'true' : undefined}
                 className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-3'
                   } py-2.5 rounded-xl transition-all cursor-pointer text-left relative ${chatBoxOpen
@@ -1292,136 +1647,155 @@ const Dashboard = ({ defaultTab = null }) => {
 
         {/* Top Header Bar - FIXED AT TOP */}
         <header
-          className={`fixed top-0 right-0 z-30 bg-white/95 dark:bg-[#181818]/95 backdrop-blur-md border-b border-slate-200/90 dark:border-[#262626] px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 shadow-2xs transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'left-0 lg:left-20' : 'left-0 lg:left-64'
+          className={`fixed top-0 right-0 z-30 bg-white/95 dark:bg-[#181818]/95 backdrop-blur-md border-b border-slate-200/90 dark:border-[#262626] px-3.5 sm:px-6 py-2 sm:py-3.5 flex items-center justify-between gap-2.5 sm:gap-4 shadow-2xs transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'left-0 lg:left-20' : 'left-0 lg:left-64'
             }`}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
             {/* Mobile hamburger button */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#202020] cursor-pointer"
+              className="lg:hidden p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#202020] cursor-pointer shrink-0"
               aria-label="Open menu"
             >
               <Menu className="w-5 h-5" />
             </button>
 
-            <div>
-              {activeMenu === 'submissions' ? (
+            <div className="min-w-0 flex-1">
+              {activeMenu === 'tenders' ? (
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
-                    Tender Submissions
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
+                    Tenders Management
                   </h2>
-                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 whitespace-nowrap overflow-hidden">
                     <button
                       type="button"
                       onClick={handleOpenDashboard}
-                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shrink-0"
                     >
                       Dashboard
                     </button>
-                    <span>&gt;</span>
-                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Tender Submissions</span>
+                    <span className="shrink-0">&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Tenders</span>
+                    <span className="hidden sm:inline shrink-0">&gt;</span>
+                    <span className="hidden sm:inline text-slate-400 shrink-0">List &amp; Upload</span>
+                  </div>
+                </div>
+              ) : activeMenu === 'submissions' ? (
+                <div>
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
+                    Tender Submissions
+                  </h2>
+                  <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 whitespace-nowrap overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={handleOpenDashboard}
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shrink-0"
+                    >
+                      Dashboard
+                    </button>
+                    <span className="shrink-0">&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Tender Submissions</span>
                   </div>
                 </div>
               ) : activeMenu === 'top-bidders' ? (
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                     Top 10 Bidders
                   </h2>
-                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 whitespace-nowrap overflow-hidden">
                     <button
                       type="button"
                       onClick={handleOpenDashboard}
-                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shrink-0"
                     >
                       Dashboard
                     </button>
-                    <span>&gt;</span>
-                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Top 10 Bidders</span>
-                    <span>&gt;</span>
-                    <span className="text-slate-400 font-mono">QCBS GFR 192</span>
+                    <span className="shrink-0">&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Top 10 Bidders</span>
+                    <span className="hidden sm:inline shrink-0">&gt;</span>
+                    <span className="hidden sm:inline text-slate-400 font-mono shrink-0">QCBS GFR 192</span>
                   </div>
                 </div>
               ) : activeMenu === 'audit' ? (
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                     Audit Trail
                   </h2>
-                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 whitespace-nowrap overflow-hidden">
                     <button
                       type="button"
                       onClick={handleOpenDashboard}
-                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shrink-0"
                     >
                       Dashboard
                     </button>
-                    <span>&gt;</span>
-                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Audit Trail</span>
-                    <span>&gt;</span>
-                    <span className="text-slate-400">Activity Logs</span>
+                    <span className="shrink-0">&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Audit Trail</span>
+                    <span className="hidden sm:inline shrink-0">&gt;</span>
+                    <span className="hidden sm:inline text-slate-400 shrink-0">Activity Logs</span>
                   </div>
                 </div>
               ) : activeMenu === 'reports' ? (
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                     Compliance Reports
                   </h2>
-                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 whitespace-nowrap overflow-hidden">
                     <button
                       type="button"
                       onClick={handleOpenDashboard}
-                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shrink-0"
                     >
                       Dashboard
                     </button>
-                    <span>&gt;</span>
-                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Compliance Reports</span>
+                    <span className="shrink-0">&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Compliance Reports</span>
                   </div>
                 </div>
               ) : activeMenu === 'upload-extract' ? (
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                     Upload &amp; Extract Studio
                   </h2>
-                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 whitespace-nowrap overflow-hidden">
                     <button
                       type="button"
                       onClick={handleOpenDashboard}
-                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shrink-0"
                     >
                       Dashboard
                     </button>
-                    <span>&gt;</span>
-                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Upload &amp; AI Extraction</span>
-                    <span>&gt;</span>
-                    <span className="text-slate-400 font-mono">ML OCR Studio</span>
+                    <span className="shrink-0">&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Upload &amp; AI Extraction</span>
+                    <span className="hidden sm:inline shrink-0">&gt;</span>
+                    <span className="hidden sm:inline text-slate-400 font-mono shrink-0">ML OCR Studio</span>
                   </div>
                 </div>
               ) : activeMenu === 'compliance' ? (
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                     Compliance Check
                   </h2>
-                  <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 whitespace-nowrap overflow-hidden">
                     <button
                       type="button"
                       onClick={handleOpenDashboard}
-                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shrink-0"
                     >
                       Dashboard
                     </button>
-                    <span>&gt;</span>
-                    <span className="text-slate-700 dark:text-slate-300 font-semibold">Compliance Check</span>
-                    <span>&gt;</span>
-                    <span className="text-slate-600 dark:text-slate-400">Overview</span>
+                    <span className="shrink-0">&gt;</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold shrink-0">Compliance Check</span>
+                    <span className="hidden sm:inline shrink-0">&gt;</span>
+                    <span className="hidden sm:inline text-slate-600 dark:text-slate-400 shrink-0">Overview</span>
                   </div>
                 </div>
               ) : (
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-none">
+                  <h2 className="text-sm sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight truncate">
                     Dashboard
                   </h2>
-                  <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 truncate">
                     AI-Powered Tender Compliance &amp; Verification
                   </p>
                 </div>
@@ -1432,46 +1806,18 @@ const Dashboard = ({ defaultTab = null }) => {
           {/* Right Top Header Controls: Action Toolbar */}
           <div className="flex items-center gap-2 sm:gap-2.5">
 
-            {/* Time Filter Select */}
-            <div className="relative hidden md:block">
-              <select
-                value={timeFilter}
-                onChange={(e) => {
-                  setTimeFilter(e.target.value);
-                  dispatch(setReduxTimeFilter(e.target.value));
-                }}
-                className="h-9 text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-slate-200/90 dark:border-[#303030] bg-white dark:bg-[#202020] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#282828] focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer transition shadow-2xs"
-                title="Filter metrics by date period"
-                aria-label="Filter metrics by date range"
-              >
-                <option value="Last 30 days">Last 30 days</option>
-                <option value="This Month">This Month</option>
-                <option value="Last Month">Last Month</option>
-                <option value="This Quarter">This Quarter</option>
-              </select>
-            </div>
-
-            {/* Export Report CTA */}
-            <button
-              type="button"
-              onClick={handleExportReport}
-              className="inline-flex items-center gap-1.5 h-9 px-3 py-1.5 rounded-lg border border-slate-200/90 dark:border-[#303030] bg-white dark:bg-[#202020] hover:bg-slate-50 dark:hover:bg-[#282828] text-slate-700 dark:text-slate-200 font-semibold text-xs shadow-2xs transition cursor-pointer"
-              title="Export Assessment Report"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-              <span className="hidden sm:inline">Export Audit Report</span>
-            </button>
-
             {/* Quick Upload Tender CTA */}
-            <button
-              type="button"
-              onClick={handleOpenUploadExtract}
-              className="inline-flex items-center gap-1.5 h-9 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition cursor-pointer"
-              title="Upload and extract tender RFP specifications"
-            >
-              <UploadCloud className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Upload &amp; Extract</span>
-            </button>
+            {activeMenu !== 'upload-extract' && (
+              <button
+                type="button"
+                onClick={handleOpenUploadExtract}
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                title="Upload and extract tender RFP specifications"
+              >
+                <UploadCloud className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Upload &amp; Extract</span>
+              </button>
+            )}
 
             {/* Notification Bell with Dynamic Dropdown */}
             <div className="relative">
@@ -1489,8 +1835,11 @@ const Dashboard = ({ defaultTab = null }) => {
               >
                 <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
                 {unreadNotificationsCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 min-w-4 h-4 px-1 rounded-full bg-red-600 text-white font-bold text-[9px] flex items-center justify-center border-2 border-white dark:border-[#181818] shadow-xs">
-                    {unreadNotificationsCount}
+                  <span className="absolute top-1.5 right-1.5 flex h-4 min-w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                    <span className="relative min-w-4 h-4 px-1 rounded-full bg-red-600 text-white font-bold text-[9px] flex items-center justify-center border-2 border-white dark:border-[#181818] shadow-xs">
+                      {unreadNotificationsCount}
+                    </span>
                   </span>
                 )}
               </button>
@@ -1525,16 +1874,33 @@ const Dashboard = ({ defaultTab = null }) => {
         </header>
 
         {/* Dashboard Content Container */}
-        <main className="pt-[76px] sm:pt-[82px] pb-24 p-4 sm:p-6 space-y-6 flex-1">
+        <main className="pt-[64px] sm:pt-[82px] pb-24 p-3.5 sm:p-6 space-y-5 sm:space-y-6 flex-1">
           {activeMenu === 'compliance' ? (
             <ComplianceCheckView
+              onBackToDashboard={handleOpenSubmissions}
+              submissionData={activeComplianceSubmission || unifiedSubmissions?.[0] || null}
+            />
+          ) : activeMenu === 'tenders' ? (
+            <OfficerTendersView
               onBackToDashboard={handleOpenDashboard}
-              submissionData={activeComplianceSubmission}
+              onOpenSubmissions={handleOpenSubmissions}
+              onOpenTopBidders={handleOpenTopBidders}
+              onOpenUploadExtract={handleOpenUploadExtract}
+              onOpenCompliance={handleOpenCompliance}
+              tenders={allTenders}
+              onTendersUpdated={fetchOfficerDashboardData}
             />
           ) : activeMenu === 'submissions' ? (
             <TenderSubmissionsView
               onBackToDashboard={handleOpenDashboard}
               onOpenCompliance={handleOpenCompliance}
+              initialTenderId={
+                searchParams.get('tenderId') &&
+                searchParams.get('tenderId') !== '[object Object]' &&
+                !searchParams.get('tenderId').includes('object')
+                  ? searchParams.get('tenderId')
+                  : ''
+              }
             />
           ) : activeMenu === 'top-bidders' ? (
             <TopBiddersView
@@ -1561,7 +1927,10 @@ const Dashboard = ({ defaultTab = null }) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
 
                 {/* Card 1: Total Tenders */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-[#303030] shadow-2xs hover:border-slate-300 dark:hover:border-slate-700 transition">
+                <div
+                  onClick={handleOpenTenders}
+                  className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-[#303030] shadow-2xs hover:border-blue-400 dark:hover:border-blue-500/60 transition cursor-pointer group"
+                >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
@@ -1683,51 +2052,6 @@ const Dashboard = ({ defaultTab = null }) => {
                   </div>
                 </div>
               </div>
-
-              {/* ==================== 2. "NEEDS ATTENTION" OPERATIONAL ALERT STRIP ==================== */}
-              {needsAttentionOpen && (
-                <div className="p-3.5 sm:p-4 rounded-xl bg-amber-500/10 dark:bg-amber-950/20 border border-amber-300/80 dark:border-amber-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-amber-500/20 dark:bg-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                      <AlertCircle className="w-4 h-4 animate-pulse" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold text-slate-900 dark:text-white">
-                          Operational Attention Required:
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300">
-                          {metrics.complianceIssues} issues across tenders
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300">
-                          {recentSubmissions.filter((s) => s.status === 'Pending' || s.status === 'Under Review').length} awaiting evaluation
-                        </span>
-                        <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-200/80 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                          {recentSubmissions.filter((s) => s.missingDocs > 0).length} missing statutory annexures
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 self-end sm:self-auto">
-                    <button
-                      type="button"
-                      onClick={handleOpenCompliance}
-                      className="px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-100/70 dark:bg-amber-900/30 hover:bg-amber-200/80 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-200 font-semibold text-xs transition cursor-pointer flex items-center gap-1.5"
-                    >
-                      <span>Review Issues</span>
-                      <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setNeedsAttentionOpen(false)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                      title="Dismiss alert"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
 
               {/* ==================== 3. UPPER SPLIT ROW: COMPLIANCE OVERVIEW + AI VERIFICATION ==================== */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -1980,13 +2304,14 @@ const Dashboard = ({ defaultTab = null }) => {
                       <UploadCloud className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                       <span>Upload &amp; Extract RFP</span>
                     </button>
-                    <Link
-                      to="/tenders"
-                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                    <button
+                      type="button"
+                      onClick={handleOpenTenders}
+                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
                     >
                       <span>View All ({metrics.totalTenders})</span>
                       <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
+                    </button>
                   </div>
                 </div>
 
@@ -2019,13 +2344,14 @@ const Dashboard = ({ defaultTab = null }) => {
                             {/* Tender ID + Copy CTA */}
                             <td className="py-3 px-4 whitespace-nowrap">
                               <div className="flex items-center gap-1.5">
-                                <Link
-                                  to="/tenders"
-                                  className="font-mono text-xs font-semibold tracking-tight text-blue-600 dark:text-blue-400 hover:underline"
+                                <button
+                                  type="button"
+                                  onClick={handleOpenTenders}
+                                  className="font-mono text-xs font-semibold tracking-tight text-blue-600 dark:text-blue-400 hover:underline cursor-pointer text-left"
                                   aria-label={`Tender reference ${item.id}`}
                                 >
                                   {item.id}
-                                </Link>
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => handleCopyTenderId(item.id)}
@@ -2318,16 +2644,28 @@ const Dashboard = ({ defaultTab = null }) => {
 
                               {/* Status */}
                               <td className="py-3 px-4 whitespace-nowrap">
-                                <span
-                                  className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold ${sub.statusColor === 'emerald' || sub.status === 'Compliant'
-                                      ? 'bg-emerald-100/80 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                                      : sub.statusColor === 'amber' || sub.status === 'Minor Issues'
-                                        ? 'bg-amber-100/80 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
-                                        : 'bg-rose-100/80 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
-                                    }`}
-                                >
-                                  {sub.status}
-                                </span>
+                                {isTechnicallyQualifiedSubmission(sub) ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-100/80 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-700/60">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                    <span>Technically Qualified</span>
+                                  </span>
+                                ) : (sub.evaluationStatus === 'Pending' || sub.status === 'Pending' || sub.status === 'Under Review' || sub.status === 'Under Evaluation') ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-blue-100/80 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                    <Clock className="w-3.5 h-3.5 text-blue-500" />
+                                    <span>Under Evaluation</span>
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-semibold ${sub.statusColor === 'emerald' || sub.status === 'Compliant'
+                                        ? 'bg-emerald-100/80 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                        : sub.statusColor === 'amber' || sub.status === 'Minor Issues'
+                                          ? 'bg-amber-100/80 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                                          : 'bg-rose-100/80 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                      }`}
+                                  >
+                                    {sub.status || 'Compliant'}
+                                  </span>
+                                )}
                               </td>
 
                               {/* Action */}
@@ -2679,7 +3017,7 @@ const Dashboard = ({ defaultTab = null }) => {
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() => alert(`Opening preview for ${doc.name}`)}
+                        onClick={() => setPreviewDoc({ ...doc, fileName: doc.name })}
                         className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
                       >
                         <Eye className="w-3 h-3" />
@@ -2687,7 +3025,7 @@ const Dashboard = ({ defaultTab = null }) => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => alert(`Downloading verified copy of ${doc.name}`)}
+                        onClick={() => downloadDocument(doc, selectedTender)}
                         className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
                       >
                         <Download className="w-3 h-3" />
@@ -2707,20 +3045,14 @@ const Dashboard = ({ defaultTab = null }) => {
               <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                 <button
                   type="button"
-                  onClick={() => {
-                    alert(`Clarification request dispatched to bidder: ${selectedDocSubmission.bidder}`);
-                    setSelectedDocSubmission(null);
-                  }}
+                  onClick={() => handleRequestClarification(selectedDocSubmission)}
                   className="px-3.5 py-2 text-xs font-bold rounded-xl border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition cursor-pointer"
                 >
                   Request Clarification
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    alert(`Bidder ${selectedDocSubmission.bidder} approved and qualified for technical stage!`);
-                    setSelectedDocSubmission(null);
-                  }}
+                  onClick={() => handleApproveSubmission(selectedDocSubmission)}
                   className="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition shadow-sm cursor-pointer"
                 >
                   Approve Documents
@@ -2731,10 +3063,63 @@ const Dashboard = ({ defaultTab = null }) => {
         </div>
       )}
 
-      {/* -------------------- AI CHATBOX (INTERACTIVE MODAL / DRAWER) -------------------- */}
+      {/* -------------------- REAL-TIME SUBMISSION NOTIFICATION TOAST -------------------- */}
+      {liveSubmissionToast && (
+        <div className="fixed top-20 right-6 z-50 animate-in slide-in-from-top-4 fade-in duration-300 max-w-sm w-[90vw] sm:w-[380px] bg-white dark:bg-[#1c1c1c] border-2 border-emerald-500 rounded-2xl p-4 shadow-2xl flex items-start gap-3.5 text-slate-800 dark:text-slate-100">
+          <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+            <Bell className="w-5 h-5 animate-bounce" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                New Submission Alert
+              </span>
+              <button
+                type="button"
+                onClick={() => setLiveSubmissionToast(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded cursor-pointer"
+                aria-label="Dismiss notification"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <p className="text-xs font-bold truncate mt-1 text-slate-900 dark:text-white">
+              {liveSubmissionToast.title}
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5 leading-snug">
+              {liveSubmissionToast.description}
+            </p>
+            <div className="mt-2.5 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  handleOpenSubmissions(liveSubmissionToast.tenderId);
+                  setLiveSubmissionToast(null);
+                }}
+                className="px-3 py-1 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition cursor-pointer flex items-center gap-1 shadow-xs"
+              >
+                <span>View Submission</span>
+                <ChevronRight className="w-3 h-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setLiveSubmissionToast(null)}
+                className="px-2.5 py-1 text-[11px] font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-[#282828] rounded-lg transition cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* -------------------- GEM COMPLIFLIX AI (PLATFORM ASSISTANT) -------------------- */}
       <ChatBox
         isOpen={chatBoxOpen}
         onClose={() => setChatBoxOpen(false)}
+        activeTab={activeMenu}
+        selectedTenderId={null}
+        role="OFFICER"
       />
 
       {/* Floating Circular AI Assistant Launcher Button */}
@@ -2743,8 +3128,8 @@ const Dashboard = ({ defaultTab = null }) => {
           type="button"
           onClick={() => setChatBoxOpen(true)}
           className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-tr from-blue-700 via-indigo-600 to-blue-500 hover:from-blue-800 hover:via-indigo-700 hover:to-blue-600 text-white shadow-2xl shadow-indigo-500/40 hover:shadow-indigo-500/60 hover:scale-110 active:scale-95 transition-all duration-300 ease-out cursor-pointer border-2 border-white/30 dark:border-white/20 group flex items-center justify-center focus:outline-none focus:ring-4 focus:ring-blue-400/40"
-          title="Open GeM AI Compliance Assistant"
-          aria-label="Ask AI Assistant about GeM and GFR compliance"
+          title="Open GeM Compliflix AI Assistant"
+          aria-label="Ask GeM Compliflix AI about platform navigation, workflows, and GFR compliance"
         >
           {/* Active Online Status Indicator */}
           <span className="absolute top-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-white dark:border-slate-900 shadow-xs flex items-center justify-center">
@@ -2771,6 +3156,12 @@ const Dashboard = ({ defaultTab = null }) => {
         </button>
       )}
 
+      {/* Universal Document Preview & Download Modal */}
+      <DocumentPreviewModal
+        isOpen={Boolean(previewDoc)}
+        document={previewDoc}
+        onClose={() => setPreviewDoc(null)}
+      />
     </div>
   );
 };

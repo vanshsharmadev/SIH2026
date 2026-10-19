@@ -185,15 +185,15 @@ const HeroSection = () => {
             <div className="lg:col-span-7 flex flex-col justify-center">
               
               {/* Official Innovation Badge */}
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-800/70 text-blue-800 dark:text-blue-300 text-xs font-semibold w-fit mb-4 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="inline-flex flex-wrap items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-800/70 text-blue-800 dark:text-blue-300 text-xs font-semibold w-fit mb-4 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                 <span>GeM Ecosystem AI Compliance Engine</span>
-                <span className="text-slate-300 dark:text-slate-600">|</span>
-                <span className="text-xs font-medium text-blue-700 dark:text-blue-300">GFR 2017 &bull; SIH 2026</span>
+                <span className="text-slate-300 dark:text-slate-600 hidden sm:inline">|</span>
+                <span className="text-xs font-medium text-blue-700 dark:text-blue-300 hidden sm:inline">GFR 2017 &bull; SIH 2026</span>
               </div>
 
               {/* Catchy Commanding Headline */}
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.15] text-[#0A2540] dark:text-white mb-4">
+              <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.15] text-[#0A2540] dark:text-white mb-4">
                 Smarter Procurement.<br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#073567] via-[#0284c7] to-[#059669] dark:from-[#4da3ff] dark:via-[#38bdf8] dark:to-[#38d39f]">
                   Zero Disqualification.
@@ -203,27 +203,27 @@ const HeroSection = () => {
               </h1>
 
               {/* Subtext Paragraph */}
-              <p className="text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed font-medium mb-7 max-w-xl">
+              <p className="text-xs sm:text-base text-slate-700 dark:text-slate-300 leading-relaxed font-medium mb-6 sm:mb-7 max-w-xl">
                 Empower your GeM procurement with instant AI verification. Automatically dissect complex tender clauses, verify Land Border GFR 144(xi) compliance, ensure Make-in-India quotas, and submit bids with zero technical errors.
               </p>
 
               {/* CTA Buttons */}
-              <div className="flex flex-wrap items-center gap-3.5 mb-8">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-3.5 mb-8">
                 <Link
                   to="/tenders"
                   id="hero-explore-tenders-btn"
-                  className="inline-flex items-center gap-2.5 px-6 py-3.5 bg-[#073567] hover:bg-[#05284f] dark:bg-[#4da3ff] dark:hover:bg-[#3b82f6] text-white dark:text-slate-950 text-sm font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2.5 px-6 py-3.5 bg-[#073567] hover:bg-[#05284f] dark:bg-[#4da3ff] dark:hover:bg-[#3b82f6] text-white dark:text-slate-950 text-sm font-bold rounded-xl shadow-md hover:shadow-lg transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer w-full sm:w-auto text-center"
                 >
                   <span>Explore Active Tenders</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-4 h-4 shrink-0" />
                 </Link>
 
                 <Link
                   to="/tenders"
                   id="hero-ai-precheck-btn"
-                  className="inline-flex items-center gap-2 px-5 py-3.5 bg-white/95 hover:bg-white dark:bg-[#181818] dark:hover:bg-[#202020] text-[#073567] dark:text-[#4da3ff] text-sm font-bold rounded-xl border border-slate-300 dark:border-[#343434] shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-white/95 hover:bg-white dark:bg-[#181818] dark:hover:bg-[#202020] text-[#073567] dark:text-[#4da3ff] text-sm font-bold rounded-xl border border-slate-300 dark:border-[#343434] shadow-2xs hover:shadow-xs transition-all cursor-pointer w-full sm:w-auto text-center"
                 >
-                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
                   <span>Explore Procurement Portal</span>
                 </Link>
               </div>
@@ -341,7 +341,7 @@ const HeroSection = () => {
               return (
                 <div
                   key={idx}
-                  className="flex items-center gap-3 px-2 lg:px-4 group cursor-default"
+                  className="flex items-center gap-3 px-2 lg:px-4 group cursor-default last:col-span-2 sm:last:col-span-1 lg:last:col-span-1"
                   title={stat.info}
                 >
                   <div

@@ -26,7 +26,7 @@ import { getTopBiddersForTender } from '../../services/tenderService';
 import { formatIndianLakhCrore, formatCurrencyINR } from '../../utils';
 
 const QcbsBiddersRanking = ({ tender, tenderId: propTenderId, onSelectBidder }) => {
-  const tenderId = propTenderId || tender?.id || tender?.referenceNo || '1';
+  const tenderId = propTenderId || tender?.id || tender?.referenceNo || null;
   const tenderTitle = tender?.title || 'Tender Evaluation';
 
   const [loading, setLoading] = useState(true);

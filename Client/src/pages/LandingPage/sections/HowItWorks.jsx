@@ -115,30 +115,30 @@ const HowItWorks = () => {
           </div>
 
           {/* Persona Toggle */}
-          <div className="p-1 rounded-xl bg-slate-200/80 dark:bg-[#202020] border border-slate-300/80 dark:border-[#343434] flex items-center shrink-0 self-start md:self-auto">
+          <div className="w-full sm:w-auto p-1 rounded-xl bg-slate-200/80 dark:bg-[#202020] border border-slate-300/80 dark:border-[#343434] grid grid-cols-2 sm:flex sm:items-center shrink-0">
             <button
               type="button"
               onClick={() => setRole('bidder')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
                 role === 'bidder'
                   ? 'bg-white dark:bg-[#2c2c2c] text-[#073567] dark:text-[#4da3ff] shadow-2xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Users className="w-3.5 h-3.5" />
-              <span>For Bidders & Vendors</span>
+              <Users className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">For Bidders & Vendors</span>
             </button>
             <button
               type="button"
               onClick={() => setRole('buyer')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
                 role === 'buyer'
                   ? 'bg-white dark:bg-[#2c2c2c] text-[#073567] dark:text-[#4da3ff] shadow-2xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Building className="w-3.5 h-3.5" />
-              <span>For Procurement Officers</span>
+              <Building className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">For Procurement Officers</span>
             </button>
           </div>
         </div>

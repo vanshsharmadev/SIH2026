@@ -93,6 +93,7 @@ public class OfficerSecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/", "/health", "/auth", "/auth/**", "/api/auth", "/api/auth/**").permitAll()
+                        .requestMatchers("/tenders", "/tenders/**", "/api/tenders", "/api/tenders/**").permitAll()
                         .requestMatchers("/api/officer/auth/**").permitAll()
                         .requestMatchers("/api/officer/identity/**").permitAll()
                         .requestMatchers("/api/bidder/auth/**").permitAll()
@@ -110,6 +111,8 @@ public class OfficerSecurityConfig {
                         .requestMatchers("/api/officer/tenders/top-10").permitAll()
                         .requestMatchers("/api/officer/tenders/*/top-10").permitAll()
                         .requestMatchers("/api/officer/tenders/*/top-bidders").permitAll()
+                        .requestMatchers("/api/officer/tenders/submissions", "/api/officer/tenders/submissions/**", "/api/officer/tenders/*/submissions").permitAll()
+                        .requestMatchers("/api/bidder/documents/submit-bid", "/api/bidder/documents/my-bids").permitAll()
                         .requestMatchers("/api/officer/tenders/ml/**").permitAll()
                         .requestMatchers("/api/ai/**").permitAll()
                         .requestMatchers("/error").permitAll()

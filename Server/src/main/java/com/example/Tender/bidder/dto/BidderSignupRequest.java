@@ -19,6 +19,7 @@ public class BidderSignupRequest {
     @JsonAlias({"authorizedPersonName", "authorized_person_name"})
     private String authorizedPersonName;
 
+    @NotBlank(message = "Legal name is required")
     private String legalName;
 
     /**

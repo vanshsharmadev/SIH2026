@@ -84,8 +84,7 @@ api.interceptors.response.use(
       friendlyMessage = 'Server request timed out. The backend server might be starting up, please try again.';
     } else if (!error.response) {
       // Network error or CORS issue
-      friendlyMessage =
-        'Unable to connect to the backend server. Please verify your internet connection or check the deployed BACKEND_URL in .env.';
+      friendlyMessage = 'Unable to connect to the server. Please verify your internet connection and try again.';
     } else if (error.response?.status === 401) {
       if (isLoginReq) {
         friendlyMessage =
@@ -122,10 +121,14 @@ api.interceptors.response.use(
       friendlyMessage = 'Internal server error. Please try again later.';
     }
 
-    const customError = new Error(friendlyMessage);
+    // Strip any raw server URLs or endpoint paths from user-facing error text
+    const cleanMessage = String(friendlyMessage || '')
+      .replace(/https?:\/\/[^\s"'<>]+/gi, '[SERVER]')
+      .replace(/\/api\/[a-zA-Z0-9_\-/]+/gi, '[API]');
+
+    const customError = new Error(cleanMessage);
     customError.status = error.response?.status;
     customError.data = error.response?.data;
-    customError.raw = error;
 
     return Promise.reject(customError);
   }

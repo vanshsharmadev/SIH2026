@@ -8,31 +8,43 @@ export const isOfficerUser = (user) => {
   const designation = (user.designation || '').toLowerCase();
   const email = (user.email || '').toLowerCase();
 
-  // Commercial Bidder / Vendor identities check first
+  // 1. Explicit officer role takes precedence
   if (
-    role.includes('bidder') ||
-    (role.includes('vendor') && !role.includes('officer')) ||
-    Boolean(user.gstNumber || user.gstin || user.legalName || user.companyName)
-  ) {
-    return false;
-  }
-
-  // Project owner / admin / official account access
-  if (email.includes('officer') || email.includes('admin') || email.includes('pwd.gov') || email.includes('gem.gov')) {
-    return true;
-  }
-
-  // Check official government domains and officer roles
-  return (
+    role === 'officer' ||
+    role === 'role_officer' ||
     role === 'procurement officer' ||
     role === 'govt official' ||
     role === 'evaluating officer' ||
     role === 'compliance administrator' ||
-    role.includes('officer') ||
-    designation.includes('officer') ||
-    designation.includes('under secretary') ||
+    (role.includes('officer') && !role.includes('bidder'))
+  ) {
+    return true;
+  }
+
+  // 2. Explicit commercial bidder / vendor check
+  if (
+    role.includes('bidder') ||
+    role.includes('vendor') ||
+    Boolean(user.gstNumber || user.gstin)
+  ) {
+    return false;
+  }
+
+  // 3. Project owner / admin / official government email access
+  if (
+    email.includes('officer') ||
+    email.includes('admin') ||
+    email.includes('pwd.gov') ||
+    email.includes('gem.gov') ||
     email.endsWith('.gov.in') ||
     email.endsWith('.nic.in')
+  ) {
+    return true;
+  }
+
+  return (
+    designation.includes('officer') ||
+    designation.includes('under secretary')
   );
 };
 

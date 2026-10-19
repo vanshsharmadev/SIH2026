@@ -12,6 +12,10 @@ import com.example.Tender.officer.dto.cloudinary.CloudinaryUploadResult;
 import com.example.Tender.officer.dto.ml.DocumentProcessResponse;
 import com.example.Tender.officer.service.cloudinary.CloudinaryService;
 import com.example.Tender.officer.service.ml.MlServiceClient;
+import com.example.Tender.bidder.dto.BidSubmissionDTO;
+import com.example.Tender.bidder.dto.SubmitBidRequest;
+import com.example.Tender.bidder.entity.BidSubmission;
+import com.example.Tender.bidder.repository.BidSubmissionRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +35,7 @@ public class BidderDocumentService {
 
     private final BidderDocumentRepository documentRepository;
     private final BidderRepository bidderRepository;
+    private final BidSubmissionRepository bidSubmissionRepository;
     private final CloudinaryService cloudinaryService;
     private final MlServiceClient mlServiceClient;
     private final ObjectMapper objectMapper;
@@ -452,5 +457,112 @@ public class BidderDocumentService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    // ==========================================
+    // Real-Time Bid Submission Methods
+    // ==========================================
+
+    @Transactional
+    public BidSubmissionDTO submitBid(Long bidderId, SubmitBidRequest request) {
+        if (request == null || !StringUtils.hasText(request.getTenderId())) {
+            throw new IllegalArgumentException("Tender ID is mandatory for bid submission");
+        }
+
+        Bidder bidder = null;
+        if (bidderId != null) {
+            bidder = bidderRepository.findById(bidderId).orElse(null);
+        } else if (request.getBidderId() != null) {
+            bidder = bidderRepository.findById(request.getBidderId()).orElse(null);
+        }
+
+        if (bidder == null && StringUtils.hasText(request.getBidderName())) {
+            bidder = bidderRepository.findByEmail(request.getBidderName()).orElse(null);
+        }
+
+        String resolvedBidderName = bidder != null ? bidder.getAuthorizedPersonName()
+                : (StringUtils.hasText(request.getBidderName()) ? request.getBidderName() : "Commercial Bidder");
+        String resolvedCompanyName = bidder != null ? bidder.getCompanyName()
+                : (StringUtils.hasText(request.getCompanyName()) ? request.getCompanyName() : resolvedBidderName);
+
+        Long finalBidderId = bidder != null ? bidder.getId() : (request.getBidderId() != null ? request.getBidderId() : 1L);
+        Optional<BidSubmission> existing = bidSubmissionRepository.findByBidderIdAndTenderId(finalBidderId, request.getTenderId().trim());
+
+        BidSubmission submission = existing.orElseGet(BidSubmission::new);
+        submission.setBidderId(finalBidderId);
+        submission.setBidderName(resolvedBidderName);
+        submission.setCompanyName(resolvedCompanyName);
+        submission.setTenderId(request.getTenderId().trim());
+        submission.setTenderTitle(request.getTenderTitle() != null ? request.getTenderTitle() : "Government Procurement Tender");
+        submission.setDepartment(request.getDepartment() != null ? request.getDepartment() : "Public Works Department");
+        submission.setComplianceScore(request.getComplianceScore() != null ? request.getComplianceScore() : 90);
+        submission.setComplianceStatus(request.getComplianceStatus() != null ? request.getComplianceStatus()
+                : (submission.getComplianceScore() >= 80 ? "Compliant" : "Needs Review"));
+        submission.setQuotedAmount(request.getQuotedAmount() != null ? request.getQuotedAmount() : "₹ 48,50,000");
+        submission.setDocCount(request.getDocCount() != null ? request.getDocCount()
+                : (request.getDocuments() != null ? request.getDocuments().size() : 4));
+        submission.setDocumentsJson(toJson(request.getDocuments()));
+        submission.setVaultDocumentsJson(toJson(request.getVaultDocuments()));
+        submission.setRequirementsJson(toJson(request.getRequirementsBreakdown()));
+        if (submission.getEvaluationStatus() == null) {
+            submission.setEvaluationStatus("Pending");
+        }
+        if (request.getOfficerRemarks() != null) {
+            submission.setOfficerRemarks(request.getOfficerRemarks());
+        }
+
+        BidSubmission saved = bidSubmissionRepository.save(submission);
+        log.info("Saved bid submission id={} for tenderId={}, bidder={}", saved.getId(), saved.getTenderId(), saved.getBidderName());
+        return BidSubmissionDTO.fromEntity(saved);
+    }
+
+    public List<BidSubmissionDTO> getMyBids(Long bidderId) {
+        if (bidderId == null) {
+            return Collections.emptyList();
+        }
+        return bidSubmissionRepository.findByBidderIdOrderByCreatedAtDesc(bidderId)
+                .stream()
+                .map(BidSubmissionDTO::fromEntity)
+                .toList();
+    }
+
+    public List<BidSubmissionDTO> getAllSubmissions() {
+        return bidSubmissionRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .map(BidSubmissionDTO::fromEntity)
+                .toList();
+    }
+
+    public List<BidSubmissionDTO> getSubmissionsByTender(String tenderId) {
+        if (!StringUtils.hasText(tenderId)) {
+            return getAllSubmissions();
+        }
+        return bidSubmissionRepository.findByTenderIdOrderByCreatedAtDesc(tenderId.trim())
+                .stream()
+                .map(BidSubmissionDTO::fromEntity)
+                .toList();
+    }
+
+    @Transactional
+    public BidSubmissionDTO updateEvaluation(Long submissionId, String verdict, String remarks) {
+        BidSubmission submission = bidSubmissionRepository.findById(submissionId)
+                .orElseThrow(() -> new IllegalArgumentException("Submission not found with ID: " + submissionId));
+
+        if (StringUtils.hasText(verdict)) {
+            submission.setOfficerVerdict(verdict.trim());
+            if ("Cleared".equalsIgnoreCase(verdict) || "Approved".equalsIgnoreCase(verdict)) {
+                submission.setEvaluationStatus("Cleared");
+            } else if ("Rejected".equalsIgnoreCase(verdict) || "Disqualified".equalsIgnoreCase(verdict)) {
+                submission.setEvaluationStatus("Rejected");
+            } else {
+                submission.setEvaluationStatus("Under Review");
+            }
+        }
+        if (remarks != null) {
+            submission.setOfficerRemarks(remarks);
+        }
+
+        BidSubmission updated = bidSubmissionRepository.save(submission);
+        return BidSubmissionDTO.fromEntity(updated);
     }
 }

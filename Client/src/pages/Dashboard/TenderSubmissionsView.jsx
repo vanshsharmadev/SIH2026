@@ -20,71 +20,86 @@ import {
   MessageSquare,
   ClipboardCheck,
   Trophy,
+  Loader2,
+  Download,
 } from 'lucide-react';
 import BidderChatBot from '../../components/common/BidderChatBot';
 import MarkdownRenderer from '../../components/common/MarkdownRenderer';
+import DocumentPreviewModal from '../../components/common/DocumentPreviewModal';
 import { AiEvaluationDrawer, ProcurementClearanceModal, TenderDetailModal } from '../../components/tender';
-import { mlService, tenderService, aiService, recordAuditLog } from '../../services';
-export const INITIAL_SUBMISSIONS = [];
+import { mlService, tenderService, aiService, recordAuditLog, documentService, downloadDocument } from '../../services';
 
-const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
-  // Load dynamic submissions from localStorage (strictly actual submissions only)
-  const [submissionsList, setSubmissionsList] = useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
-      if (Array.isArray(stored) && stored.length > 0) {
-        return stored.map((s) => ({
-          id: s.id,
-          tenderId: s.tenderId || s.tenderReferenceNo,
-          tenderTitle: s.tenderTitle,
-          department: s.department || s.ministry || 'Government Ministry',
-          bidder: s.bidder || s.bidderName || 'Registered Bidder',
-          submittedOn: s.submittedOn?.split(',')[0] || 'Today',
-          submittedTime: s.submittedTime || 'Just now',
-          relativeTime: s.relativeTime || 'Just now',
-          isToday: s.isToday ?? true,
-          docCount: s.docCount || s.documents?.length || 0,
-          complianceScore: s.complianceScore !== undefined ? s.complianceScore : (s.score ?? 0),
-          score: s.score !== undefined ? s.score : (s.complianceScore ?? 0),
-          complianceStatus: s.complianceStatus || s.status || 'Compliant',
-          status: s.status || s.complianceStatus || 'Compliant',
-          evaluationStatus: s.evaluationStatus || 'Pending',
-          quotedAmount: s.quotedAmount || '₹ 48,50,000',
-          documents: s.documents || [],
-          vaultDocuments: s.vaultDocuments || [],
-          submissionDocuments: s.submissionDocuments || [],
-          requirementsBreakdown: s.requirementsBreakdown || [],
-          mlDossier: s.mlDossier || null,
-          isLiveUploaded: Boolean(s.isLiveUploaded || s.documents?.[0]?.cloudinaryUrl),
-          officerVerdict: s.officerVerdict || null,
-          officerRemarks: s.officerRemarks || null,
-        }));
-      }
-    } catch {
-      // ignore
-    }
-    return [];
-  });
+export const parseComplianceScore = (val) => {
+  if (val === null || val === undefined) return 90;
+  if (typeof val === 'number') return isNaN(val) ? 90 : Math.min(100, Math.max(0, Math.round(val)));
+  const parsed = parseInt(String(val).replace(/[^0-9]/g, ''), 10);
+  return isNaN(parsed) ? 90 : Math.min(100, Math.max(0, parsed));
+};
 
-  useEffect(() => {
-    const handleStorageUpdate = () => {
-      try {
-        const stored = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
-        if (Array.isArray(stored) && stored.length > 0) {
-          const formatted = stored.map((s) => ({
-            id: s.id,
-            tenderId: s.tenderId || s.tenderReferenceNo,
-            tenderTitle: s.tenderTitle,
-            department: s.department || s.ministry || 'Government Ministry',
+export const mapServerSubmissionToView = (s) => {
+  if (!s) return null;
+  const score = parseComplianceScore(s.complianceScore ?? s.score ?? 90);
+  return {
+    id: s.formattedId || (typeof s.id === 'number' ? `APP-2026-${s.id}` : s.id) || `APP-2026-${Math.floor(100000 + Math.random() * 900000)}`,
+    rawId: s.id,
+    tenderId: s.tenderId || 'GeM/2026/B/8912',
+    tenderTitle: s.tenderTitle || s.title || 'Government Procurement Opportunity',
+    department: s.department || s.ministry || s.company || 'Public Works Department',
+    bidder: s.bidder || s.bidderName || 'Registered Bidder',
+    bidderName: s.bidderName || s.bidder || 'Registered Bidder',
+    companyName: s.companyName || '',
+    submittedOn: s.submittedOn || 'Today',
+    submittedTime: s.submittedTime || 'Just now',
+    relativeTime: s.relativeTime || 'Just now',
+    isToday: s.isToday ?? true,
+    docCount: s.docCount || s.documents?.length || 4,
+    complianceScore: score,
+    score: score,
+    complianceStatus: s.complianceStatus || (score >= 80 ? 'Compliant' : score >= 60 ? 'Needs Review' : 'Non-Compliant'),
+    status: s.status || s.complianceStatus || 'Compliant',
+    evaluationStatus: s.evaluationStatus || 'Pending',
+    quotedAmount: s.quotedAmount || '₹ 48,50,000',
+    documents: s.documents || [],
+    vaultDocuments: s.vaultDocuments || [],
+    submissionDocuments: s.submissionDocuments || [],
+    requirementsBreakdown: s.requirementsBreakdown || [],
+    mlDossier: s.mlDossier || null,
+    isLiveUploaded: true,
+    officerVerdict: s.officerVerdict || null,
+    officerRemarks: s.officerRemarks || null,
+    serverPersisted: true,
+  };
+};
+
+export const getUnifiedSubmissions = () => {
+  const seen = new Set();
+  const list = [];
+
+  // 1. Read gem_officer_submissions
+  try {
+    const officerSubs = JSON.parse(localStorage.getItem('gem_officer_submissions') || '[]');
+    if (Array.isArray(officerSubs)) {
+      for (const s of officerSubs) {
+        if (!s) continue;
+        const key = String(s.id || `${s.tenderId}-${s.bidder || s.bidderName}`);
+        if (!seen.has(key)) {
+          seen.add(key);
+          const score = parseComplianceScore(s.complianceScore ?? s.score ?? 90);
+          list.push({
+            id: s.id || `APP-2026-${Math.floor(100000 + Math.random() * 900000)}`,
+            rawId: s.rawId || s.id,
+            tenderId: s.tenderId || s.tenderReferenceNo || 'GeM/2026/B/8912',
+            tenderTitle: s.tenderTitle || s.title || 'Government Procurement Opportunity',
+            department: s.department || s.ministry || s.company || 'Public Works Department',
             bidder: s.bidder || s.bidderName || 'Registered Bidder',
             submittedOn: s.submittedOn?.split(',')[0] || 'Today',
             submittedTime: s.submittedTime || 'Just now',
             relativeTime: s.relativeTime || 'Just now',
             isToday: s.isToday ?? true,
-            docCount: s.docCount || s.documents?.length || 0,
-            complianceScore: s.complianceScore !== undefined ? s.complianceScore : (s.score ?? 0),
-            score: s.score !== undefined ? s.score : (s.complianceScore ?? 0),
-            complianceStatus: s.complianceStatus || s.status || 'Compliant',
+            docCount: s.docCount || s.documents?.length || 4,
+            complianceScore: score,
+            score: score,
+            complianceStatus: s.complianceStatus || (score >= 80 ? 'Compliant' : score >= 60 ? 'Needs Review' : 'Non-Compliant'),
             status: s.status || s.complianceStatus || 'Compliant',
             evaluationStatus: s.evaluationStatus || 'Pending',
             quotedAmount: s.quotedAmount || '₹ 48,50,000',
@@ -96,33 +111,136 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             isLiveUploaded: Boolean(s.isLiveUploaded || s.documents?.[0]?.cloudinaryUrl),
             officerVerdict: s.officerVerdict || null,
             officerRemarks: s.officerRemarks || null,
-          }));
-          setSubmissionsList(formatted);
-        } else {
-          setSubmissionsList([]);
+          });
         }
-      } catch {
-        setSubmissionsList([]);
       }
+    }
+  } catch {}
+
+  // 2. Read gem_bidder_applications (bidder proposals seamlessly bridged to officer dashboard)
+  try {
+    const bidderApps = JSON.parse(localStorage.getItem('gem_bidder_applications') || '[]');
+    if (Array.isArray(bidderApps)) {
+      for (const a of bidderApps) {
+        if (!a) continue;
+        const key = String(a.id || `${a.tenderId}-${a.bidder || a.bidderName || 'Bidder'}`);
+        if (!seen.has(key)) {
+          seen.add(key);
+          const score = parseComplianceScore(a.matchScore ?? a.complianceScore ?? a.score ?? 100);
+          list.push({
+            id: a.id || `APP-2026-${Math.floor(100000 + Math.random() * 900000)}`,
+            rawId: a.rawId || a.id,
+            tenderId: a.tenderId || a.tenderReferenceNo || a.rawTenderId || 'GeM/2026/B/8912',
+            tenderTitle: a.title || a.tenderTitle || 'Construction of High-Speed Flyover Corridor - GeM/2026/B/8912',
+            department: a.company || a.department || a.ministry || 'Public Works Department',
+            bidder: a.bidder || a.bidderName || 'Registered Commercial Bidder',
+            submittedOn: a.appliedDate?.split(',')[0] || 'Today',
+            submittedTime: a.submittedTime || 'Just now',
+            relativeTime: 'Just now',
+            isToday: true,
+            docCount: a.docCount || a.documents?.length || 4,
+            complianceScore: score,
+            score: score,
+            complianceStatus: score >= 80 ? 'Compliant' : score >= 60 ? 'Needs Review' : 'Non-Compliant',
+            status: a.status || 'Under Evaluation',
+            evaluationStatus: a.evaluationStatus || (a.status === 'Under Evaluation' ? 'Pending' : a.status) || 'Pending',
+            quotedAmount: a.quotedAmount || '₹ 4,85,00,000',
+            documents: a.documents || [],
+            vaultDocuments: a.vaultDocuments || [],
+            submissionDocuments: a.submissionDocuments || [],
+            requirementsBreakdown: a.requirementsBreakdown || [],
+            mlDossier: a.mlDossier || null,
+            isLiveUploaded: true,
+            officerVerdict: null,
+            officerRemarks: null,
+          });
+        }
+      }
+    }
+  } catch {}
+
+  return list;
+};
+
+const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance, initialTenderId = '' }) => {
+  // Load dynamic submissions from unified store (syncing officer submissions & bidder applications)
+  const [submissionsList, setSubmissionsList] = useState(getUnifiedSubmissions);
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      const cached = getUnifiedSubmissions();
+      return !Array.isArray(cached) || cached.length === 0;
+    } catch {
+      return false;
+    }
+  });
+  const [isLiveSyncing, setIsLiveSyncing] = useState(false);
+
+  // Fetch real-time submissions from backend API
+  const fetchBackendSubmissions = async () => {
+    try {
+      setIsLiveSyncing(true);
+      const serverSubs = await documentService.getAllSubmissions();
+      if (Array.isArray(serverSubs) && serverSubs.length > 0) {
+        const mapped = serverSubs.map(mapServerSubmissionToView).filter(Boolean);
+        setSubmissionsList((prev) => {
+          const serverKeys = new Set(mapped.map((m) => String(m.id || `${m.tenderId}-${m.bidder}`)));
+          // Keep local-only submissions that aren't yet synced
+          const localOnly = (prev || []).filter(
+            (p) => !serverKeys.has(String(p.id || `${p.tenderId}-${p.bidder}`)) && !p.serverPersisted
+          );
+          return [...mapped, ...localOnly];
+        });
+      }
+    } catch (err) {
+      console.warn('Live submissions fetch note:', err?.message || err);
+    } finally {
+      setIsLiveSyncing(false);
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Initial fetch from backend
+    fetchBackendSubmissions();
+
+    // Poll every 30 seconds for background updates
+    const pollInterval = setInterval(fetchBackendSubmissions, 30000);
+
+    const handleStorageUpdate = () => {
+      setSubmissionsList(getUnifiedSubmissions());
     };
+
     window.addEventListener('storage', handleStorageUpdate);
-    window.addEventListener('focus', handleStorageUpdate);
     window.addEventListener('gem_officer_submissions_updated', handleStorageUpdate);
     window.addEventListener('gem_submission_created', handleStorageUpdate);
+    window.addEventListener('gem_bidder_applications_updated', handleStorageUpdate);
+
     return () => {
+      clearInterval(pollInterval);
       window.removeEventListener('storage', handleStorageUpdate);
-      window.removeEventListener('focus', handleStorageUpdate);
       window.removeEventListener('gem_officer_submissions_updated', handleStorageUpdate);
       window.removeEventListener('gem_submission_created', handleStorageUpdate);
+      window.removeEventListener('gem_bidder_applications_updated', handleStorageUpdate);
     };
   }, []);
 
-  // Filters & State (Closed by default per user request)
+  const sanitizeTenderId = (id) => {
+    if (!id || typeof id !== 'string') return '';
+    const trimmed = id.trim();
+    if (trimmed === '[object Object]' || trimmed.includes('[object') || trimmed.includes('object Object')) return '';
+    return trimmed;
+  };
+
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTab, setSelectedTab] = useState('all'); // all | pending | review | compliant | non_compliant
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterTenderId, setFilterTenderId] = useState('');
+  const [filterTenderId, setFilterTenderId] = useState(() => sanitizeTenderId(initialTenderId));
   const [filterDept, setFilterDept] = useState('');
+
+  useEffect(() => {
+    const sanitized = sanitizeTenderId(initialTenderId);
+    setFilterTenderId(sanitized);
+  }, [initialTenderId]);
   const [filterOrg, setFilterOrg] = useState('');
   const [filterCompliance, setFilterCompliance] = useState('');
   const [filterEval, setFilterEval] = useState('');
@@ -134,6 +252,7 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
   const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
   const [detailTab, setDetailTab] = useState('overview'); // 'overview' | 'dossier'
   const [viewAllDocs, setViewAllDocs] = useState(false);
+  const [previewingDoc, setPreviewingDoc] = useState(null);
 
   // Officer Evaluation & Clearance Engine Modal state
   const [evaluationModalOpen, setEvaluationModalOpen] = useState(false);
@@ -304,6 +423,23 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
     setSelectedTab('all');
   };
 
+  // Tender lookup map to resolve titles / GeM IDs from created tenders
+  const tenderLookupMap = useMemo(() => {
+    const map = new Map();
+    try {
+      const stored = JSON.parse(localStorage.getItem('gem_created_tenders') || '[]');
+      if (Array.isArray(stored)) {
+        for (const t of stored) {
+          const ref = String(t.referenceNo || t.id || '').toLowerCase().trim();
+          const title = String(t.title || '').toLowerCase().trim();
+          const titleGeM = (title.match(/(gem\/\d{4}\/[a-z]\/\w+)/i) || [])[1] || '';
+          if (ref) map.set(ref, { title, titleGeM });
+        }
+      }
+    } catch {}
+    return map;
+  }, []);
+
   // Filtered submissions list
   const filteredSubmissions = useMemo(() => {
     return submissionsList.filter((item) => {
@@ -325,7 +461,31 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
 
       // Tender ID specific filter
       if (filterTenderId.trim()) {
-        if (!(item.tenderId || '').toLowerCase().includes(filterTenderId.toLowerCase())) return false;
+        const ft = filterTenderId.toLowerCase().trim();
+        const tid = (item.tenderId || '').toLowerCase().trim();
+        const tTitle = (item.tenderTitle || '').toLowerCase().trim();
+        const tRef = (item.tenderReferenceNo || '').toLowerCase().trim();
+        const rawTid = (item.rawTenderId || '').toLowerCase().trim();
+
+        const titleMatch = tTitle.match(/(gem\/\d{4}\/[a-z]\/\w+)/i);
+        const titleGeM = titleMatch ? titleMatch[1] : '';
+
+        const known = tenderLookupMap.get(ft);
+        const matchKnown = known && (
+          (known.title && tTitle && (tTitle.includes(known.title) || known.title.includes(tTitle))) ||
+          (known.titleGeM && (tid.includes(known.titleGeM) || known.titleGeM.includes(tid)))
+        );
+
+        const match =
+          matchKnown ||
+          tid.includes(ft) ||
+          ft.includes(tid) ||
+          tTitle.includes(ft) ||
+          tRef.includes(ft) ||
+          rawTid.includes(ft) ||
+          (titleGeM && (titleGeM.includes(ft) || ft.includes(titleGeM))) ||
+          (ft.startsWith('gem/2026/b/') && tid.includes(ft.replace('gem/2026/b/', '')));
+        if (!match) return false;
       }
 
       // Compliance status dropdown
@@ -353,6 +513,11 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
     if (!selectedSubmission) return;
     setEvalSubmitting(true);
     try {
+      // 0. Update backend database
+      if (selectedSubmission.rawId) {
+        await documentService.evaluateSubmission(selectedSubmission.rawId, evalVerdict, evalRemarks).catch(() => null);
+      }
+
       // 1. Attempt call to ML Decision Engine
       await mlService.processClearance(
         {
@@ -420,13 +585,13 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
               ...app,
               status:
                 evalVerdict === 'CLEARED'
-                  ? 'Evaluation Passed'
+                  ? 'Technically Qualified'
                   : evalVerdict === 'CONDITIONALLY_CLEARED'
                   ? 'Under Review'
                   : 'Disqualified',
               statusCategory:
                 evalVerdict === 'CLEARED'
-                  ? 'approved'
+                  ? 'qualified'
                   : evalVerdict === 'CONDITIONALLY_CLEARED'
                   ? 'under_eval'
                   : 'rejected',
@@ -436,11 +601,21 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                   : evalVerdict === 'CONDITIONALLY_CLEARED'
                   ? 'border-amber-300 bg-amber-50/70 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700'
                   : 'border-rose-300 bg-rose-50/70 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-700',
+              officerRemarks: evalRemarks,
+              officerVerdict: evalVerdict,
+              lastActivity:
+                evalVerdict === 'CLEARED'
+                  ? 'Technically Qualified by Officer'
+                  : evalVerdict === 'CONDITIONALLY_CLEARED'
+                  ? 'Under Technical Scrutiny'
+                  : 'Disqualified in Technical Evaluation',
             };
           }
           return app;
         });
         localStorage.setItem('gem_bidder_applications', JSON.stringify(updatedBidderApps));
+        window.dispatchEvent(new CustomEvent('gem_bidder_applications_updated'));
+        window.dispatchEvent(new CustomEvent('gem_officer_submissions_updated'));
       } catch {
         // Ignore storage write error
       }
@@ -470,6 +645,85 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
     }
   };
 
+  // Real CSV Table Export for Submissions
+  const handleExportSubmissionsCSV = () => {
+    const listToExport = filteredSubmissions.length > 0 ? filteredSubmissions : submissionsList;
+    if (!listToExport || listToExport.length === 0) {
+      alert('No submissions available to export.');
+      return;
+    }
+
+    const escapeCsvCell = (val) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const headers = [
+      'Submission ID',
+      'Tender Reference',
+      'Tender Title',
+      'Department / Ministry',
+      'Bidder Name',
+      'Quoted Amount',
+      'AI Compliance Score (%)',
+      'Compliance Status',
+      'Evaluation Status',
+      'Officer Clearance Verdict',
+      'Officer Remarks',
+      'Documents Count',
+      'Submission Date',
+      'Submission Time',
+    ];
+
+    const rows = listToExport.map((item) => [
+      escapeCsvCell(item.id || item.rawId || ''),
+      escapeCsvCell(item.tenderId || item.tenderReferenceNo || ''),
+      escapeCsvCell(item.tenderTitle || ''),
+      escapeCsvCell(item.department || ''),
+      escapeCsvCell(item.bidder || item.bidderName || item.companyName || ''),
+      escapeCsvCell(item.quotedAmount || ''),
+      escapeCsvCell(
+        item.complianceScore !== null && item.complianceScore !== undefined
+          ? `${item.complianceScore}%`
+          : 'N/A'
+      ),
+      escapeCsvCell(item.complianceStatus || ''),
+      escapeCsvCell(item.evaluationStatus || ''),
+      escapeCsvCell(item.officerVerdict || 'Pending'),
+      escapeCsvCell(item.officerRemarks || ''),
+      escapeCsvCell(item.docCount || item.documents?.length || 0),
+      escapeCsvCell(item.submittedOn || ''),
+      escapeCsvCell(item.submittedTime || ''),
+    ]);
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.setAttribute('download', `GeM_Tender_Submissions_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    recordAuditLog?.({
+      activity: 'Report Generated',
+      module: 'Tender Submissions',
+      details: `Submissions table (${listToExport.length} records) exported to CSV.`,
+      status: 'Success',
+    });
+
+    setActionToast({
+      title: 'Export Successful',
+      message: `Exported ${listToExport.length} submissions to CSV successfully.`,
+      verdict: 'CLEARED',
+    });
+    setTimeout(() => setActionToast(null), 4000);
+  };
+
   const getScoreColor = (score) => {
     if (score >= 80) return 'bg-emerald-500';
     if (score >= 60) return 'bg-amber-500';
@@ -487,17 +741,18 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
 
   return (
     <div className="space-y-5 select-none animate-in fade-in duration-200">
-      {onBackToDashboard && (
-        <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        {onBackToDashboard ? (
           <button
             type="button"
             onClick={onBackToDashboard}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer"
           >
-            <span>&larr; Back to Dashboard</span>
+            <ChevronLeft className="w-4 h-4 text-blue-600" />
+            <span> Back to Dashboard</span>
           </button>
-        </div>
-      )}
+        ) : null}
+      </div>
 
       {/* -------------------- 1. TOP 5 STAT CARDS -------------------- */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
@@ -509,10 +764,19 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Submissions</p>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                {totalSubmissionsCount}
-              </h3>
-              <p className="text-xs font-medium text-slate-400 mt-0.5">All time</p>
+              {isLoading ? (
+                <div className="space-y-1 py-1">
+                  <div className="h-5 w-12 bg-slate-200 dark:bg-slate-700/80 rounded animate-pulse" />
+                  <div className="h-3 w-14 bg-slate-100 dark:bg-slate-800/60 rounded animate-pulse" />
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                    {totalSubmissionsCount}
+                  </h3>
+                  <p className="text-xs font-medium text-slate-400 mt-0.5">All time</p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -525,10 +789,19 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Active Tenders</p>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                {activeTendersCount}
-              </h3>
-              <p className="text-xs font-medium text-slate-400 mt-0.5">With submissions</p>
+              {isLoading ? (
+                <div className="space-y-1 py-1">
+                  <div className="h-5 w-10 bg-slate-200 dark:bg-slate-700/80 rounded animate-pulse" />
+                  <div className="h-3 w-20 bg-slate-100 dark:bg-slate-800/60 rounded animate-pulse" />
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                    {activeTendersCount}
+                  </h3>
+                  <p className="text-xs font-medium text-slate-400 mt-0.5">With submissions</p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -541,10 +814,19 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Pending Evaluation</p>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                {pendingEvaluationCount}
-              </h3>
-              <p className="text-xs font-medium text-slate-400 mt-0.5">Awaiting evaluation</p>
+              {isLoading ? (
+                <div className="space-y-1 py-1">
+                  <div className="h-5 w-10 bg-slate-200 dark:bg-slate-700/80 rounded animate-pulse" />
+                  <div className="h-3 w-22 bg-slate-100 dark:bg-slate-800/60 rounded animate-pulse" />
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                    {pendingEvaluationCount}
+                  </h3>
+                  <p className="text-xs font-medium text-slate-400 mt-0.5">Awaiting evaluation</p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -557,26 +839,44 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Non-Compliant</p>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                {nonCompliantCount}
-              </h3>
-              <p className="text-xs font-medium text-slate-400 mt-0.5">Require attention</p>
+              {isLoading ? (
+                <div className="space-y-1 py-1">
+                  <div className="h-5 w-10 bg-slate-200 dark:bg-slate-700/80 rounded animate-pulse" />
+                  <div className="h-3 w-18 bg-slate-100 dark:bg-slate-800/60 rounded animate-pulse" />
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                    {nonCompliantCount}
+                  </h3>
+                  <p className="text-xs font-medium text-slate-400 mt-0.5">Require attention</p>
+                </>
+              )}
             </div>
           </div>
         </div>
 
         {/* Card 5: Compliant */}
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition">
+        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-xs transition col-span-2 sm:col-span-1 lg:col-span-1">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Compliant</p>
-              <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                {compliantCount}
-              </h3>
-              <p className="text-xs font-medium text-slate-400 mt-0.5">Passed compliance</p>
+              {isLoading ? (
+                <div className="space-y-1 py-1">
+                  <div className="h-5 w-10 bg-slate-200 dark:bg-slate-700/80 rounded animate-pulse" />
+                  <div className="h-3 w-22 bg-slate-100 dark:bg-slate-800/60 rounded animate-pulse" />
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                    {compliantCount}
+                  </h3>
+                  <p className="text-xs font-medium text-slate-400 mt-0.5">Passed compliance</p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -587,10 +887,28 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
         showFilters ? 'p-4 space-y-3.5' : 'py-2.5 px-4'
       }`}>
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5 text-blue-600" />
-            <span>Search & Filter Criteria</span>
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-blue-600" />
+              <span>Search & Filter Criteria</span>
+            </span>
+            {filterTenderId && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
+                <span>Tender: {filterTenderId}</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFilterTenderId('');
+                  }}
+                  className="hover:text-rose-600 transition cursor-pointer p-0.5"
+                  title="Clear tender filter"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </span>
+            )}
+          </div>
           <button
             type="button"
             onClick={() => setShowFilters(!showFilters)}
@@ -801,8 +1119,8 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             }`}
           >
             <span>All Submissions</span>
-            <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 font-semibold">
-              {totalSubmissionsCount}
+            <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 font-semibold min-w-[20px] text-center">
+              {isLoading ? <span className="inline-block w-3 h-2 bg-blue-300/80 dark:bg-blue-700/80 rounded animate-pulse" /> : totalSubmissionsCount}
             </span>
           </button>
 
@@ -815,8 +1133,8 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             }`}
           >
             <span>Pending Evaluation</span>
-            <span className="px-1.5 py-0.5 text-xs rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
-              {pendingEvaluationCount}
+            <span className="px-1.5 py-0.5 text-xs rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold min-w-[20px] text-center">
+              {isLoading ? <span className="inline-block w-3 h-2 bg-slate-300/80 dark:bg-slate-700 rounded animate-pulse" /> : pendingEvaluationCount}
             </span>
           </button>
 
@@ -829,8 +1147,8 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             }`}
           >
             <span>Under Review</span>
-            <span className="px-1.5 py-0.5 text-xs rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
-              {underReviewCount}
+            <span className="px-1.5 py-0.5 text-xs rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold min-w-[20px] text-center">
+              {isLoading ? <span className="inline-block w-3 h-2 bg-slate-300/80 dark:bg-slate-700 rounded animate-pulse" /> : underReviewCount}
             </span>
           </button>
 
@@ -843,8 +1161,8 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             }`}
           >
             <span>Compliant</span>
-            <span className="px-1.5 py-0.5 text-xs rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 font-semibold">
-              {compliantCount}
+            <span className="px-1.5 py-0.5 text-xs rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 font-semibold min-w-[20px] text-center">
+              {isLoading ? <span className="inline-block w-3 h-2 bg-emerald-300/80 dark:bg-emerald-700/80 rounded animate-pulse" /> : compliantCount}
             </span>
           </button>
 
@@ -857,34 +1175,19 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
             }`}
           >
             <span>Non-Compliant</span>
-            <span className="px-1.5 py-0.5 text-xs rounded-full bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 font-semibold">
-              {nonCompliantCount}
+            <span className="px-1.5 py-0.5 text-xs rounded-full bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 font-semibold min-w-[20px] text-center">
+              {isLoading ? <span className="inline-block w-3 h-2 bg-rose-300/80 dark:bg-rose-700/80 rounded animate-pulse" /> : nonCompliantCount}
             </span>
           </button>
         </div>
 
-        {/* Export Button & QCBS Rankings Button */}
+        {/* Export Button */}
         <div className="pb-1 flex items-center gap-2">
           <button
             type="button"
-            onClick={() => {
-              setQcbsModalTender({
-                id: selectedSubmission?.tenderId || filterTenderId || '1',
-                referenceNo: selectedSubmission?.tenderId || filterTenderId || 'GEM/2024/B/5123981',
-                title: selectedSubmission?.tenderTitle || 'Solar Power Installation & Infrastructure Project',
-                value: '₹ 18.50 Cr',
-              });
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/60 border border-amber-300/80 dark:border-amber-700/80 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/60 transition cursor-pointer shadow-2xs"
-            title="Inspect Top 10 Bidders ranked by GFR 192 QCBS (70% Technical / 30% Price)"
-          >
-            <Trophy className="w-3.5 h-3.5 text-amber-500" />
-            <span>Top 10 QCBS Bidders</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => alert('Exporting submissions table to CSV / Excel...')}
+            onClick={handleExportSubmissionsCSV}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer shadow-2xs"
+            title="Export submissions table as CSV spreadsheet"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
             <span>Export Table (CSV)</span>
@@ -897,6 +1200,13 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
 
         {/* Submissions Data Table */}
         <div className="w-full bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-2xs overflow-hidden transition-all duration-200">
+          {/* Top Loading Progress Line */}
+          {(isLoading || isLiveSyncing) && (
+            <div className="h-0.5 w-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-500 animate-pulse w-full" />
+            </div>
+          )}
+
           {/* Multi-Bidder Comparison Selection Action Bar */}
           {selectedBidderIds.length > 0 && (
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 border-b border-blue-200 dark:border-blue-900/60 px-4 py-2.5 flex items-center justify-between gap-3">
@@ -950,7 +1260,72 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-200">
-                {paginatedSubmissions.length === 0 ? (
+                {isLoading ? (
+                  Array.from({ length: 6 }).map((_, idx) => (
+                    <tr key={`skeleton-row-${idx}`} className="animate-pulse">
+                      {/* Checkbox */}
+                      <td className="py-3 px-3 text-center">
+                        <div className="w-4 h-4 bg-slate-200 dark:bg-slate-800 rounded mx-auto" />
+                      </td>
+
+                      {/* Submission ID */}
+                      <td className="py-3 px-3">
+                        <div className="h-4 w-24 bg-slate-200 dark:bg-slate-800 rounded" />
+                      </td>
+
+                      {/* Tender ID / Title */}
+                      <td className="py-3 px-3 max-w-[200px]">
+                        <div className="h-3.5 w-24 bg-slate-200 dark:bg-slate-800 rounded mb-1.5" />
+                        <div className="h-3 w-40 bg-slate-100 dark:bg-slate-800/60 rounded" />
+                      </td>
+
+                      {/* Bidder / Organization */}
+                      <td className="py-3 px-3 max-w-[180px]">
+                        <div className="h-3.5 w-32 bg-slate-200 dark:bg-slate-800 rounded mb-1" />
+                        <div className="h-3 w-20 bg-slate-100 dark:bg-slate-800/60 rounded" />
+                      </td>
+
+                      {/* Submitted On */}
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <div className="h-3.5 w-16 bg-slate-200 dark:bg-slate-800 rounded mb-1" />
+                        <div className="h-3 w-12 bg-slate-100 dark:bg-slate-800/60 rounded" />
+                      </td>
+
+                      {/* Documents Pill */}
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                        <div className="h-5 w-16 bg-slate-200 dark:bg-slate-800 rounded-lg mx-auto" />
+                      </td>
+
+                      {/* Compliance Score */}
+                      <td className="py-3 px-3 min-w-[110px]">
+                        <div className="flex items-center gap-2">
+                          <div className="h-3.5 w-7 bg-slate-200 dark:bg-slate-800 rounded" />
+                          <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-800 rounded-full" />
+                        </div>
+                      </td>
+
+                      {/* Compliance Status */}
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                        <div className="h-5 w-20 bg-slate-200 dark:bg-slate-800 rounded-full mx-auto" />
+                      </td>
+
+                      {/* Evaluation Status */}
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                        <div className="h-5 w-16 bg-slate-200 dark:bg-slate-800 rounded-md mx-auto" />
+                      </td>
+
+                      {/* Actions Sticky */}
+                      <td className="py-3 px-3 text-center sticky right-0 z-10 bg-white dark:bg-slate-900 shadow-[-6px_0_10px_-3px_rgba(0,0,0,0.06)] dark:shadow-[-6px_0_10px_-3px_rgba(0,0,0,0.3)]">
+                        <div className="flex items-center justify-center gap-1">
+                          <div className="h-6 w-20 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+                          <div className="w-6 h-6 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+                          <div className="w-6 h-6 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+                          <div className="w-6 h-6 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : paginatedSubmissions.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="py-12 text-center text-slate-400">
                       No tender submissions found matching the criteria.
@@ -1112,11 +1487,11 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                             <button
                               type="button"
                               onClick={() => onOpenCompliance && onOpenCompliance(sub)}
-                              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                              title="Evaluate Compliance Check"
-                              aria-label={`Evaluate compliance check for ${sub.bidder}`}
+                              className="p-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                              title="Deep-Dive Compliance Audit"
+                              aria-label={`Deep-dive compliance audit for ${sub.bidder}`}
                             >
-                              <ClipboardCheck className="w-3.5 h-3.5" />
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                             </button>
                           </div>
                         </td>
@@ -1131,10 +1506,17 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
           {/* Table Footer: Pagination & Rows per page */}
           <div className="p-3.5 border-t border-slate-200/90 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
             <div>
-              <span>
-                Showing {filteredSubmissions.length > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0} to{' '}
-                {Math.min(currentPage * rowsPerPage, filteredSubmissions.length)} of {filteredSubmissions.length} submissions
-              </span>
+              {isLoading ? (
+                <span className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Loading tender submissions...</span>
+                </span>
+              ) : (
+                <span>
+                  Showing {filteredSubmissions.length > 0 ? (currentPage - 1) * rowsPerPage + 1 : 0} to{' '}
+                  {Math.min(currentPage * rowsPerPage, filteredSubmissions.length)} of {filteredSubmissions.length} submissions
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-3">
@@ -1419,19 +1801,25 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0 ml-1">
-                          <span className="text-xs text-slate-400">{doc.size}</span>
-                          {(doc.cloudinaryUrl || doc.url) && (
-                            <a
-                              href={doc.cloudinaryUrl || doc.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-xs font-semibold hover:underline"
-                              title="View Document PDF"
-                            >
-                              <ExternalLink className="w-2.5 h-2.5" />
-                              <span>PDF</span>
-                            </a>
-                          )}
+                          <span className="text-xs text-slate-400 mr-1">{doc.size || '1.2 MB'}</span>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewingDoc({ ...doc, fileName: doc.name || doc.fileName })}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-xs font-semibold hover:bg-blue-100 transition cursor-pointer"
+                            title="Preview Document"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>Preview</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => downloadDocument(doc, { referenceNo: selectedSubmission.tenderId, bidder: selectedSubmission.bidder })}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-200 transition cursor-pointer"
+                            title="Download PDF"
+                          >
+                            <Download className="w-3 h-3" />
+                            <span>PDF</span>
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -1471,10 +1859,11 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
                 <button
                   type="button"
                   onClick={() => onOpenCompliance && onOpenCompliance(selectedSubmission)}
-                  className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-xs font-semibold transition cursor-pointer"
+                  className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold transition cursor-pointer"
+                  title="Open Deep-Dive Statutory Compliance Checklist"
                 >
-                  <Play className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Detailed Audit</span>
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>Audit Checklist</span>
                 </button>
               </div>
             </div>
@@ -1547,13 +1936,13 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
         onSelectBidder={(selected) => setAiDrawerBidder(selected)}
       />
 
-      {/* Bidder Contextual Chatbot — Bound to POST /api/officer/tenders/chat */}
+      {/* Bidder Contextual Chatbot — Bound to POST /api/officer/tenders/:id/chat */}
       <BidderChatBot
         isOpen={chatBotOpen}
         onClose={() => setChatBotOpen(false)}
         bidderData={selectedSubmission}
-        tenderId={selectedSubmission?.tenderId || filterTenderId || '1'}
-        bidderId={selectedSubmission?.bidderId || selectedSubmission?.id || 'BID-007'}
+        tenderId={selectedSubmission?.tenderId || (filterTenderId && filterTenderId !== 'all' ? filterTenderId : null)}
+        bidderId={selectedSubmission?.bidderId || selectedSubmission?.id || null}
       />
 
       {/* QCBS Top 10 Bidders Evaluation Modal */}
@@ -1564,6 +1953,18 @@ const TenderSubmissionsView = ({ onBackToDashboard, onOpenCompliance }) => {
           onClose={() => setQcbsModalTender(null)}
         />
       )}
+
+      {/* Universal Document Preview & Download Modal */}
+      <DocumentPreviewModal
+        isOpen={Boolean(previewingDoc)}
+        document={previewingDoc}
+        tenderContext={{
+          referenceNo: selectedSubmission?.tenderId,
+          title: selectedSubmission?.tenderTitle,
+          bidder: selectedSubmission?.bidder,
+        }}
+        onClose={() => setPreviewingDoc(null)}
+      />
     </div>
   );
 };

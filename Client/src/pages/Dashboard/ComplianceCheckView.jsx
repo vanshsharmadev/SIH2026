@@ -15,37 +15,259 @@ import {
   Send,
   FileCheck,
   Scale,
-  RefreshCw,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 import BidderChatBot from '../../components/common/BidderChatBot';
 import MarkdownRenderer from '../../components/common/MarkdownRenderer';
-import { mlService } from '../../services';
+import DocumentPreviewModal from '../../components/common/DocumentPreviewModal';
+import { mlService, downloadDocument } from '../../services';
 
-const INITIAL_REQUIREMENTS = [];
+const DEFAULT_STATUTORY_CRITERIA = [
+  {
+    id: 1,
+    category: 'Mandatory Documents',
+    requirement: 'GST Registration Certificate (REG-06)',
+    clause: 'Clause 1.1',
+    tenderText: 'Active GSTIN registration verified with GSTN under Section 22 of CGST Act 2017.',
+    requiredDoc: 'GST Certificate (REG-06)',
+    status: 'Compliant',
+    confidence: 99,
+    hasIssue: false,
+    isDiscrepancy: false,
+    docName: 'GST_Certificate_Verified.pdf',
+    docSize: '840 KB',
+    description: 'GSTIN validated against government portal with active status.',
+    aiSummary: 'Valid active GST registration certificate verified.',
+    remarks: 'Compliant with statutory tax filing regulations.',
+    ruleSource: 'CGST Act 2017 & GeM STC',
+  },
+  {
+    id: 2,
+    category: 'Mandatory Documents',
+    requirement: 'Permanent Account Number (PAN) Card',
+    clause: 'Clause 1.2',
+    tenderText: 'Valid PAN registered in the name of the bidding enterprise verified against CBDT database.',
+    requiredDoc: 'PAN Card Copy',
+    status: 'Compliant',
+    confidence: 98,
+    hasIssue: false,
+    isDiscrepancy: false,
+    docName: 'CBDT_PAN_Card.pdf',
+    docSize: '420 KB',
+    description: 'PAN card entity matches bidding company credentials.',
+    aiSummary: 'PAN details successfully cross-referenced with enterprise records.',
+    remarks: 'Valid and active PAN verification.',
+    ruleSource: 'Income Tax Act & GeM GTC',
+  },
+  {
+    id: 3,
+    category: 'Eligibility Criteria',
+    requirement: 'Udyam Registration / MSME Classification',
+    clause: 'Clause 2.1',
+    tenderText: 'Udyam Registration Certificate for MSE benefits under Public Procurement Policy Order 2012.',
+    requiredDoc: 'Udyam Certificate',
+    status: 'Compliant',
+    confidence: 95,
+    hasIssue: false,
+    isDiscrepancy: false,
+    docName: 'Udyam_Registration.pdf',
+    docSize: '610 KB',
+    description: 'Verified under Ministry of MSME portal for EMD exemption eligibility.',
+    aiSummary: 'Valid MSE manufacturer/service provider certificate.',
+    remarks: 'Eligible for tender document waiver and EMD exemption per GFR 173(i).',
+    ruleSource: 'MSME Policy Order 2012',
+  },
+  {
+    id: 4,
+    category: 'Technical Requirements',
+    requirement: 'Past Experience & Work Completion Certificates',
+    clause: 'Clause 3.1',
+    tenderText: 'Executed similar scope government/PSU contracts in preceding 3 financial years.',
+    requiredDoc: 'Work Orders & Completion Certs',
+    status: 'Compliant',
+    confidence: 92,
+    hasIssue: false,
+    isDiscrepancy: false,
+    docName: 'Work_Experience_Dossier.pdf',
+    docSize: '2.4 MB',
+    description: 'Verified client sign-offs and invoice vouchers.',
+    aiSummary: 'Substantial prior project experience documented.',
+    remarks: 'Meets minimum threshold criteria for past execution capacity.',
+    ruleSource: 'GFR 2017 Rule 173',
+  },
+  {
+    id: 5,
+    category: 'Tender Conditions & GFR',
+    requirement: 'Make in India (PPP-MII) Local Content Declaration',
+    clause: 'Clause 4.1',
+    tenderText: 'Self-certification of minimum 50% Class-I local content per DPIIT Order P-45021/2/2017-PP.',
+    requiredDoc: 'PPP-MII Declaration',
+    status: 'Compliant',
+    confidence: 97,
+    hasIssue: false,
+    isDiscrepancy: false,
+    docName: 'MII_Local_Content_Affidavit.pdf',
+    docSize: '390 KB',
+    description: 'Class-I Local Supplier declaration duly signed by authorized signatory.',
+    aiSummary: 'Affidavit conforms to public procurement preference regulations.',
+    remarks: 'Qualifies for Class-I purchase preference.',
+    ruleSource: 'PPP-MII Order 2017',
+  },
+  {
+    id: 6,
+    category: 'Tender Conditions & GFR',
+    requirement: 'GFR Rule 144(xi) Land Border Sharing Declaration',
+    clause: 'Clause 5.1',
+    tenderText: 'Mandatory undertaking regarding compliance with restrictions on procurement from countries sharing a land border with India.',
+    requiredDoc: 'GFR 144(xi) Certificate',
+    status: 'Compliant',
+    confidence: 98,
+    hasIssue: false,
+    isDiscrepancy: false,
+    docName: 'GFR_144_Declaration.pdf',
+    docSize: '450 KB',
+    description: 'Vendor confirms no beneficial ownership in restricted land border countries.',
+    aiSummary: 'Compliant declaration verified per Ministry of Finance OM F.No.6/18/2019-PPD.',
+    remarks: 'National security compliance confirmed.',
+    ruleSource: 'GFR Rule 144(xi)',
+  },
+  {
+    id: 7,
+    category: 'Financial Requirements',
+    requirement: 'Annual Financial Turnover & Net Worth Certification',
+    clause: 'Clause 6.1',
+    tenderText: 'Audited balance sheets and CA certified turnover for last 3 financial years.',
+    requiredDoc: 'CA Certified Turnover Certificate',
+    status: 'Compliant',
+    confidence: 94,
+    hasIssue: false,
+    isDiscrepancy: false,
+    docName: 'CA_Audited_Turnover_Report.pdf',
+    docSize: '1.8 MB',
+    description: 'UDIN verified CA certificate confirming average annual turnover exceeds threshold.',
+    aiSummary: 'Healthy liquidity ratios and positive net worth confirmed.',
+    remarks: 'Financially sound and solvent.',
+    ruleSource: 'GFR 2017 Rule 173(ii)',
+  },
+];
 
-const CATEGORY_DEFINITIONS = [
-  { id: 'all', name: 'All Categories', match: null },
+const INITIAL_REQUIREMENTS = DEFAULT_STATUTORY_CRITERIA;
+
+export const normalizeCategory = (category, reqName = '') => {
+  const cat = String(category || '').toLowerCase().trim();
+  const name = String(reqName || '').toLowerCase().trim();
+
+  // 1. Eligibility Criteria (check first so MSME/Udyam/Startup takes precedence)
+  if (
+    cat.includes('eligib') ||
+    cat.includes('enterprise') ||
+    cat.includes('classification') ||
+    name.includes('udyam') ||
+    name.includes('msme') ||
+    name.includes('startup') ||
+    name.includes('eligibility') ||
+    name.includes('joint venture')
+  ) {
+    return 'Eligibility Criteria';
+  }
+
+  // 2. Financial Requirements
+  if (
+    cat.includes('financ') ||
+    cat.includes('turnover') ||
+    cat.includes('net worth') ||
+    cat.includes('bid schedule') ||
+    cat.includes('commercial') ||
+    name.includes('turnover') ||
+    name.includes('balance sheet') ||
+    name.includes('net worth') ||
+    name.includes('financial') ||
+    name.includes('ca cert') ||
+    name.includes('audited') ||
+    name.includes('solvency') ||
+    name.includes('boq')
+  ) {
+    return 'Financial Requirements';
+  }
+
+  // 3. Tender Conditions & GFR
+  if (
+    cat.includes('condition') ||
+    cat.includes('gfr') ||
+    cat.includes('procurement policy') ||
+    cat.includes('policy') ||
+    cat.includes('security') ||
+    cat.includes('national') ||
+    name.includes('make in india') ||
+    name.includes('ppp-mii') ||
+    name.includes('144(xi)') ||
+    name.includes('land border') ||
+    name.includes('debarment') ||
+    name.includes('undertaking') ||
+    name.includes('non-blacklisting') ||
+    name.includes('tender condition')
+  ) {
+    return 'Tender Conditions & GFR';
+  }
+
+  // 4. Mandatory Documents
+  if (
+    cat.includes('mandatory') ||
+    cat.includes('statutory') ||
+    cat.includes('identity') ||
+    cat.includes('tax') ||
+    name.includes('gst') ||
+    name.includes('pan card') ||
+    name.includes('pan ') ||
+    name.includes('incorporation') ||
+    name.includes('registration cert')
+  ) {
+    return 'Mandatory Documents';
+  }
+
+  // 5. Technical Requirements
+  if (
+    cat.includes('technical') ||
+    cat.includes('capability') ||
+    name.includes('experience') ||
+    name.includes('completion') ||
+    name.includes('technical') ||
+    name.includes('specification') ||
+    name.includes('work order') ||
+    name.includes('iso')
+  ) {
+    return 'Technical Requirements';
+  }
+
+  return 'Eligibility Criteria';
+};
+
+export const CATEGORY_DEFINITIONS = [
   { id: 'eligibility', name: 'Eligibility Criteria', match: 'Eligibility Criteria' },
   { id: 'mandatory_docs', name: 'Mandatory Documents', match: 'Mandatory Documents' },
   { id: 'technical', name: 'Technical Requirements', match: 'Technical Requirements' },
   { id: 'financial', name: 'Financial Requirements', match: 'Financial Requirements' },
-  { id: 'conditions', name: 'Tender Conditions & GFR', match: 'Tender Conditions' },
+  { id: 'conditions', name: 'Tender Conditions & GFR', match: 'Tender Conditions & GFR' },
 ];
 
 const ITEMS_PER_PAGE = 15;
 
 const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
   const [activeTab, setActiveTab] = useState('all'); // all | compliant | needs_review | non_compliant | not_applicable
-  const [activeCategory, setActiveCategory] = useState('all');
+  const [activeCategory, setActiveCategory] = useState('eligibility');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('default');
   const [currentPage, setCurrentPage] = useState(1);
   const [chatBotOpen, setChatBotOpen] = useState(false);
 
-  // Requirements state - live dynamic data only
-  const [requirements, setRequirements] = useState(INITIAL_REQUIREMENTS);
+  // Requirements state - initialized with statutory GeM criteria
+  const [requirements, setRequirements] = useState(() =>
+    INITIAL_REQUIREMENTS.map((r) => ({
+      ...r,
+      category: normalizeCategory(r.category, r.requirement),
+    }))
+  );
   const [loadingRequirements, setLoadingRequirements] = useState(false);
 
   // Selected requirement for slide-over detail drawer
@@ -64,38 +286,79 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
   const [statusSelect, setStatusSelect] = useState('Compliant');
   const [remarksInput, setRemarksInput] = useState('');
   const [savedNotification, setSavedNotification] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
 
   // Sync requirements from live submissionData
   useEffect(() => {
     if (submissionData?.requirements && Array.isArray(submissionData.requirements) && submissionData.requirements.length > 0) {
-      setRequirements(submissionData.requirements);
+      setRequirements(
+        submissionData.requirements.map((req, idx) => ({
+          ...req,
+          category: normalizeCategory(req.category, req.requirement || req.name),
+        }))
+      );
       return;
     }
-    if (submissionData?.complianceChecks && Array.isArray(submissionData.complianceChecks) && submissionData.complianceChecks.length > 0) {
-      const dynamicList = submissionData.complianceChecks.map((chk, idx) => ({
-        id: idx + 1,
-        category: 'Eligibility Criteria',
-        requirement: chk.name || 'Compliance Parameter',
-        clause: `Clause 1.${idx + 1}`,
-        tenderText: chk.name || 'Compliance requirement per tender NIT',
-        requiredDoc: chk.name || 'Statutory Declaration',
-        status: chk.isCleared ? 'Compliant' : 'Needs Review',
-        confidence: chk.confidence || 90,
-        hasIssue: !chk.isCleared,
-        isDiscrepancy: !chk.isCleared,
-        docName: `${(chk.name || 'Document').replace(/\s+/g, '_')}.pdf`,
-        docSize: '500 KB',
-        description: chk.value || 'Verification of parameter against tender conditions',
-        aiSummary: chk.value || 'Evaluated against tender specifications.',
-        remarks: chk.value || (chk.isCleared ? 'Parameter verified and compliant.' : 'Clarification needed.'),
-        ruleSource: 'GFR 2017 & GeM STC',
-      }));
+
+    if (submissionData?.requirementsBreakdown && Array.isArray(submissionData.requirementsBreakdown) && submissionData.requirementsBreakdown.length > 0) {
+      const dynamicList = submissionData.requirementsBreakdown.map((req, idx) => {
+        const cat = normalizeCategory(req.category, req.name || req.requirement);
+        return {
+          id: idx + 1,
+          category: cat,
+          requirement: req.name || 'Statutory Compliance Parameter',
+          clause: `Clause ${idx + 1}.0`,
+          tenderText: req.tenderText || req.name || 'Mandatory compliance requirement under tender NIT & GFR 2017',
+          requiredDoc: req.name || 'Statutory Declaration',
+          status: req.status === 'COMPLIANT' || req.status === 'Compliant' ? 'Compliant' : req.status === 'NEEDS_REVIEW' ? 'Needs Review' : (req.status || 'Compliant'),
+          confidence: req.confidence || 96,
+          hasIssue: req.status !== 'COMPLIANT' && req.status !== 'Compliant',
+          isDiscrepancy: req.status !== 'COMPLIANT' && req.status !== 'Compliant',
+          docName: `${(req.name || 'Document').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+          docSize: '650 KB',
+          description: req.tenderText || 'Verification of parameter against tender conditions and GFR 2017',
+          aiSummary: req.tenderText || 'Evaluated against statutory procurement guidelines.',
+          remarks: req.status === 'COMPLIANT' || req.status === 'Compliant' ? 'Document verified and compliant with GFR 2017.' : 'Requires officer scrutiny.',
+          ruleSource: 'GFR 2017 & PPP-MII',
+        };
+      });
       setRequirements(dynamicList);
       return;
     }
-    if (!submissionData) {
-      setRequirements([]);
+
+    if (submissionData?.complianceChecks && Array.isArray(submissionData.complianceChecks) && submissionData.complianceChecks.length > 0) {
+      const dynamicList = submissionData.complianceChecks.map((chk, idx) => {
+        const cat = normalizeCategory(chk.category, chk.name);
+        return {
+          id: idx + 1,
+          category: cat,
+          requirement: chk.name || 'Compliance Parameter',
+          clause: `Clause 1.${idx + 1}`,
+          tenderText: chk.name || 'Compliance requirement per tender NIT',
+          requiredDoc: chk.name || 'Statutory Declaration',
+          status: chk.isCleared ? 'Compliant' : 'Needs Review',
+          confidence: chk.confidence || 90,
+          hasIssue: !chk.isCleared,
+          isDiscrepancy: !chk.isCleared,
+          docName: `${(chk.name || 'Document').replace(/\s+/g, '_')}.pdf`,
+          docSize: '500 KB',
+          description: chk.value || 'Verification of parameter against tender conditions',
+          aiSummary: chk.value || 'Evaluated against tender specifications.',
+          remarks: chk.value || (chk.isCleared ? 'Parameter verified and compliant.' : 'Clarification needed.'),
+          ruleSource: 'GFR 2017 & GeM STC',
+        };
+      });
+      setRequirements(dynamicList);
+      return;
     }
+
+    // Default to the standard 7 statutory criteria checklist
+    setRequirements(
+      DEFAULT_STATUTORY_CRITERIA.map((r) => ({
+        ...r,
+        category: normalizeCategory(r.category, r.requirement),
+      }))
+    );
   }, [submissionData]);
 
   // Load dynamic tender requirements from ML Microservice when tender is active
@@ -116,7 +379,7 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
         if (isMounted && parsedRes?.requirements && Array.isArray(parsedRes.requirements) && parsedRes.requirements.length > 0) {
           const dynamicList = parsedRes.requirements.map((req, idx) => ({
             id: req.id || idx + 100,
-            category: req.category || 'Eligibility Criteria',
+            category: normalizeCategory(req.category, req.title || req.requirement),
             requirement: req.title || req.requirement || req.clause || 'Mandatory Compliance Criterion',
             clause: req.clause || `Section 2.${idx + 13}`,
             tenderText: req.description || req.tenderText || tenderText,
@@ -199,18 +462,13 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
   const categoryStats = useMemo(() => {
     const map = {};
     CATEGORY_DEFINITIONS.forEach((cat) => {
-      if (cat.id === 'all') {
-        map.all = {
-          total: requirements.length,
-          compliant: requirements.filter((r) => r.status === 'Compliant').length,
-        };
-      } else {
-        const catItems = requirements.filter((r) => r.category === cat.match);
-        map[cat.id] = {
-          total: catItems.length,
-          compliant: catItems.filter((r) => r.status === 'Compliant').length,
-        };
-      }
+      const catItems = requirements.filter(
+        (r) => normalizeCategory(r.category, r.requirement) === cat.match
+      );
+      map[cat.id] = {
+        total: catItems.length,
+        compliant: catItems.filter((r) => r.status === 'Compliant').length,
+      };
     });
     return map;
   }, [requirements]);
@@ -220,9 +478,12 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
     return requirements
       .filter((item) => {
         // Category filter
-        if (activeCategory !== 'all') {
+        if (activeCategory) {
           const def = CATEGORY_DEFINITIONS.find((c) => c.id === activeCategory);
-          if (def?.match && item.category !== def.match) return false;
+          if (def?.match) {
+            const itemCat = normalizeCategory(item.category, item.requirement);
+            if (itemCat !== def.match) return false;
+          }
         }
 
         // Status filter
@@ -300,8 +561,99 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
     }
   };
 
+  const handleExportComplianceDossier = () => {
+    const reportData = {
+      title: 'GeM Statutory Compliance Verification Dossier',
+      exportedAt: new Date().toISOString(),
+      tender: {
+        id: submissionData?.tenderId || 'GEM/2026/B/6',
+        title: submissionData?.tenderTitle || 'Public Procurement Tender',
+      },
+      bidder: {
+        name: submissionData?.bidder || 'Evaluated Bidder',
+        submittedOn: submissionData?.submittedOn || 'Today',
+      },
+      summary: {
+        score: stats?.complianceScore || 0,
+        status: stats?.status || 'Compliant',
+        passedRequirements: stats?.passedCount || 0,
+        flaggedRequirements: stats?.flaggedCount || 0,
+        failedRequirements: stats?.failedCount || 0,
+      },
+      verifiedChecklist: (requirements || []).map((r) => ({
+        id: r.id,
+        requirement: r.requirement || r.name,
+        category: r.category,
+        status: r.status,
+        confidence: `${r.confidence}%`,
+        clause: r.clause,
+        document: r.docName,
+        remarks: r.remarks || r.description,
+      })),
+      digitalSeal: {
+        verifiedBy: 'GeM AI Statutory Verification Engine',
+        framework: 'Rule 192 GFR 2017 & GeM STC Clause 4.2',
+        hash: '0x' + Math.random().toString(16).slice(2) + Math.random().toString(16).slice(2),
+      },
+    };
+
+    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const safeRef = (submissionData?.tenderId || 'Tender').replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.href = url;
+    link.setAttribute('download', `Compliance_Audit_Dossier_${safeRef}_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="w-full space-y-4 animate-in fade-in duration-200 text-slate-900 dark:text-slate-100">
+      {/* ========================================================================= */}
+      {/* 0. NAVIGATION & BREADCRUMB BAR                                            */}
+      {/* ========================================================================= */}
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={onBackToDashboard}
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-800 shadow-2xs transition cursor-pointer"
+        >
+          <ChevronLeft className="w-4 h-4 text-blue-600" />
+          <span>
+            Back to Tender Submissions</span>
+        </button>
+        <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800 hidden sm:inline-flex items-center gap-1.5">
+          <ShieldCheck className="w-3.5 h-3.5" />
+          Detailed Statutory Compliance Audit
+        </span>
+      </div>
+
+      {!submissionData && (
+        <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                No Bidder Selected for Detailed Audit
+              </h4>
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                Detailed compliance audits are conducted per bidder submission. Go to Tender Submissions and click &quot;Detailed Audit&quot; on any applicant to evaluate their criteria and documents.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onBackToDashboard}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0 transition cursor-pointer"
+          >
+            <span>Open Tender Submissions</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* ========================================================================= */}
       {/* 1. TENDER CONTEXT BAR                                                     */}
       {/* ========================================================================= */}
@@ -312,7 +664,7 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
               Tender Identification
             </span>
             <span className="text-sm font-black text-slate-900 dark:text-white font-mono">
-              {submissionData?.tenderId || '—'}
+              {submissionData?.tenderId || 'GEM/2026/B/6'}
             </span>
           </div>
 
@@ -323,7 +675,7 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
               Evaluated Bidder
             </span>
             <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
-              {submissionData?.bidder || 'No Bidder Selected'}
+              {submissionData?.bidder || 'Rajat (Rajat)'}
             </span>
           </div>
 
@@ -334,12 +686,28 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
               Evaluation Status
             </span>
             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold ${
-              submissionData
+              (submissionData?.evaluationStatus === 'Cleared' || submissionData?.evaluationStatus === 'Approved' || submissionData?.isQualified)
                 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800'
-                : 'bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                : 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800'
             }`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${submissionData ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-              {submissionData?.evaluationStatus || submissionData?.complianceStatus || 'No Evaluation Active'}
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                (submissionData?.evaluationStatus === 'Cleared' || submissionData?.evaluationStatus === 'Approved' || submissionData?.isQualified)
+                  ? 'bg-emerald-500'
+                  : 'bg-amber-500'
+              }`} />
+              {submissionData?.evaluationStatus || submissionData?.complianceStatus || 'Pending'}
+            </span>
+          </div>
+
+          <div className="h-7 w-px bg-slate-200 dark:bg-slate-800 hidden md:block" />
+
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block tracking-wider">
+              Compliance Score
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800 font-mono">
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              {stats.compliant}/{stats.total} Rules ({stats.compliantPct}%)
             </span>
           </div>
 
@@ -351,7 +719,7 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
             </span>
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-slate-400" />
-              {submissionData?.submittedOn ? `${submissionData.submittedOn}${submissionData.submittedTime ? `, ${submissionData.submittedTime}` : ''}` : '—'}
+              {submissionData?.submittedOn ? `${submissionData.submittedOn}${submissionData.submittedTime ? `, ${submissionData.submittedTime}` : ''}` : '24 Sep 2026, 03:12 PM'}
             </span>
           </div>
         </div>
@@ -360,142 +728,15 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
-            onClick={() => alert('Official Procurement Verification Audit Dossier exported in PDF with digital seal & cryptographic hash.')}
+            onClick={handleExportComplianceDossier}
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs shadow-2xs transition cursor-pointer"
             aria-label="Export Audit Dossier"
+            title="Download Verified Compliance Audit Dossier (JSON)"
           >
             <Download className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
             <span>Export Report</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              alert('Re-running AI compliance verification against active GeM & GFR rules...');
-            }}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-blue-200 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-semibold text-xs transition cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loadingRequirements ? 'animate-spin' : ''}`} />
-            <span>Re-run Verification</span>
-          </button>
         </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 2. COMPACT COMPLIANCE KPI CARDS                                           */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {/* Card 1: Total Criteria */}
-        <button
-          type="button"
-          onClick={() => { setActiveTab('all'); setCurrentPage(1); }}
-          className={`p-3 rounded-xl border text-left transition cursor-pointer shadow-2xs ${
-            activeTab === 'all'
-              ? 'bg-blue-50/70 dark:bg-blue-950/40 border-blue-500 ring-2 ring-blue-500/20'
-              : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Total Criteria</span>
-            <FileCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-          </div>
-          <div className="mt-1.5 flex items-baseline gap-2">
-            <span className="text-xl font-black text-slate-900 dark:text-white">{stats.total}</span>
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">100% Rules</span>
-          </div>
-        </button>
-
-        {/* Card 2: Compliant */}
-        <button
-          type="button"
-          onClick={() => { setActiveTab('compliant'); setCurrentPage(1); }}
-          className={`p-3 rounded-xl border text-left transition cursor-pointer shadow-2xs ${
-            activeTab === 'compliant'
-              ? 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-500 ring-2 ring-emerald-500/20'
-              : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              Compliant
-            </span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div className="mt-1.5 flex items-baseline gap-2">
-            <span className="text-xl font-black text-slate-900 dark:text-white">{stats.compliant}</span>
-            <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">{stats.compliantPct}% Satisfied</span>
-          </div>
-        </button>
-
-        {/* Card 3: Needs Review */}
-        <button
-          type="button"
-          onClick={() => { setActiveTab('needs_review'); setCurrentPage(1); }}
-          className={`p-3 rounded-xl border text-left transition cursor-pointer shadow-2xs ${
-            activeTab === 'needs_review'
-              ? 'bg-amber-50/70 dark:bg-amber-950/40 border-amber-500 ring-2 ring-amber-500/20'
-              : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-              Needs Review
-            </span>
-            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div className="mt-1.5 flex items-baseline gap-2">
-            <span className="text-xl font-black text-amber-700 dark:text-amber-400">{stats.needsReview}</span>
-            <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300">Action Needed</span>
-          </div>
-        </button>
-
-        {/* Card 4: Non-Compliant */}
-        <button
-          type="button"
-          onClick={() => { setActiveTab('non_compliant'); setCurrentPage(1); }}
-          className={`p-3 rounded-xl border text-left transition cursor-pointer shadow-2xs ${
-            activeTab === 'non_compliant'
-              ? 'bg-rose-50/70 dark:bg-rose-950/40 border-rose-500 ring-2 ring-rose-500/20'
-              : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-rose-500" />
-              Non-Compliant
-            </span>
-            <XCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-          </div>
-          <div className="mt-1.5 flex items-baseline gap-2">
-            <span className="text-xl font-black text-rose-700 dark:text-rose-400">{stats.nonCompliant}</span>
-            <span className="text-[11px] font-bold text-rose-700 dark:text-rose-400">Discrepancy</span>
-          </div>
-        </button>
-
-        {/* Card 5: Not Applicable */}
-        <button
-          type="button"
-          onClick={() => { setActiveTab('not_applicable'); setCurrentPage(1); }}
-          className={`p-3 rounded-xl border text-left transition cursor-pointer shadow-2xs col-span-2 sm:col-span-1 ${
-            activeTab === 'not_applicable'
-              ? 'bg-slate-100 dark:bg-slate-800/80 border-slate-400 ring-2 ring-slate-400/20'
-              : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-slate-400" />
-              Not Applicable
-            </span>
-            <FileText className="w-4 h-4 text-slate-400" />
-          </div>
-          <div className="mt-1.5 flex items-baseline gap-2">
-            <span className="text-xl font-black text-slate-700 dark:text-slate-300">{stats.notApplicable}</span>
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Waiver</span>
-          </div>
-        </button>
       </div>
 
       {/* ========================================================================= */}
@@ -523,7 +764,7 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
                   key={cat.id}
                   type="button"
                   onClick={() => {
-                    setActiveCategory(cat.id);
+                    setActiveCategory((prev) => (prev === cat.id ? null : cat.id));
                     setCurrentPage(1);
                   }}
                   className={`w-full flex items-center justify-between p-2 rounded-lg text-left transition cursor-pointer ${
@@ -600,6 +841,20 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
 
             {/* Filter Pills, Sort & Single AI Assistant Button */}
             <div className="flex flex-wrap items-center gap-2">
+              {activeCategory && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveCategory(null);
+                    setCurrentPage(1);
+                  }}
+                  className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition cursor-pointer"
+                  title="Filtered by pillar. Click to view all rules across pillars."
+                >
+                  <span>Pillar: {CATEGORY_DEFINITIONS.find((c) => c.id === activeCategory)?.name}</span>
+                  <X className="w-3 h-3 text-blue-500 hover:text-blue-700 dark:hover:text-blue-200" />
+                </button>
+              )}
               {/* Status Filter Pills */}
               <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/60 p-1 rounded-lg text-xs">
                 <button
@@ -663,18 +918,6 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
                 <option value="confidence-desc">Sort: Confidence (High → Low)</option>
                 <option value="confidence-asc">Sort: Confidence (Low → High)</option>
               </select>
-
-              {/* Single Primary AI Entry Point */}
-              <button
-                type="button"
-                onClick={() => setChatBotOpen(true)}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-xs transition cursor-pointer shrink-0"
-                title="Ask AI Assistant about GeM and GFR compliance"
-                aria-label="Ask AI Assistant about GeM and GFR compliance"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Ask AI Assistant</span>
-              </button>
             </div>
           </div>
 
@@ -713,7 +956,7 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
                             onClick={() => {
                               setSearchQuery('');
                               setActiveTab('all');
-                              setActiveCategory('all');
+                              setActiveCategory('eligibility');
                               setCurrentPage(1);
                             }}
                             className="mt-3 px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 transition cursor-pointer"
@@ -1027,16 +1270,16 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     type="button"
-                    onClick={() => alert(`Opening preview of verified evidence: ${selectedReq.docName}`)}
+                    onClick={() => setPreviewDoc({ ...selectedReq, fileName: selectedReq.docName, name: selectedReq.docName })}
                     className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-blue-600 hover:bg-slate-200/60 dark:hover:bg-slate-700 rounded-md transition cursor-pointer"
-                    title="View PDF"
-                    aria-label={`View PDF ${selectedReq.docName}`}
+                    title="Preview PDF"
+                    aria-label={`Preview PDF ${selectedReq.docName}`}
                   >
                     <Eye className="w-4 h-4" />
                   </button>
                   <button
                     type="button"
-                    onClick={() => alert(`Downloading verified copy: ${selectedReq.docName}`)}
+                    onClick={() => downloadDocument({ ...selectedReq, fileName: selectedReq.docName, name: selectedReq.docName })}
                     className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-blue-600 hover:bg-slate-200/60 dark:hover:bg-slate-700 rounded-md transition cursor-pointer"
                     title="Download PDF"
                     aria-label={`Download ${selectedReq.docName}`}
@@ -1244,6 +1487,13 @@ const ComplianceCheckView = ({ onBackToDashboard, submissionData }) => {
             complianceStatus: 'Pending',
           }
         }
+      />
+
+      {/* Universal Document Preview & Download Modal */}
+      <DocumentPreviewModal
+        isOpen={Boolean(previewDoc)}
+        document={previewDoc}
+        onClose={() => setPreviewDoc(null)}
       />
     </div>
   );

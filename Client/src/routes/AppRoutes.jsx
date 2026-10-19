@@ -17,8 +17,7 @@ const OfficerRoute = ({ children }) => {
   if (!isAuthenticated) {
     return <Navigate to="/login?redirect=/dashboard" replace />;
   }
-  const role = (user?.role || '').toUpperCase();
-  if (role !== 'OFFICER' && !isOfficerUser(user)) {
+  if (!isOfficerUser(user)) {
     return <Navigate to="/bidder-dashboard" replace />;
   }
   return children;
@@ -31,8 +30,7 @@ const BidderRoute = ({ children }) => {
   if (!isAuthenticated) {
     return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   }
-  const role = (user?.role || '').toUpperCase();
-  if (role === 'OFFICER' || isOfficerUser(user)) {
+  if (isOfficerUser(user)) {
     return <Navigate to="/dashboard" replace />;
   }
   return children;
@@ -42,8 +40,7 @@ const BidderRoute = ({ children }) => {
 const PublicAuthRoute = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
   if (isAuthenticated && user) {
-    const role = (user.role || '').toUpperCase();
-    if (role === 'OFFICER' || isOfficerUser(user)) {
+    if (isOfficerUser(user)) {
       return <Navigate to="/dashboard" replace />;
     }
     return <Navigate to="/bidder-dashboard" replace />;
@@ -158,6 +155,14 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/officer/tenders"
+        element={
+          <OfficerRoute>
+            <Dashboard defaultTab="tenders" />
+          </OfficerRoute>
+        }
+      />
+      <Route
         path="/officer/upload-extract"
         element={
           <OfficerRoute>
@@ -186,6 +191,14 @@ const AppRoutes = () => {
         element={
           <OfficerRoute>
             <Dashboard />
+          </OfficerRoute>
+        }
+      />
+      <Route
+        path="/dashboard/tenders"
+        element={
+          <OfficerRoute>
+            <Dashboard defaultTab="tenders" />
           </OfficerRoute>
         }
       />

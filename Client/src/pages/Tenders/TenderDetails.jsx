@@ -13,9 +13,11 @@ import {
   Sparkles,
   Bot,
   AlertCircle,
+  Eye,
 } from 'lucide-react';
-import { tenderService } from '../../services';
+import { tenderService, downloadDocument } from '../../services';
 import TenderChatbot from '../../components/tender/TenderChatbot';
+import DocumentPreviewModal from '../../components/common/DocumentPreviewModal';
 import { normalizeTenderId } from '../../utils/tenderIdUtils';
 
 const TenderDetails = () => {
@@ -25,6 +27,7 @@ const TenderDetails = () => {
   const [tender, setTender] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeMobileTab, setActiveMobileTab] = useState('details'); // 'details' | 'ai-chat'
+  const [previewDoc, setPreviewDoc] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -322,14 +325,24 @@ const TenderDetails = () => {
                       Tender Doc
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => alert(`Downloading verified document: ${doc.name}`)}
-                    className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer shrink-0"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download</span>
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewDoc({ ...doc, fileName: doc.name, sourceType: 'TENDER' })}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Preview</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => downloadDocument(doc, tender)}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 dark:text-slate-400 hover:underline cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -373,6 +386,14 @@ const TenderDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* Universal Document Preview & Download Modal */}
+      <DocumentPreviewModal
+        isOpen={Boolean(previewDoc)}
+        document={previewDoc}
+        tenderContext={tender}
+        onClose={() => setPreviewDoc(null)}
+      />
     </div>
   );
 };
