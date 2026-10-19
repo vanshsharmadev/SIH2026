@@ -76,7 +76,17 @@ public class DatabaseSchemaInitializer implements CommandLineRunner {
     }
 
     private void seedOfficers() {
-        // 1. Primary Officer (from API spec and documentation)
+        // 1. Primary Officer (from README testing credentials)
+        seedOfficer(
+                "Vansh Sharma",
+                "vanshsharma0963@gmail.com",
+                "Vansh@123",
+                "9876543299",
+                1,
+                "GeM Procurement Division"
+        );
+
+        // 2. Primary Officer (from API spec and documentation)
         seedOfficer(
                 "Arnav Tyagi",
                 "arnavtyagi96@gmail.com",
@@ -86,7 +96,7 @@ public class DatabaseSchemaInitializer implements CommandLineRunner {
                 "Public Works Department"
         );
 
-        // 2. Standard Demo Officer
+        // 3. Standard Demo Officer
         seedOfficer(
                 "GeM Procurement Officer",
                 "officer@gem.gov.in",
@@ -118,7 +128,18 @@ public class DatabaseSchemaInitializer implements CommandLineRunner {
     }
 
     private void seedBidders() {
-        // 1. Primary Bidder (from API documentation)
+        // 1. Primary Bidder (from README testing credentials)
+        seedBidder(
+                "Rajat",
+                "Rajat Enterprises",
+                "Rajat Enterprises Ltd",
+                "rajatsre455@gmail.com",
+                "Rajat@123",
+                "9876543298",
+                "09RAJAT1234F1Z5"
+        );
+
+        // 2. Primary Bidder (from API documentation)
         seedBidder(
                 "Rahul Sharma",
                 "Rahul Sharma",
@@ -129,7 +150,7 @@ public class DatabaseSchemaInitializer implements CommandLineRunner {
                 "09ABCDE1234F1Z5"
         );
 
-        // 2. Secondary Bidder (from Client defaults & tests)
+        // 3. Secondary Bidder (from Client defaults & tests)
         seedBidder(
                 "Arnav Tyagi",
                 "Arnav Tyagi",
@@ -140,7 +161,7 @@ public class DatabaseSchemaInitializer implements CommandLineRunner {
                 "09ARNAV9012H3Z7"
         );
 
-        // 3. Standard Demo Bidder
+        // 4. Standard Demo Bidder
         seedBidder(
                 "ACME Vendor",
                 "ACME Technologies Enterprise",
@@ -178,6 +199,7 @@ public class DatabaseSchemaInitializer implements CommandLineRunner {
     }
 
     private void seedBidderVerifications() {
+        seedBidderVerification("Rajat Enterprises", "rajatsre455@gmail.com", "09RAJAT1234F1Z5");
         seedBidderVerification("Rahul Sharma", "arnavtyagibhai@gmail.com", "09ABCDE1234F1Z5");
         seedBidderVerification("Arnav Tyagi", "arnav24169006@gmail.com", "09ARNAV9012H3Z7");
         seedBidderVerification("ACME Technologies Enterprise", "bidder@acme.com", "27ABCDE1234F1Z5");
@@ -196,11 +218,13 @@ public class DatabaseSchemaInitializer implements CommandLineRunner {
 
     private void seedMockRecords() {
         // Mock GST Records
+        seedMockGst("09RAJAT1234F1Z5", "Rajat Enterprises", "RAJAT1234F", "09", "ACTIVE");
         seedMockGst("09ABCDE1234F1Z5", "Rahul Sharma", "ABCDE1234F", "09", "ACTIVE");
         seedMockGst("09ARNAV9012H3Z7", "Arnav Tyagi", "ARNAV9012H", "09", "ACTIVE");
         seedMockGst("27ABCDE1234F1Z5", "ACME Technologies Enterprise", "ABCDE1234F", "27", "ACTIVE");
 
         // Mock PAN Records
+        seedMockPan("RAJAT1234F", "Rajat Enterprises", "COMPANY");
         seedMockPan("ABCDE1234F", "Rahul Sharma", "INDIVIDUAL");
         seedMockPan("ARNAV9012H", "Arnav Tyagi", "INDIVIDUAL");
 

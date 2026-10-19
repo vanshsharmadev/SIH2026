@@ -30,8 +30,10 @@ public class DatabaseSeedRunnerTest {
     @Test
     public void testSeedDataExecuted() {
         schemaInitializer.run();
+        assertTrue(officerRepository.existsByEmail("vanshsharma0963@gmail.com"));
         assertTrue(officerRepository.existsByEmail("arnavtyagi96@gmail.com"));
         assertTrue(officerRepository.existsByEmail("officer@gem.gov.in"));
+        assertTrue(bidderRepository.existsByEmail("rajatsre455@gmail.com"));
         assertTrue(bidderRepository.existsByEmail("arnavtyagibhai@gmail.com"));
         assertTrue(bidderRepository.existsByEmail("arnav24169006@gmail.com"));
         assertTrue(bidderRepository.existsByEmail("bidder@acme.com"));
@@ -39,6 +41,15 @@ public class DatabaseSeedRunnerTest {
 
     @Test
     public void testOfficerLoginWithDummyCredentials() {
+        LoginResponse vanshResp = commonAuthService.login(LoginRequest.builder()
+                .email("vanshsharma0963@gmail.com")
+                .password("Vansh@123")
+                .build());
+
+        assertNotNull(vanshResp);
+        assertTrue(vanshResp.isSuccess());
+        assertEquals("OFFICER", vanshResp.getUser().getRole());
+
         LoginResponse officerResp = commonAuthService.login(LoginRequest.builder()
                 .email("arnavtyagi96@gmail.com")
                 .password("OfficerPass@2026")
@@ -61,6 +72,15 @@ public class DatabaseSeedRunnerTest {
 
     @Test
     public void testBidderLoginWithDummyCredentials() {
+        LoginResponse rajatResp = commonAuthService.login(LoginRequest.builder()
+                .email("rajatsre455@gmail.com")
+                .password("Rajat@123")
+                .build());
+
+        assertNotNull(rajatResp);
+        assertTrue(rajatResp.isSuccess());
+        assertEquals("BIDDER", rajatResp.getUser().getRole());
+
         LoginResponse bidderResp = commonAuthService.login(LoginRequest.builder()
                 .email("arnavtyagibhai@gmail.com")
                 .password("Password123")
