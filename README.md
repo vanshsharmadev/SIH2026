@@ -1,9 +1,9 @@
 # 🏛️ GeM CompliFlix — SIH 2026 Platform Technical Documentation
 > **Autonomous AI/ML Tender Compliance, Fraud Detection, Forensic Document Verification & RAG Intelligence System**
 > **Compliant with:** GFR 2017, GeM GTC v4.0, DPIIT Make in India, Rule 144(xi), and MSME Public Procurement Policy 2012.
-## **Testing Credientials**:
-> **Bidder:** <br/> username: rajatsre455@gmail.com password:Rajat@123 <br/>
-> **Officer:** <br/> username: vanshsharma0963@gmail.com password: Vansh@123
+## **Testing Credentials**:
+> **Bidder:** <br/> username: arnavtyagibhai@gmail.com password: Password123 <br/>
+> **Officer:** <br/> username: arnavtyagi96@gmail.com password: OfficerPass@2026
 ---
 
 ## 📑 Table of Contents
