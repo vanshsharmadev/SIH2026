@@ -1,9 +1,11 @@
 # 🏛️ GeM CompliFlix — SIH 2026 Platform Technical Documentation
 > **Autonomous AI/ML Tender Compliance, Fraud Detection, Forensic Document Verification & RAG Intelligence System**
 > **Compliant with:** GFR 2017, GeM GTC v4.0, DPIIT Make in India, Rule 144(xi), and MSME Public Procurement Policy 2012.
-## **Testing Credentials**:
-> **Bidder:** <br/> username: arnavtyagibhai@gmail.com password: Password123 <br/>
-> **Officer:** <br/> username: arnavtyagi96@gmail.com password: OfficerPass@2026
+## **Live Links & Testing Credentials**:
+> **Bidder Dashboard:** [https://gem-compliflix.vercel.app/bidder-dashboard](https://gem-compliflix.vercel.app/bidder-dashboard)  
+> **Bidder Credentials:** username: `arnavtyagibhai@gmail.com` | password: `Password123`  
+> **Officer Portal:** [https://gem-compliflix.vercel.app/dashboard](https://gem-compliflix.vercel.app/dashboard)  
+> **Officer Credentials:** username: `arnavtyagi96@gmail.com` | password: `OfficerPass@2026`  
 ---
 
 ## 📑 Table of Contents
@@ -929,7 +931,7 @@ Where:
 ## 12. Deployment, Infrastructure & Security
 
 ### 12.1 Infrastructure Topology
-- **Frontend SPA**: React 18 + Vite deployed on **Vercel**.
+- **Frontend SPA**: React 18 + Vite deployed on **Vercel** ([Live App](https://gem-compliflix.vercel.app) | [Bidder Dashboard](https://gem-compliflix.vercel.app/bidder-dashboard)).
 - **Core Backend**: Spring Boot 3.x Docker container deployed on **Render**.
 - **AI RAG Microservice**: Node.js + Express Docker container deployed on **Render**.
 - **ML Microservice**: Python FastAPI / scikit-learn container deployed on **Azure Cloud VPS**.
