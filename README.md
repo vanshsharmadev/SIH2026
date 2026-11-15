@@ -2,7 +2,7 @@
 > **Autonomous AI/ML Tender Compliance, Fraud Detection, Forensic Document Verification & RAG Intelligence System**
 > **Compliant with:** GFR 2017, GeM GTC v4.0, DPIIT Make in India, Rule 144(xi), and MSME Public Procurement Policy 2012.
 ## **Testing Credentials**:
-> **Bidder:** <br/> username: arnavtyagibhai@gmail.com password: Password123 <br/>
+> **Bidder:** <br/> username: arnavtyagibhai@gmail.com password: Password@123 <br/>
 > **Officer:** <br/> username: arnavtyagi96@gmail.com password: OfficerPass@2026
 ---
 
